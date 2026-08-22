@@ -288,7 +288,7 @@ export function createCisco(init = {}) {
   // ---------- show handlers ----------
   function doShow(t) {
     const a = t.map(x => x.toLowerCase());
-    const is = (i, ...opts) => opts.some(o => o.startsWith(a[i] || ' '));
+    const is = (i, ...opts) => opts.some(o => o.startsWith(a[i] || '\u0000'));
 
     if (!a.length) return [E('% Incomplete command.')];
 
@@ -695,7 +695,7 @@ export function createCisco(init = {}) {
     const no = 'no'.startsWith(a[0]) && a[0].length >= 2 && a[0] === 'no';
     const c = no ? a.slice(1) : a;
     const rawArgs = raw.trim().split(/\s+/).slice(no ? 1 : 0);
-    const w = (i, full) => full.startsWith(c[i] || ' ');
+    const w = (i, full) => full.startsWith(c[i] || '\u0000');
 
     if (!c.length) return [];
 
@@ -960,7 +960,7 @@ export function createCisco(init = {}) {
     const no = a[0] === 'no';
     const c = no ? a.slice(1) : a;
     const rawArgs = raw.trim().split(/\s+/).slice(no ? 1 : 0);
-    const w = (i, full) => full.startsWith(c[i] || ' ');
+    const w = (i, full) => full.startsWith(c[i] || '\u0000');
     const targets = st.ctx.list;
     const out = [];
 
@@ -1161,7 +1161,7 @@ export function createCisco(init = {}) {
     const c = no ? a.slice(1) : a;
     const rawArgs = raw.trim().split(/\s+/).slice(no ? 1 : 0);
     const l = st.lines[st.ctx.line];
-    const w = (i, full) => full.startsWith(c[i] || ' ');
+    const w = (i, full) => full.startsWith(c[i] || '\u0000');
     if (!c.length) return [];
     if (w(0, 'password')) { l.password = no ? null : rawArgs[1]; return []; }
     if (w(0, 'login')) { l.login = !no; l.loginLocal = c[1] === 'local'; return []; }
@@ -1313,7 +1313,7 @@ export function createCisco(init = {}) {
     const t = words(line);
     if (!t.length) return [];
     const a = t.map(x => x.toLowerCase());
-    const w = (i, full) => full.startsWith(a[i] || ' ');
+    const w = (i, full) => full.startsWith(a[i] || '\u0000');
 
     if (a[0] === '?') return helpFor();
 
@@ -1343,7 +1343,7 @@ export function createCisco(init = {}) {
     }
 
     if (w(0, 'show') || (viaDo && w(0, 'sh'))) {
-      if (st.mode === 'user' && !['version', 'clock'].some(x => x.startsWith(a[1] || ' '))) {
+      if (st.mode === 'user' && !['version', 'clock'].some(x => x.startsWith(a[1] || '\u0000'))) {
         return [E('% Invalid input detected — ต้อง enable เข้าสู่ privileged mode ก่อน')];
       }
       return doShow(t.slice(1));
