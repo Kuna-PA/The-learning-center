@@ -1,0 +1,16 @@
+{
+  "name": "learning-center",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "IT / SysEng Learning Center — เว็บเรียนรู้พร้อม Lab จำลองอุปกรณ์จริง",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {}
+}

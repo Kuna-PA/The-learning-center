@@ -115,12 +115,14 @@ function certCode(trackId) {
 
 // ================= LOGIN =================
 let loginMode = 'login';
+let serverUsers = null;      // จำนวนบัญชีในระบบ — ใช้ตัดสินว่าจะโชว์คำแนะนำครั้งแรกไหม
+let serverUp = true;
 
 function renderLogin(err = '') {
   $('#app').hidden = true;
   const lw = $('#login-wrap');
   lw.hidden = false;
-  const hasUsers = Object.keys(auth.users).length;
+  const hasUsers = serverUsers;
   lw.innerHTML = `
     <div class="login-card">
       <div class="brand">
@@ -147,41 +149,44 @@ function renderLogin(err = '') {
           ${loginMode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครและเข้าใช้งาน'}</button>
       </form>
       ${loginMode === 'login' && hasUsers === 1 ? `<div class="hint-box">
-        <b>ครั้งแรกใช้งาน?</b> ล็อกอินด้วยบัญชีผู้ดูแล<br>
-        ผู้ใช้ <code>admin</code> · รหัสผ่าน <code>admin123</code><br>
+        <b>ครั้งแรกใช้งาน?</b> ล็อกอินด้วยบัญชีผู้ดูแลที่เซิร์ฟเวอร์สร้างให้<br>
+        ผู้ใช้ <code>admin</code> · รหัสผ่านตามที่ขึ้นใน console ตอนเปิดเซิร์ฟเวอร์<br>
         แล้วเปลี่ยนรหัสผ่านทันทีที่หน้า "บัญชีของฉัน"</div>` : ''}
+      ${serverUp ? '' : `<div class="hint-box" style="border-style:solid;border-color:var(--bad)">
+        ⚠️ ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจว่ารันด้วย <code>npm start</code> อยู่หรือเปล่า</div>`}
       <div class="hint-box" style="border-style:solid">
-        ⚠️ ระบบผู้ใช้นี้ทำงานในเบราว์เซอร์เท่านั้น ใช้เพื่อ<b>แยกความคืบหน้ารายคน</b>
-        ไม่ใช่ระบบความปลอดภัยจริง — <b>อย่าใช้รหัสผ่านเดียวกับระบบงานจริง</b>
-      </div>
+        🔒 บัญชีและความคืบหน้าเก็บที่เซิร์ฟเวอร์ — รหัสผ่านถูกแฮชด้วย scrypt
+        และเซสชันเป็นคุกกี้แบบ httpOnly เข้าเรียนจากเครื่องไหนก็ต่อจากที่ค้างไว้ได้</div>
     </div>`;
 
   lw.querySelectorAll('[data-m]').forEach(b =>
     b.addEventListener('click', () => { loginMode = b.dataset.m; renderLogin(); }));
 
-  $('#login-form').addEventListener('submit', e => {
+  $('#login-form').addEventListener('submit', async e => {
     e.preventDefault();
     const u = $('#f-user').value.trim().toLowerCase();
     const p = $('#f-pass').value;
+    const btn = $('#login-form button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'กำลังติดต่อเซิร์ฟเวอร์...'; }
     if (loginMode === 'login') {
-      const r = auth.login(u, p);
+      const r = await auth.login(u, p);
       if (!r.ok) return renderLogin(r.msg);
-      startSession();
+      await startSession();
     } else {
       if (p !== $('#f-pass2').value) return renderLogin('รหัสผ่านทั้งสองช่องไม่ตรงกัน');
-      const r = auth.register(u, p, $('#f-display').value.trim(), 'user');
+      const r = await auth.register(u, p, $('#f-display').value.trim(), 'user');
       if (!r.ok) return renderLogin(r.msg);
-      auth.login(u, p);
-      startSession();
+      await startSession();
     }
   });
   $('#f-user').focus();
 }
 
-function startSession() {
+async function startSession() {
   $('#login-wrap').hidden = true;
   $('#app').hidden = false;
-  setStoreUser(auth.username);
+  await setStoreUser(auth.username);
+  if (auth.isAdmin) await auth.loadUsers();
   if (!location.hash || location.hash === '#/') location.hash = '#/';
   route();
   if (auth.current.mustChange) {
@@ -1235,13 +1240,13 @@ function vAccount() {
       </div>
     </div>`;
 
-  $('#a-save').addEventListener('click', () => {
-    auth.setDisplay(u.username, $('#a-display').value.trim());
+  $('#a-save').addEventListener('click', async () => {
+    await auth.setDisplay(u.username, $('#a-display').value.trim());
     refreshChrome(); toast('บันทึกชื่อแล้ว', 'ok');
   });
-  $('#p-save').addEventListener('click', () => {
+  $('#p-save').addEventListener('click', async () => {
     if ($('#p-new').value !== $('#p-new2').value) return toast('รหัสผ่านใหม่ไม่ตรงกัน', 'bad');
-    const r = auth.changePassword(u.username, $('#p-new').value, $('#p-old').value);
+    const r = await auth.changePassword(u.username, $('#p-new').value, $('#p-old').value);
     if (!r.ok) return toast(r.msg, 'bad');
     toast('เปลี่ยนรหัสผ่านเรียบร้อย', 'ok');
     vAccount();
@@ -1255,7 +1260,7 @@ function vAdmin() {
   const users = Object.values(auth.users);
 
   const summary = un => {
-    const p = progressOf(un);
+    const p = (auth.users[un] || {}).progress;
     if (!p) return { xp: 0, quiz: 0, labs: 0, certs: 0 };
     const quiz = Object.values(p.quiz || {}).filter(q => q.passed).length;
     const labs = Object.values(p.labs || {}).filter(l => l.done).length;
@@ -1316,36 +1321,37 @@ function vAdmin() {
       — เหมาะกับการแยกความคืบหน้าของผู้เรียนหลายคนบนเครื่องเดียวกัน ไม่ใช่ระบบยืนยันตัวตนจริง
     </div>`;
 
-  $('#n-add').addEventListener('click', () => {
-    const r = auth.register($('#n-user').value, $('#n-pass').value, $('#n-display').value.trim(), $('#n-role').value);
+  $('#n-add').addEventListener('click', async () => {
+    const r = await auth.register($('#n-user').value, $('#n-pass').value, $('#n-display').value.trim(), $('#n-role').value);
     if (!r.ok) return toast(r.msg, 'bad');
     toast('เพิ่มผู้ใช้แล้ว', 'ok'); vAdmin();
   });
 
-  view().querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+  view().querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', async () => {
     const un = b.dataset.u, act = b.dataset.act;
     if (act === 'role') {
       const cur = auth.users[un].role;
-      const r = auth.setRole(un, cur === 'admin' ? 'user' : 'admin');
+      const r = await auth.setRole(un, cur === 'admin' ? 'user' : 'admin');
       if (!r.ok) return toast(r.msg, 'bad');
       toast(`เปลี่ยนบทบาทของ ${un} แล้ว`, 'ok');
     }
     if (act === 'pass') {
       const np = prompt(`ตั้งรหัสผ่านใหม่ให้ ${un} (อย่างน้อย 6 ตัว)`);
       if (!np) return;
-      const r = auth.changePassword(un, np);
+      const r = await auth.changePassword(un, np);
       if (!r.ok) return toast(r.msg, 'bad');
       toast('รีเซ็ตรหัสผ่านแล้ว', 'ok');
     }
     if (act === 'prog') {
       if (!confirm(`ล้างความคืบหน้าทั้งหมดของ ${un} ใช่หรือไม่?`)) return;
-      clearProgressOf(un);
-      if (un === auth.username) setStoreUser(un);
+      await clearProgressOf(un);
+      if (un === auth.username) await setStoreUser(un);
+      await auth.loadUsers();   // ตัวเลขในตารางต้องอัปเดตตามด้วย
       toast('ล้างความคืบหน้าแล้ว', 'ok');
     }
     if (act === 'del') {
       if (!confirm(`ลบผู้ใช้ ${un} และความคืบหน้าทั้งหมดใช่หรือไม่?`)) return;
-      const r = auth.remove(un);
+      const r = await auth.remove(un);
       if (!r.ok) return toast(r.msg, 'bad');
       toast('ลบผู้ใช้แล้ว', 'ok');
     }
@@ -1389,10 +1395,20 @@ function route() {
 window.addEventListener('hashchange', route);
 window.addEventListener('progress-changed', () => { if (auth.current) { renderSide(); topStats(); } });
 $('#menu-toggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
-$('#btn-logout').addEventListener('click', () => {
-  auth.logout(); setStoreUser(null); loginMode = 'login'; renderLogin();
+$('#btn-logout').addEventListener('click', async () => {
+  await auth.logout(); await setStoreUser(null); loginMode = 'login'; renderLogin();
 });
 
 // ---------------- BOOT ----------------
-if (auth.current) startSession();
-else renderLogin();
+// อ่านเซสชันจากเซิร์ฟเวอร์ก่อน แล้วค่อยตัดสินว่าจะเข้าหน้าเรียนหรือหน้าล็อกอิน
+(async () => {
+  try {
+    const h = await (await fetch('/api/health', { credentials: 'same-origin' })).json();
+    serverUsers = h.users;
+    serverUp = true;
+  } catch { serverUp = false; }
+
+  await auth.bootstrap();
+  if (auth.current) await startSession();
+  else renderLogin();
+})();

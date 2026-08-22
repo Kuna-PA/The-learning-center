@@ -1,10 +1,21 @@
-// static server แบบไม่มี dependency — รันด้วย: node server.js
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+// ============================================================
+//  IT / SysEng Learning Center — เซิร์ฟเวอร์
+//  เสิร์ฟไฟล์หน้าเว็บ + REST API สำหรับบัญชีผู้ใช้และความคืบหน้า
+//  ใช้เฉพาะของที่ติดมากับ Node เอง ไม่มี dependency ภายนอก
+//
+//  รันด้วย:  node server.js
+//  ตัวแปรที่ตั้งได้:  PORT (ค่าเริ่มต้น 5173) · LC_DATA_DIR · LC_ADMIN_PASSWORD
+// ============================================================
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import api from './server/api.js';
+import { ensureFirstAdmin } from './server/auth.js';
+import { sessions, DB_PATH } from './server/db.js';
 
-const PORT = process.env.PORT || 5173;
-const ROOT = __dirname;
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const PORT = Number(process.env.PORT) || 5173;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -19,25 +30,66 @@ const MIME = {
   '.woff2': 'font/woff2',
 };
 
-http.createServer((req, res) => {
-  let p = decodeURIComponent(req.url.split('?')[0]);
-  if (p === '/') p = '/index.html';
-  const file = path.join(ROOT, path.normalize(p).replace(/^(\.\.[/\\])+/, ''));
+// ไฟล์ฐานข้อมูลและโค้ดฝั่งเซิร์ฟเวอร์ ห้ามเสิร์ฟออกไปเด็ดขาด
+const BLOCKED = [/^[/\\]?server([/\\]|\.js$)/i, /^[/\\]?data-db[/\\]/i, /\.db($|-)/i];
 
+function serveStatic(req, res, pathname) {
+  const p = pathname === '/' ? '/index.html' : pathname;
+  const rel = path.normalize(p).replace(/^(\.\.[/\\])+/, '');
+  if (BLOCKED.some((re) => re.test(rel))) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('403 Forbidden');
+  }
+  const file = path.join(ROOT, rel);
   if (!file.startsWith(ROOT)) {
-    res.writeHead(403); return res.end('Forbidden');
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('403 Forbidden');
   }
   fs.readFile(file, (err, data) => {
     if (err) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-      return res.end('404 Not Found: ' + p);
+      return res.end('404 Not Found: ' + pathname);
     }
     res.writeHead(200, {
       'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
       'Cache-Control': 'no-cache',
+      'X-Content-Type-Options': 'nosniff',
     });
     res.end(data);
   });
-}).listen(PORT, () => {
+}
+
+const server = http.createServer(async (req, res) => {
+  const pathname = decodeURIComponent((req.url || '/').split('?')[0]);
+
+  if (pathname === '/api' || pathname.startsWith('/api/')) {
+    try {
+      await api(req, res, pathname);
+    } catch (e) {
+      console.error('[api]', e);
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' }));
+      }
+    }
+    return;
+  }
+
+  serveStatic(req, res, pathname);
+});
+
+server.listen(PORT, () => {
+  const first = ensureFirstAdmin();
   console.log(`Learning Center พร้อมใช้งานที่  http://localhost:${PORT}`);
+  console.log(`ฐานข้อมูล: ${DB_PATH}`);
+  if (first) {
+    console.log('');
+    console.log('  สร้างบัญชีผู้ดูแลระบบให้แล้ว:');
+    console.log(`    ชื่อผู้ใช้ : ${first.username}`);
+    console.log(`    รหัสผ่าน  : ${first.password}`);
+    if (first.generated) console.log('    (ค่าเริ่มต้น — เข้าไปเปลี่ยนทันทีที่ล็อกอินครั้งแรก)');
+    console.log('');
+  }
+  sessions.purge();
+  setInterval(() => sessions.purge(), 6 * 3600 * 1000).unref?.();
 });

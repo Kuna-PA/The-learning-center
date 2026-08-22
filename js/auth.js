@@ -1,128 +1,117 @@
 // ============================================================
 //  ระบบผู้ใช้และสิทธิ์ (admin / user)
-//  หมายเหตุสำคัญ: ทำงานฝั่งเบราว์เซอร์ล้วน ใช้สำหรับ "แยกความคืบหน้ารายคน
-//  และแยกเมนูตามบทบาท" เท่านั้น ไม่ใช่ระบบความปลอดภัยจริง
-//  ห้ามใช้รหัสผ่านเดียวกับระบบงานจริง
+//  ตัวจริงอยู่ฝั่งเซิร์ฟเวอร์: รหัสผ่านเก็บเป็น scrypt hash และเซสชันเป็น
+//  cookie แบบ httpOnly — ไฟล์นี้เป็นแค่ตัวเรียก API + แคชผู้ใช้ปัจจุบัน
+//
+//  getter อย่าง auth.current / auth.isAdmin ยังเรียกแบบ synchronous ได้
+//  เพราะอ่านจากแคชที่ bootstrap() เติมไว้ตอนเปิดหน้า
 // ============================================================
-const KEY = 'sysengLC.auth.v1';
+import { api, ApiError } from './api.js';
 
-// hash แบบเบา (djb2 + salt) — กันการเห็นรหัสตรง ๆ ใน localStorage เท่านั้น
-function hash(pw, salt) {
-  let h = 5381;
-  const s = salt + '|' + pw;
-  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
-  let h2 = 52711;
-  for (let i = s.length - 1; i >= 0; i--) h2 = ((h2 * 31) ^ s.charCodeAt(i)) >>> 0;
-  return (h.toString(36) + h2.toString(36)).padStart(14, '0');
-}
-const newSalt = () => Math.random().toString(36).slice(2, 10);
+let cache = { user: null, users: {} };
 
-function blank() {
-  const salt = newSalt();
-  return {
-    version: 1,
-    users: {
-      admin: {
-        username: 'admin', display: 'ผู้ดูแลระบบ', role: 'admin',
-        salt, pass: hash('admin123', salt),
-        mustChange: true, createdAt: Date.now(), lastLogin: null,
-      },
-    },
-    session: null,
-  };
-}
-
-let data = load();
-
-function load() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return blank();
-    const d = JSON.parse(raw);
-    if (!d.users || !d.users.admin) return blank();
-    return d;
-  } catch { return blank(); }
-}
-function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { }
-}
+const fail = (e) => ({ ok: false, msg: e instanceof ApiError ? e.message : 'ติดต่อเซิร์ฟเวอร์ไม่ได้' });
 
 export const auth = {
-  get users() { return data.users; },
-  get current() { return data.session ? data.users[data.session] : null; },
-  get isAdmin() { const u = this.current; return !!u && u.role === 'admin'; },
-  get username() { return data.session; },
+  get current() { return cache.user; },
+  get username() { return cache.user ? cache.user.username : null; },
+  get isAdmin() { return !!cache.user && cache.user.role === 'admin'; },
+  get users() { return cache.users; },
 
-  login(username, password) {
-    const u = data.users[String(username || '').trim().toLowerCase()];
-    if (!u) return { ok: false, msg: 'ไม่พบผู้ใช้นี้' };
-    if (u.disabled) return { ok: false, msg: 'บัญชีนี้ถูกระงับการใช้งาน' };
-    if (hash(password, u.salt) !== u.pass) return { ok: false, msg: 'รหัสผ่านไม่ถูกต้อง' };
-    u.lastLogin = Date.now();
-    data.session = u.username;
-    save();
-    return { ok: true, user: u };
+  /** อ่านเซสชันปัจจุบันจากเซิร์ฟเวอร์ — เรียกครั้งเดียวตอนเปิดหน้า */
+  async bootstrap() {
+    try {
+      const r = await api.get('/api/auth/me');
+      cache.user = r.user || null;
+    } catch { cache.user = null; }
+    return cache.user;
   },
 
-  logout() { data.session = null; save(); },
-
-  register(username, password, display, role = 'user') {
-    const uname = String(username || '').trim().toLowerCase();
-    if (!/^[a-z0-9._-]{3,20}$/.test(uname)) return { ok: false, msg: 'ชื่อผู้ใช้ต้องเป็น a-z 0-9 . _ - ยาว 3–20 ตัว' };
-    if (data.users[uname]) return { ok: false, msg: 'มีชื่อผู้ใช้นี้อยู่แล้ว' };
-    if (String(password || '').length < 6) return { ok: false, msg: 'รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร' };
-    const salt = newSalt();
-    data.users[uname] = {
-      username: uname, display: display || uname, role,
-      salt, pass: hash(password, salt),
-      mustChange: false, createdAt: Date.now(), lastLogin: null,
-    };
-    save();
-    return { ok: true };
+  async login(username, password) {
+    try {
+      const r = await api.post('/api/auth/login', { username, password });
+      cache.user = r.user;
+      return { ok: true, user: r.user };
+    } catch (e) { return fail(e); }
   },
 
-  changePassword(username, newPass, oldPass = null) {
-    const u = data.users[username];
-    if (!u) return { ok: false, msg: 'ไม่พบผู้ใช้' };
-    if (oldPass !== null && hash(oldPass, u.salt) !== u.pass) return { ok: false, msg: 'รหัสผ่านเดิมไม่ถูกต้อง' };
-    if (String(newPass || '').length < 6) return { ok: false, msg: 'รหัสผ่านใหม่ต้องยาวอย่างน้อย 6 ตัวอักษร' };
-    u.salt = newSalt();
-    u.pass = hash(newPass, u.salt);
-    u.mustChange = false;
-    save();
-    return { ok: true };
+  async register(username, password, display, role = 'user') {
+    try {
+      // ผู้ดูแลระบบสร้างบัญชีให้คนอื่น — ต้องไม่ไปเปลี่ยนเซสชันของตัวเอง
+      if (cache.user && cache.user.role === 'admin') {
+        const r = await api.post('/api/admin/users', { username, password, display, role });
+        await auth.loadUsers();
+        return { ok: true, user: r.user };
+      }
+      // ผู้ใช้สมัครเอง — สมัครเสร็จล็อกอินให้เลย
+      const r = await api.post('/api/auth/register', { username, password, display });
+      cache.user = r.user;
+      return { ok: true, user: r.user };
+    } catch (e) { return fail(e); }
   },
 
-  setRole(username, role) {
-    const u = data.users[username];
-    if (!u) return { ok: false, msg: 'ไม่พบผู้ใช้' };
-    if (username === 'admin' && role !== 'admin') return { ok: false, msg: 'ห้ามลดสิทธิ์บัญชี admin หลัก' };
-    u.role = role; save();
-    return { ok: true };
+  async logout() {
+    try { await api.post('/api/auth/logout'); } catch { /* ออกจากระบบฝั่งเราอยู่ดี */ }
+    cache = { user: null, users: {} };
   },
 
-  setDisabled(username, v) {
-    const u = data.users[username];
-    if (!u) return { ok: false, msg: 'ไม่พบผู้ใช้' };
-    if (username === 'admin') return { ok: false, msg: 'ห้ามระงับบัญชี admin หลัก' };
-    u.disabled = !!v; save();
-    return { ok: true };
+  async changePassword(username, newPass, oldPass = null) {
+    try {
+      if (cache.user && username === cache.user.username) {
+        await api.post('/api/auth/password', { newPass, oldPass });
+        cache.user = { ...cache.user, mustChange: false };
+      } else {
+        await api.patch(`/api/admin/user/${encodeURIComponent(username)}`, { password: newPass });
+        await auth.loadUsers();
+      }
+      return { ok: true };
+    } catch (e) { return fail(e); }
   },
 
-  remove(username) {
-    if (username === 'admin') return { ok: false, msg: 'ห้ามลบบัญชี admin หลัก' };
-    if (!data.users[username]) return { ok: false, msg: 'ไม่พบผู้ใช้' };
-    delete data.users[username];
-    try { localStorage.removeItem(`sysengLC.v1:${username}`); } catch { }
-    if (data.session === username) data.session = null;
-    save();
-    return { ok: true };
+  async setDisplay(username, display) {
+    try {
+      if (cache.user && username === cache.user.username) {
+        const r = await api.post('/api/auth/display', { display });
+        cache.user = { ...cache.user, display: r.display };
+      } else {
+        await api.patch(`/api/admin/user/${encodeURIComponent(username)}`, { display });
+        await auth.loadUsers();
+      }
+      return { ok: true };
+    } catch (e) { return fail(e); }
   },
 
-  setDisplay(username, display) {
-    const u = data.users[username];
-    if (!u) return { ok: false, msg: 'ไม่พบผู้ใช้' };
-    u.display = display || username; save();
-    return { ok: true };
+  async setRole(username, role) {
+    try {
+      await api.patch(`/api/admin/user/${encodeURIComponent(username)}`, { role });
+      await auth.loadUsers();
+      return { ok: true };
+    } catch (e) { return fail(e); }
+  },
+
+  async setDisabled(username, v) {
+    try {
+      await api.patch(`/api/admin/user/${encodeURIComponent(username)}`, { disabled: !!v });
+      await auth.loadUsers();
+      return { ok: true };
+    } catch (e) { return fail(e); }
+  },
+
+  async remove(username) {
+    try {
+      await api.del(`/api/admin/user/${encodeURIComponent(username)}`);
+      await auth.loadUsers();
+      return { ok: true };
+    } catch (e) { return fail(e); }
+  },
+
+  /** โหลดรายชื่อผู้ใช้ทั้งหมด (เฉพาะ admin) มาไว้ใน auth.users */
+  async loadUsers() {
+    if (!auth.isAdmin) { cache.users = {}; return cache.users; }
+    try {
+      const r = await api.get('/api/admin/users');
+      cache.users = Object.fromEntries(r.users.map((u) => [u.username, u]));
+    } catch { cache.users = {}; }
+    return cache.users;
   },
 };

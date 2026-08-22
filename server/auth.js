@@ -1,0 +1,134 @@
+// ============================================================
+//  การยืนยันตัวตนฝั่งเซิร์ฟเวอร์
+//  - รหัสผ่านเก็บเป็น scrypt hash พร้อม salt รายคน (ไม่เคยเก็บรหัสจริง)
+//  - เซสชันเป็น token สุ่มใน cookie แบบ httpOnly — สคริปต์ในหน้าเว็บอ่านไม่ได้
+// ============================================================
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { users, sessions, progress } from './db.js';
+
+const SESSION_TTL = 30 * 24 * 3600 * 1000;   // 30 วัน
+const COOKIE = 'lc_session';
+const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
+
+const hashPassword = (password, salt) =>
+  scryptSync(String(password), salt, SCRYPT.keylen, { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p }).toString('hex');
+
+/** เทียบแบบ constant-time เพื่อไม่ให้เดารหัสจากเวลาที่ใช้ตอบ */
+function samePassword(password, row) {
+  const got = Buffer.from(hashPassword(password, row.salt), 'hex');
+  const want = Buffer.from(row.hash, 'hex');
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+
+const newSalt = () => randomBytes(16).toString('hex');
+const newToken = () => randomBytes(32).toString('hex');
+
+export const USERNAME_RE = /^[a-z0-9._-]{3,20}$/;
+export const MIN_PASSWORD = 8;
+
+/** ครั้งแรกที่ยังไม่มีใครในระบบ สร้าง admin ให้ พร้อมบังคับเปลี่ยนรหัส */
+export function ensureFirstAdmin() {
+  if (users.count() > 0) return null;
+  const password = process.env.LC_ADMIN_PASSWORD || 'admin1234';
+  const salt = newSalt();
+  users.create({
+    username: 'admin', display: 'ผู้ดูแลระบบ', role: 'admin',
+    salt, hash: hashPassword(password, salt), mustChange: 1,
+  });
+  return { username: 'admin', password, generated: !process.env.LC_ADMIN_PASSWORD };
+}
+
+export function register({ username, password, display, role = 'user' }) {
+  const uname = String(username || '').trim().toLowerCase();
+  if (!USERNAME_RE.test(uname)) return { ok: false, msg: 'ชื่อผู้ใช้ต้องเป็น a-z 0-9 . _ - ยาว 3–20 ตัว' };
+  if (users.get(uname)) return { ok: false, msg: 'มีชื่อผู้ใช้นี้อยู่แล้ว' };
+  if (String(password || '').length < MIN_PASSWORD) return { ok: false, msg: `รหัสผ่านต้องยาวอย่างน้อย ${MIN_PASSWORD} ตัวอักษร` };
+  const salt = newSalt();
+  users.create({ username: uname, display: display || uname, role, salt, hash: hashPassword(password, salt) });
+  return { ok: true, user: publicUser(users.get(uname)) };
+}
+
+/** จำกัดการเดารหัสแบบหว่าน — นับรายชื่อผู้ใช้ ไม่ใช่ราย IP เพื่อไม่ให้ NAT ทั้งออฟฟิศโดนล็อกพร้อมกัน */
+const failures = new Map();
+const LOCK_AFTER = 8;
+const LOCK_MS = 5 * 60 * 1000;
+
+export function login({ username, password }) {
+  const uname = String(username || '').trim().toLowerCase();
+  const f = failures.get(uname);
+  if (f && f.count >= LOCK_AFTER && Date.now() - f.at < LOCK_MS) {
+    const wait = Math.ceil((LOCK_MS - (Date.now() - f.at)) / 1000);
+    return { ok: false, msg: `ใส่รหัสผิดหลายครั้งเกินไป ลองใหม่ใน ${wait} วินาที` };
+  }
+
+  const row = users.get(uname);
+  // ตอบข้อความเดียวกันทั้งกรณีไม่มีผู้ใช้และรหัสผิด เพื่อไม่ให้ใช้เดาว่ามีชื่อนี้ในระบบไหม
+  if (!row || !samePassword(password, row)) {
+    const cur = failures.get(uname) || { count: 0 };
+    failures.set(uname, { count: cur.count + 1, at: Date.now() });
+    return { ok: false, msg: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
+  }
+  if (row.disabled) return { ok: false, msg: 'บัญชีนี้ถูกระงับการใช้งาน' };
+
+  failures.delete(uname);
+  users.touchLogin(uname);
+  const token = newToken();
+  sessions.create(token, uname, SESSION_TTL);
+  return { ok: true, token, ttl: SESSION_TTL, user: publicUser(users.get(uname)) };
+}
+
+export function changePassword({ username, newPass, oldPass = null }) {
+  const row = users.get(username);
+  if (!row) return { ok: false, msg: 'ไม่พบผู้ใช้' };
+  if (oldPass !== null && !samePassword(oldPass, row)) return { ok: false, msg: 'รหัสผ่านเดิมไม่ถูกต้อง' };
+  if (String(newPass || '').length < MIN_PASSWORD) return { ok: false, msg: `รหัสผ่านใหม่ต้องยาวอย่างน้อย ${MIN_PASSWORD} ตัวอักษร` };
+  const salt = newSalt();
+  users.setPassword(username, salt, hashPassword(newPass, salt), 0);
+  return { ok: true };
+}
+
+export function removeUser(username) {
+  if (username === 'admin') return { ok: false, msg: 'ห้ามลบบัญชี admin หลัก' };
+  if (!users.get(username)) return { ok: false, msg: 'ไม่พบผู้ใช้' };
+  sessions.destroyUser(username);
+  progress.clear(username);
+  users.remove(username);
+  return { ok: true };
+}
+
+export const publicUser = (row) => (row ? {
+  username: row.username,
+  display: row.display,
+  role: row.role,
+  disabled: !!row.disabled,
+  mustChange: !!row.must_change,
+  createdAt: row.created_at,
+  lastLogin: row.last_login,
+} : null);
+
+// ---------- cookie ----------
+export function readCookie(req, name = COOKIE) {
+  const raw = req.headers.cookie || '';
+  for (const part of raw.split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return null;
+}
+
+export const sessionCookie = (token, ttl) =>
+  `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(ttl / 1000)}`;
+export const clearCookie = () => `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+
+/** ผู้ใช้ของ request นี้ (หรือ null) */
+export function currentUser(req) {
+  const row = sessions.get(readCookie(req));
+  if (!row) return null;
+  if (row.disabled) return null;
+  return {
+    username: row.username, display: row.display, role: row.role,
+    mustChange: !!row.must_change, token: row.token,
+  };
+}
+
+export { SESSION_TTL, COOKIE };

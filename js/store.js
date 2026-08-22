@@ -1,17 +1,18 @@
-// ---------- ความคืบหน้าของผู้เรียน (เก็บใน localStorage) ----------
+// ============================================================
+//  ความคืบหน้าของผู้เรียน
+//  แหล่งความจริงอยู่ที่เซิร์ฟเวอร์ (ตาราง progress) — เรียนจากเครื่องไหนก็ต่อได้
+//  localStorage เหลือหน้าที่เป็นแคชสำรอง เผื่อเน็ตหลุดระหว่างทำ Lab
+//
+//  ตัวอ่านทั้งหมดยัง synchronous เหมือนเดิม (store.xp, store.labOf ...)
+//  ส่วนการเขียนจะทยอยส่งขึ้นเซิร์ฟเวอร์แบบหน่วงรวบ ไม่ยิงทุกคีย์
+// ============================================================
+import { api } from './api.js';
+
 const BASE = 'sysengLC.v1';
-let KEY = BASE;               // ถูกเปลี่ยนเป็น per-user เมื่อล็อกอิน
-export function setStoreUser(username) {
-  KEY = username ? BASE + ':' + username : BASE;
-  data = load();
-  window.dispatchEvent(new CustomEvent('progress-changed'));
-}
-export function progressOf(username) {
-  try { return JSON.parse(localStorage.getItem(BASE + ':' + username) || 'null'); } catch { return null; }
-}
-export function clearProgressOf(username) {
-  try { localStorage.removeItem(BASE + ':' + username); } catch {}
-}
+let KEY = BASE;              // แคชในเครื่อง แยกตามผู้ใช้
+let username = null;
+let syncTimer = null;
+let lastError = null;
 
 const blank = () => ({
   version: 1,
@@ -23,25 +24,96 @@ const blank = () => ({
   createdAt: Date.now(),
 });
 
-let data = load();
+let data = blank();
 
-function load() {
+// ---------- แคชในเครื่อง ----------
+function readCache() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return blank();
-    const d = JSON.parse(raw);
-    return { ...blank(), ...d };
-  } catch { return blank(); }
+    return raw ? { ...blank(), ...JSON.parse(raw) } : null;
+  } catch { return null; }
+}
+function writeCache() {
+  try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* โควตาเต็มก็ช่างมัน */ }
+}
+
+// ---------- ส่งขึ้นเซิร์ฟเวอร์ ----------
+function scheduleSync() {
+  if (!username) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(flush, 800);
+}
+
+export async function flush() {
+  if (!username) return { ok: false };
+  clearTimeout(syncTimer);
+  try {
+    await api.put('/api/progress', { data });
+    lastError = null;
+    return { ok: true };
+  } catch (e) {
+    lastError = e.message;
+    return { ok: false, msg: e.message };
+  }
+}
+
+/** เผื่อผู้ใช้ปิดแท็บก่อนตัวหน่วงจะทำงาน */
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    if (!username || !syncTimer) return;
+    try {
+      navigator.sendBeacon?.('/api/progress',
+        new Blob([JSON.stringify({ data })], { type: 'application/json' }));
+    } catch { /* ไม่ได้ก็ไม่เป็นไร ยังมีแคชในเครื่อง */ }
+  });
+}
+
+/**
+ * เปลี่ยนผู้ใช้ปัจจุบันแล้วโหลดความคืบหน้าจากเซิร์ฟเวอร์
+ * ถ้าเซิร์ฟเวอร์ยังไม่มีข้อมูลแต่เครื่องนี้มีแคชเก่าอยู่ จะยกขึ้นไปให้ครั้งเดียว
+ */
+export async function setStoreUser(name) {
+  username = name || null;
+  KEY = name ? `${BASE}:${name}` : BASE;
+
+  if (!username) {
+    data = blank();
+    window.dispatchEvent(new CustomEvent('progress-changed'));
+    return data;
+  }
+
+  const cached = readCache();
+  let fromServer = null;
+  try {
+    const r = await api.get('/api/progress');
+    fromServer = r.data;
+  } catch { /* ออฟไลน์ — ใช้แคชไปก่อน */ }
+
+  if (fromServer) {
+    data = { ...blank(), ...fromServer };
+    writeCache();
+  } else if (cached) {
+    // ย้ายของเดิมที่เคยเก็บไว้ในเบราว์เซอร์ขึ้นเซิร์ฟเวอร์ให้อัตโนมัติ
+    data = cached;
+    await flush();
+  } else {
+    data = blank();
+  }
+
+  window.dispatchEvent(new CustomEvent('progress-changed'));
+  return data;
 }
 
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { }
+  writeCache();
+  scheduleSync();
   window.dispatchEvent(new CustomEvent('progress-changed'));
 }
 
 export const store = {
   get all() { return data; },
   get xp() { return data.xp; },
+  get syncError() { return lastError; },
 
   addXp(n) { data.xp += n; save(); },
 
@@ -94,6 +166,22 @@ export const store = {
     catch { return false; }
   },
 };
+
+// ---------- ใช้ในหน้าผู้ดูแลระบบ ----------
+export async function progressOf(user) {
+  try {
+    const r = await api.get(`/api/admin/progress/${encodeURIComponent(user)}`);
+    return r.data;
+  } catch { return null; }
+}
+
+export async function clearProgressOf(user) {
+  try {
+    await api.del(`/api/admin/progress/${encodeURIComponent(user)}`);
+    if (user === username) { data = blank(); writeCache(); window.dispatchEvent(new CustomEvent('progress-changed')); }
+    return true;
+  } catch { return false; }
+}
 
 // ---------- ระดับ / XP ----------
 // เกณฑ์ RANK — คิดจาก XP ทั้งเว็บที่หาได้จริง (~13,200)

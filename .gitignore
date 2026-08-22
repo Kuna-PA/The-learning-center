@@ -23,3 +23,9 @@ desktop.ini
 .env.*
 *.pem
 *.key
+
+# ฐานข้อมูลของเซิร์ฟเวอร์ — ข้อมูลผู้ใช้จริง ห้ามขึ้น repo
+data-db/
+*.db
+*.db-wal
+*.db-shm

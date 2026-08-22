@@ -3,8 +3,10 @@
   "configurations": [
     {
       "name": "learning-center",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["server.js"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "start"
+      ],
       "port": 5173
     }
   ]
