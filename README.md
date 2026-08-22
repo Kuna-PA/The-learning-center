@@ -317,6 +317,45 @@ fuzz พิมพ์ผิด/ถูก (81 lab · 759 task)
 
 ---
 
+## 🚀 Deploy
+
+แอปทำงานได้ **สองโหมด** และเลือกเองอัตโนมัติจากว่ามีเซิร์ฟเวอร์ตอบที่ `/api/health` หรือไม่
+
+| | โหมดเซิร์ฟเวอร์ | โหมดออฟไลน์ |
+|---|---|---|
+| เกิดเมื่อ | รัน `npm start` แล้วเปิดผ่านเซิร์ฟเวอร์นั้น | เปิดจาก static hosting (Vercel, Netlify, GitHub Pages) |
+| บัญชีผู้ใช้ | ฐานข้อมูล SQLite · scrypt · คุกกี้ httpOnly | localStorage ของเบราว์เซอร์เครื่องนั้น |
+| ความคืบหน้า | ตามตัวข้ามเครื่อง | อยู่กับเบราว์เซอร์เครื่องเดียว |
+| ผู้ดูแลเห็นผู้เรียน | ทุกคน | เฉพาะบัญชีในเครื่องนั้น |
+| เหมาะกับ | ใช้จริงในองค์กร / ห้องเรียน | ลองเล่น เรียนคนเดียว แจกลิงก์ให้ดู |
+
+### Vercel / static hosting
+
+Vercel รัน `http.createServer(...).listen()` แบบค้างพอร์ตไม่ได้ และ `node:sqlite` ต้องเขียนไฟล์ถาวร
+ซึ่ง serverless ไม่มีให้ — repo นี้จึงตั้งค่าให้ Vercel เสิร์ฟเป็น **static site อย่างเดียว**
+ผ่าน `vercel.json` และ `.vercelignore` (ตัด `server/`, `server.js` ออกไม่ให้ถูก build เป็นฟังก์ชัน)
+
+ผลคือเว็บใช้งานได้ครบทุก Lab ทุกบทเรียน แต่ทำงานใน**โหมดออฟไลน์** — หน้าเข้าสู่ระบบจะบอกไว้ชัดเจน
+
+> ถ้า deploy แล้วยังขึ้น error ให้เข้า Vercel → Project Settings → Build & Development Settings
+> แล้วตั้ง **Framework Preset = Other**, **Build Command = ว่าง**, **Output Directory = `.`**
+> เพราะค่าที่ตั้งไว้ในหน้า dashboard จะทับ `vercel.json`
+
+### ที่ที่รัน backend ได้จริง
+
+ต้องเป็นที่ที่รัน process ค้างไว้ได้และมีดิสก์ถาวร เช่น VM/VPS, Render, Railway, Fly.io หรือ Docker
+
+```bash
+git clone https://github.com/Kuna-PA/The-learning-center.git
+cd The-learning-center
+LC_ADMIN_PASSWORD='รหัสที่ต้องการ' PORT=8080 npm start
+```
+
+ให้ reverse proxy (nginx / Caddy) ครอบด้วย HTTPS แล้วชี้มาที่พอร์ตนั้น
+สำรองข้อมูลคือคัดลอกไฟล์ `data-db/learning-center.db` ไฟล์เดียว
+
+---
+
 ## 👤 ระบบผู้ใช้และสิทธิ์
 
 | บทบาท | ทำอะไรได้ |

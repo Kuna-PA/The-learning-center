@@ -7,6 +7,11 @@
 //  ส่วนการเขียนจะทยอยส่งขึ้นเซิร์ฟเวอร์แบบหน่วงรวบ ไม่ยิงทุกคีย์
 // ============================================================
 import { api } from './api.js';
+import { auth } from './auth.js';
+import { localAuth } from './local-mode.js';
+
+/** โหมดออฟไลน์ = ไม่มีเซิร์ฟเวอร์ให้ซิงก์ เก็บแค่ในเบราว์เซอร์ */
+const offline = () => auth.isLocal;
 
 const BASE = 'sysengLC.v1';
 let KEY = BASE;              // แคชในเครื่อง แยกตามผู้ใช้
@@ -46,6 +51,7 @@ function scheduleSync() {
 
 export async function flush() {
   if (!username) return { ok: false };
+  if (offline()) return { ok: true };      // แคชในเครื่องคือปลายทางอยู่แล้ว
   clearTimeout(syncTimer);
   try {
     await api.put('/api/progress', { data });
@@ -60,7 +66,7 @@ export async function flush() {
 /** เผื่อผู้ใช้ปิดแท็บก่อนตัวหน่วงจะทำงาน */
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
-    if (!username || !syncTimer) return;
+    if (!username || !syncTimer || offline()) return;
     try {
       navigator.sendBeacon?.('/api/progress',
         new Blob([JSON.stringify({ data })], { type: 'application/json' }));
@@ -83,11 +89,17 @@ export async function setStoreUser(name) {
   }
 
   const cached = readCache();
+  if (offline()) {
+    data = cached || blank();
+    window.dispatchEvent(new CustomEvent('progress-changed'));
+    return data;
+  }
+
   let fromServer = null;
   try {
     const r = await api.get('/api/progress');
     fromServer = r.data;
-  } catch { /* ออฟไลน์ — ใช้แคชไปก่อน */ }
+  } catch { /* เน็ตสะดุด — ใช้แคชไปก่อนแล้วค่อยซิงก์ */ }
 
   if (fromServer) {
     data = { ...blank(), ...fromServer };
@@ -169,6 +181,7 @@ export const store = {
 
 // ---------- ใช้ในหน้าผู้ดูแลระบบ ----------
 export async function progressOf(user) {
+  if (offline()) return localAuth.progressOf(user);
   try {
     const r = await api.get(`/api/admin/progress/${encodeURIComponent(user)}`);
     return r.data;
@@ -176,6 +189,11 @@ export async function progressOf(user) {
 }
 
 export async function clearProgressOf(user) {
+  if (offline()) {
+    localAuth.clearProgressOf(user);
+    if (user === username) { data = blank(); writeCache(); window.dispatchEvent(new CustomEvent('progress-changed')); }
+    return true;
+  }
   try {
     await api.del(`/api/admin/progress/${encodeURIComponent(user)}`);
     if (user === username) { data = blank(); writeCache(); window.dispatchEvent(new CustomEvent('progress-changed')); }

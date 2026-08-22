@@ -148,15 +148,22 @@ function renderLogin(err = '') {
         <button class="btn primary block" type="submit" style="margin-top:6px">
           ${loginMode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครและเข้าใช้งาน'}</button>
       </form>
-      ${loginMode === 'login' && hasUsers === 1 ? `<div class="hint-box">
+      ${loginMode === 'login' && serverUp && hasUsers === 1 ? `<div class="hint-box">
         <b>ครั้งแรกใช้งาน?</b> ล็อกอินด้วยบัญชีผู้ดูแลที่เซิร์ฟเวอร์สร้างให้<br>
         ผู้ใช้ <code>admin</code> · รหัสผ่านตามที่ขึ้นใน console ตอนเปิดเซิร์ฟเวอร์<br>
         แล้วเปลี่ยนรหัสผ่านทันทีที่หน้า "บัญชีของฉัน"</div>` : ''}
-      ${serverUp ? '' : `<div class="hint-box" style="border-style:solid;border-color:var(--bad)">
-        ⚠️ ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจว่ารันด้วย <code>npm start</code> อยู่หรือเปล่า</div>`}
-      <div class="hint-box" style="border-style:solid">
-        🔒 บัญชีและความคืบหน้าเก็บที่เซิร์ฟเวอร์ — รหัสผ่านถูกแฮชด้วย scrypt
-        และเซสชันเป็นคุกกี้แบบ httpOnly เข้าเรียนจากเครื่องไหนก็ต่อจากที่ค้างไว้ได้</div>
+      ${loginMode === 'login' && !serverUp && hasUsers === 0 ? `<div class="hint-box">
+        <b>ยังไม่มีบัญชีในเบราว์เซอร์นี้</b> — กด "สมัครบัญชี" เพื่อสร้างบัญชีแรก
+        (บัญชีแรกจะได้สิทธิ์ผู้ดูแลระบบอัตโนมัติ)</div>` : ''}
+      ${serverUp ? `<div class="hint-box" style="border-style:solid">
+        🔒 <b>โหมดเซิร์ฟเวอร์</b> — บัญชีและความคืบหน้าเก็บที่เซิร์ฟเวอร์
+        รหัสผ่านแฮชด้วย scrypt เซสชันเป็นคุกกี้ httpOnly เข้าเรียนจากเครื่องไหนก็ต่อจากที่ค้างไว้ได้</div>`
+      : `<div class="hint-box" style="border-style:solid;border-color:var(--warn)">
+        💾 <b>โหมดออฟไลน์</b> — หน้านี้เปิดจาก static hosting จึงไม่มีเซิร์ฟเวอร์ให้เก็บข้อมูล
+        บัญชีและความคืบหน้าจะอยู่ใน<b>เบราว์เซอร์เครื่องนี้เท่านั้น</b> ล้างข้อมูลเบราว์เซอร์แล้วหาย
+        และไม่ตามไปเครื่องอื่น<br>
+        อยากให้ความคืบหน้าตามตัวและผู้ดูแลเห็นของทุกคน ให้รันเซิร์ฟเวอร์เองด้วย
+        <code>npm start</code> แล้วเปิดผ่านเซิร์ฟเวอร์นั้น</div>`}
     </div>`;
 
   lw.querySelectorAll('[data-m]').forEach(b =>
@@ -1402,13 +1409,9 @@ $('#btn-logout').addEventListener('click', async () => {
 // ---------------- BOOT ----------------
 // อ่านเซสชันจากเซิร์ฟเวอร์ก่อน แล้วค่อยตัดสินว่าจะเข้าหน้าเรียนหรือหน้าล็อกอิน
 (async () => {
-  try {
-    const h = await (await fetch('/api/health', { credentials: 'same-origin' })).json();
-    serverUsers = h.users;
-    serverUp = true;
-  } catch { serverUp = false; }
-
-  await auth.bootstrap();
+  await auth.bootstrap();               // ตัดสินเองว่าเป็นโหมดเซิร์ฟเวอร์หรือออฟไลน์
+  serverUp = !auth.isLocal;
+  serverUsers = await auth.accountCount();
   if (auth.current) await startSession();
   else renderLogin();
 })();

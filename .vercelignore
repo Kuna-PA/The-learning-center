@@ -1,0 +1,7 @@
+# Vercel เสิร์ฟเป็น static site เท่านั้น — โค้ดฝั่งเซิร์ฟเวอร์ไม่ต้องขึ้นไป
+# (Vercel รัน http.createServer แบบค้างพอร์ตไม่ได้ และ node:sqlite ต้องเขียนไฟล์ถาวร
+#  ซึ่ง serverless ไม่มีให้ — ถ้าต้องการ backend ให้ deploy ที่อื่น ดู README หัวข้อ Deploy)
+server/
+server.js
+data-db/
+package.json
