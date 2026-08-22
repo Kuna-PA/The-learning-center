@@ -187,11 +187,12 @@ h2.sec::before{content:"";width:3px;height:15px;border-radius:2px;background:var
 
 code,.k{font-family:var(--mono);font-size:.87em;background:#0c1018;border:1px solid var(--line-soft);
   padding:1.5px 6px;border-radius:5px;color:#ffb3ba}
-pre.code{
+/* ใช้กับ pre ทุกตัว ไม่ใช่เฉพาะ .code — บล็อกโค้ดที่ไม่มี class จะได้ไม่ดันหน้าจอกว้างเกิน */
+pre,pre.code{
   font-family:var(--mono);font-size:12.4px;background:#080b11;border:1px solid var(--line);border-radius:9px;
-  padding:13px 15px;overflow-x:auto;line-height:1.75;margin:10px 0;color:#cfe0f5;
+  padding:13px 15px;overflow-x:auto;line-height:1.75;margin:10px 0;color:#cfe0f5;max-width:100%;
 }
-pre.code code{background:none;border:0;padding:0;color:inherit}
+pre code,pre.code code{background:none;border:0;padding:0;color:inherit;white-space:pre}
 
 /* ---------- ROOM HERO (หัวห้องแบบ THM) ---------- */
 .room-hero{
