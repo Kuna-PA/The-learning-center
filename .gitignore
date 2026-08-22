@@ -1,0 +1,25 @@
+# dependencies (โปรเจกต์นี้ไม่ใช้ แต่กันไว้เผื่ออนาคต)
+node_modules/
+
+# log และไฟล์ชั่วคราว
+*.log
+npm-debug.log*
+.cache/
+tmp/
+
+# ของเฉพาะเครื่อง
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# ความลับ — ห้ามขึ้น repo
+.env
+.env.*
+*.pem
+*.key

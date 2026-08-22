@@ -1,0 +1,8 @@
+# โปรเจกต์นี้ใช้ LF ทั้งหมด — บังคับไว้ให้ตรงกันทุกเครื่องไม่ว่าจะ Windows หรือ Linux
+* text=auto eol=lf
+
+# ไฟล์ไบนารีห้ามแตะ
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
