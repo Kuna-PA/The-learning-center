@@ -51,6 +51,46 @@ const SPEC = {
   'ip ipsec peer': { cols: ['name', 'address', 'exchange-mode'], required: ['name', 'address'], defaults: { 'exchange-mode': 'ike2' } },
   'ip ipsec identity': { cols: ['peer', 'auth-method', 'secret'], required: ['peer'], defaults: { 'auth-method': 'pre-shared-key' } },
   'ip ipsec policy': { cols: ['src-address', 'dst-address', 'tunnel', 'peer'], required: ['peer'] },
+
+  // --- เพิ่มสำหรับหลักสูตร MTCNA ---
+  'ip arp': { cols: ['address', 'mac-address', 'interface'], required: ['address', 'interface'] },
+  'interface wireless': {
+    cols: ['name', 'mode', 'band', 'frequency', 'ssid', 'security-profile'], required: ['name'],
+    defaults: { mode: 'ap-bridge', band: '2ghz-b/g/n', frequency: 'auto', ssid: 'MikroTik', 'security-profile': 'default' },
+    kind: 'wlan',
+  },
+  'interface wireless security-profiles': {
+    cols: ['name', 'mode', 'authentication-types', 'wpa2-pre-shared-key'], required: ['name'],
+    defaults: { mode: 'none', 'authentication-types': '' },
+  },
+  'interface wireless access-list': {
+    cols: ['interface', 'mac-address', 'authentication', 'forwarding'], required: ['mac-address'],
+    defaults: { authentication: 'yes', forwarding: 'yes' },
+  },
+  'interface wireless connect-list': { cols: ['interface', 'ssid', 'security-profile'], required: ['interface'] },
+  'interface wireless registration-table': {
+    cols: ['interface', 'mac-address', 'signal-strength', 'tx-rate', 'uptime'], readonly: true,
+  },
+  'queue type': {
+    cols: ['name', 'kind', 'pcq-rate', 'pcq-limit', 'pcq-classifier'], required: ['name', 'kind'],
+    defaults: { 'pcq-limit': '50' },
+  },
+  'ppp profile': { cols: ['name', 'local-address', 'remote-address', 'dns-server'], required: ['name'] },
+  'interface pppoe-client': {
+    cols: ['name', 'interface', 'user', 'service-name'], required: ['name', 'interface'],
+    defaults: { 'service-name': '' }, kind: 'pppoe',
+  },
+  'interface pppoe-server server': {
+    cols: ['service-name', 'interface', 'default-profile', 'authentication'], required: ['interface'],
+    defaults: { 'default-profile': 'default', authentication: 'pap,chap' },
+  },
+  'interface pptp-client': { cols: ['name', 'connect-to', 'user', 'profile'], required: ['name', 'connect-to'], kind: 'pptp' },
+  'interface sstp-client': { cols: ['name', 'connect-to', 'user', 'profile'], required: ['name', 'connect-to'], kind: 'sstp' },
+  'tool graphing interface': { cols: ['interface', 'allow-address'], required: ['interface'], defaults: { 'allow-address': '0.0.0.0/0' } },
+  'ppp active': { cols: ['name', 'service', 'caller-id', 'address', 'uptime'], readonly: true },
+  'system package': { cols: ['name', 'version', 'scheduled'], readonly: true },
+  'file': { cols: ['name', 'type', 'size'], readonly: true },
+  'log': { cols: ['time', 'topics', 'message'], readonly: true },
 };
 
 const SETTINGS = {
@@ -68,6 +108,13 @@ const SETTINGS = {
   'snmp': { enabled: 'no', 'trap-version': '2', contact: '', location: '' },
   'system note': { 'show-at-login': 'no', note: '' },
   'ip settings': { 'ip-forward': 'yes', 'send-redirects': 'no', 'accept-source-route': 'no' },
+  // --- เพิ่มสำหรับหลักสูตร MTCNA ---
+  'system routerboard': { routerboard: 'yes', 'current-firmware': '7.14.2', 'upgrade-firmware': '7.14.2' },
+  'system license': { 'software-id': 'LEARN-LAB', nlevel: '4', features: '' },
+  'system health': { voltage: '24.1V', temperature: '41C' },
+  'tool e-mail': { server: '', port: '25', from: '', user: '' },
+  'interface pptp-server server': { enabled: 'no', authentication: 'mschap2', 'default-profile': 'default' },
+  'interface wireless cap': { enabled: 'no', interfaces: '' },
 };
 
 // path ทั้งหมดที่ valid (รวม prefix)
@@ -77,8 +124,11 @@ const ALL_PATHS = new Set();
   for (let i = 1; i <= seg.length; i++) ALL_PATHS.add(seg.slice(0, i).join(' '));
 });
 ['system', 'tool', 'ip', 'interface', 'queue', 'routing', 'file', 'log', 'certificate', 'ppp', 'snmp',
-  'system resource', 'system health', 'system license', 'system package', 'interface ethernet switch port']
+  'system resource', 'system health', 'system license', 'system package', 'interface ethernet switch port',
+  'system backup', 'system package update']
   .forEach(p => ALL_PATHS.add(p));
+// หมายเหตุ: torch / traceroute / monitor-traffic / scan เป็น "คำสั่ง" ไม่ใช่เมนู
+// จึงต้องไม่อยู่ใน ALL_PATHS ไม่งั้นจะโดนกินเป็น path segment เหมือน /tool ping
 
 const ACTIONS = ['print', 'add', 'set', 'remove', 'enable', 'disable', 'export', 'find', 'get',
   'monitor', 'comment', 'move', 'edit', 'reset', 'ping', 'reboot', 'shutdown', 'identity'];
@@ -120,6 +170,35 @@ export function createMikrotik(init = {}) {
   ];
   st.tables['user'] = [{ _id: '*1', name: 'admin', group: 'full', disabled: false }];
 
+  // แพ็กเกจที่ติดมากับเครื่อง — ใช้สอนเรื่อง package types และการอัปเกรด
+  st.tables['system package'] = [
+    { _id: '*1', name: 'routeros', version: '7.14.2', scheduled: '' },
+    { _id: '*2', name: 'wireless', version: '7.14.2', scheduled: '' },
+    { _id: '*3', name: 'security', version: '7.14.2', scheduled: '' },
+    { _id: '*4', name: 'advanced-tools', version: '7.14.2', scheduled: '' },
+    { _id: '*5', name: 'ppp', version: '7.14.2', scheduled: '' },
+  ];
+  st.tables['log'] = [
+    { _id: '*1', time: 'aug/21 09:40:11', topics: 'system,info', message: 'router rebooted' },
+    { _id: '*2', time: 'aug/21 09:40:14', topics: 'interface,info', message: 'ether1 link up (speed 1G, full duplex)' },
+    { _id: '*3', time: 'aug/21 09:41:02', topics: 'system,info,account', message: 'user admin logged in from 192.168.88.10 via winbox' },
+  ];
+  st.tables['file'] = [];
+  if (init.wlan) {
+    // การ์ด wireless ที่ติดมากับเครื่อง — ของจริงมาเป็นรายการอยู่แล้ว ใช้ set ไม่ใช่ add
+    st.tables['interface wireless'] = [{
+      _id: '*A', name: 'wlan1', mode: 'ap-bridge', band: '2ghz-b/g/n', frequency: 'auto',
+      ssid: 'MikroTik', 'security-profile': 'default', disabled: true, running: false,
+    }];
+    st.tables['interface wireless security-profiles'] = [{
+      _id: '*1', name: 'default', mode: 'none', 'authentication-types': '', 'wpa2-pre-shared-key': '',
+    }];
+    st.tables['interface wireless registration-table'] = [
+      { _id: '*1', interface: 'wlan1', 'mac-address': 'A4:5E:60:C1:22:01', 'signal-strength': '-62dBm', 'tx-rate': '144.4Mbps', uptime: '00:41:12' },
+      { _id: '*2', interface: 'wlan1', 'mac-address': 'F0:18:98:7B:04:9C', 'signal-strength': '-78dBm', 'tx-rate': '39.0Mbps', uptime: '00:06:55' },
+    ];
+  }
+
   if (init.apply) init.apply(st);
 
   // ---------- helpers ----------
@@ -156,6 +235,12 @@ export function createMikrotik(init = {}) {
 
   const disabledOf = r => r.disabled === true || r.disabled === 'yes';
 
+  /** เมนูอย่าง /interface ethernet ไม่มีตารางของตัวเอง — มันคือมุมมองของ /interface เฉพาะชนิดนั้น
+   *  คืน "ตัวเดียวกัน" กลับไป เพื่อให้ set แก้ค่าแล้วมีผลกับ interface จริง */
+  const rowsOf = (p) => (SPEC[p] && SPEC[p].derive)
+    ? st.tables['interface'].filter(r => r.type === SPEC[p].derive)
+    : (st.tables[p] || []);
+
   function netFromCidr(a) {
     const m = a.match(/^(\d+\.\d+\.\d+\.\d+)\/(\d+)$/);
     if (!m) return '';
@@ -168,7 +253,7 @@ export function createMikrotik(init = {}) {
   // ---------- print ----------
   function printTable(p, args) {
     const spec = SPEC[p];
-    const rows = st.tables[p] || [];
+    const rows = rowsOf(p);
     const { kv } = parseKV(args);
     const detail = args.some(a => a === 'detail');
     let list = rows.map((r, i) => ({ r, i }));
@@ -219,7 +304,7 @@ export function createMikrotik(init = {}) {
     if (fm) {
       const { kv } = parseKV(mtTokens(finds[+fm[1]] || ''));
       const res = [];
-      (st.tables[p] || []).forEach((r, i) => {
+      rowsOf(p).forEach((r, i) => {
         const ok = Object.entries(kv).every(([k, v]) =>
           k === 'disabled' ? String(disabledOf(r) ? 'yes' : 'no') === v : String(r[k]) === v);
         if (ok) res.push(i);
@@ -323,6 +408,45 @@ export function createMikrotik(init = {}) {
 
     // ---- คำสั่งพิเศษ ----
     if (p === 'system' && act === 'reboot') return [H('Reboot, yes? [y/N]: (lab นี้ไม่ reboot จริง)')];
+
+    // --- backup / export เป็นไฟล์ / reset / upgrade (MTCNA Module 1) ---
+    const addFile = (name, type, size) => {
+      const rows = st.tables['file'];
+      const i = rows.findIndex(f => f.name === name);
+      const rec = { _id: newId(), name, type, size };
+      if (i >= 0) rows[i] = rec; else rows.push(rec);
+    };
+    if (p === 'system backup') {
+      const { kv } = parseKV(args);
+      if (act === 'save') {
+        const name = (kv.name || 'backup') + '.backup';
+        addFile(name, 'backup', '61.4KiB');
+        return [OK(`Configuration backup saved (${name})`),
+          D('  ไฟล์ binary — กู้ทั้งเครื่องได้ แต่ย้ายข้ามรุ่น/ข้ามเวอร์ชันไม่ได้')];
+      }
+      if (act === 'load') return [H('Restore and reboot? [y/N]: (lab นี้ไม่ restore จริง)')];
+      return [E(`bad command name or arguments (${act})`)];
+    }
+    if (p === 'system' && act === 'reset-configuration') {
+      const { kv } = parseKV(args);
+      return [H('Dangerous! Reset anyway? [y/N]:'),
+        D(`  (lab นี้ไม่รีเซ็ตจริง — no-defaults=${kv['no-defaults'] || 'no'} skip-backup=${kv['skip-backup'] || 'no'})`)];
+    }
+    if (p === 'system package update') {
+      if (act === 'check-for-updates') return [
+        '      channel: stable',
+        '   installed-version: 7.14.2',
+        '      latest-version: 7.15.3',
+        '              status: New version is available',
+      ];
+      if (act === 'download' || act === 'install') return [OK('downloading... 100%  (ต้อง reboot เพื่อให้เวอร์ชันใหม่มีผล)')];
+      if (act === 'print') return ['      channel: stable', '   installed-version: 7.14.2'];
+      return [E(`bad command name or arguments (${act})`)];
+    }
+    if (p === 'system routerboard' && act === 'upgrade') {
+      st.settings['system routerboard']['upgrade-firmware'] = '7.15.3';
+      return [OK('firmware upgraded successfully — ต้อง reboot เพื่อให้ RouterBOOT ตัวใหม่ทำงาน')];
+    }
     if (p === 'system' && act === 'identity') return exec('/system identity ' + args.join(' '));
     if (p === 'system' && act === 'resource' && !args.length) { st.path = ['system', 'resource']; return []; }
     if (p === 'system resource') {
@@ -346,8 +470,71 @@ export function createMikrotik(init = {}) {
       const { kv, rest } = parseKV(args);
       return doPing(rest[0] || kv.address, +(kv.count || 4));
     }
-    if (act === 'export') return doExport();
+    if (act === 'export') {
+      const { kv } = parseKV(args);
+      if (kv.file) {
+        addFile(kv.file + '.rsc', 'script', '9.2KiB');
+        return [OK(`config exported to ${kv.file}.rsc`),
+          D('  ไฟล์ข้อความ อ่านและแก้ไขได้ ย้ายข้ามเครื่อง/ข้ามรุ่นได้ — ต่างจาก backup')];
+      }
+      return doExport();
+    }
     if (act === 'quit') return [D('(ปิด session)')];
+
+    // --- เครื่องมือของ MTCNA Module 9 ---
+    if (act === 'traceroute' || (p === 'tool' && act === 'traceroute')) {
+      const { rest, kv } = parseKV(args);
+      const target = rest[0] || kv.address || '8.8.8.8';
+      return [
+        ' # ADDRESS                    LOSS SENT    LAST     AVG    BEST   WORST',
+        ' 1 203.0.113.1                  0%    3   1.2ms   1.4ms   1.2ms   1.7ms',
+        ' 2 10.255.0.1                   0%    3   6.8ms   7.1ms   6.8ms   7.9ms',
+        ` 3 ${pad(target, 26)}   0%    3  12.4ms  12.9ms  12.4ms  13.6ms`,
+      ];
+    }
+    if (p === 'tool' && act === 'torch') {
+      const { kv } = parseKV(args);
+      return [
+        D(`# torch บน ${kv.interface || 'ether1'} — ดูว่า "ตอนนี้" ใครกินแบนด์วิดท์ (กด Ctrl+C เพื่อหยุด)`),
+        ' SRC-ADDRESS      DST-ADDRESS      TX          RX',
+        ' 192.168.88.24    142.250.71.14    118.4kbps   3.2Mbps',
+        ' 192.168.88.31    52.84.10.9        24.1kbps   880.0kbps',
+        ' 192.168.88.10    1.1.1.1            1.2kbps     1.1kbps',
+      ];
+    }
+    if (p === 'tool' && act === 'profile') return [
+      ' NAME                                          CPU        USAGE',
+      ' ethernet                                      all         3.5%',
+      ' firewall                                      all         1.0%',
+      ' management                                    all         0.5%',
+      ' unclassified                                  all         0.5%',
+      ' total                                         all         5.5%',
+    ];
+    if (p === 'interface' && act === 'monitor-traffic') {
+      const { rest, kv } = parseKV(args);
+      const iface = rest[0] || kv.interface || 'ether1';
+      return [
+        `                 name: ${iface}`,
+        '             rx-packets-per-second: 412',
+        '                rx-bits-per-second: 3.9Mbps',
+        '             tx-packets-per-second: 388',
+        '                tx-bits-per-second: 1.1Mbps',
+      ];
+    }
+    if (p === 'interface wireless' && act === 'scan') return [
+      D('# scan จะตัดการเชื่อมต่อของ wlan1 ชั่วคราว — ห้ามรันบน AP ที่มีคนใช้อยู่'),
+      ' ADDRESS            SSID            CHANNEL   SIG  NF   SNR',
+      ' A4:5E:60:C1:22:01  OFFICE-WIFI     2412/20/gn -62 -101  39',
+      ' F0:18:98:7B:04:9C  Cafe-Guest      2437/20/gn -78 -101  23',
+      ' 18:FD:74:22:1A:B0  NEIGHBOR-5G     5180/20/ac -71 -104  33',
+    ];
+    if (p === 'interface wireless' && act === 'snooper') return [
+      D('# snooper ดูภาพรวมทั้งย่านความถี่ ว่าช่องไหนแน่นและใครใช้อยู่'),
+      ' CHANNEL       USAGE  BW(bps)   NET-COUNT  NOISE-FLOOR',
+      ' 2412/20/gn      62%   8.4M            4         -101',
+      ' 2437/20/gn      31%   2.1M            2         -101',
+      ' 2462/20/gn       8%   0.4M            1         -101',
+    ];
 
     // ---- settings menu ----
     if (SETTINGS[p]) {
@@ -369,7 +556,7 @@ export function createMikrotik(init = {}) {
     // ---- table menu ----
     const spec = SPEC[p];
     if (!spec) return [E(`no such command or directory (${p || act})`)];
-    const table = st.tables[p];
+    const table = rowsOf(p);
 
     if (act === 'print') return printTable(p, args);
 
@@ -409,6 +596,7 @@ export function createMikrotik(init = {}) {
     }
 
     if (act === 'remove') {
+      if (spec.readonly) return [E('cannot remove from this menu (read-only)')];
       const idx = resolveIndex(p, args[0], finds);
       if (!idx || !idx.length) return [E('no such item')];
       idx.sort((a, b) => b - a).forEach(i => table.splice(i, 1));
@@ -493,6 +681,25 @@ export function createMikrotik(init = {}) {
       '/ip neighbor discovery-settings set discover-interface-list=LAN',
       '/tool mac-server set allowed-interface-list=LAN',
       '/system routerboard settings print',
+      // --- MTCNA ---
+      '/system package print', '/system package update check-for-updates', '/system routerboard print',
+      '/system license print', '/system backup save name=RTR-HQ', '/export file=RTR-HQ',
+      '/ip arp print', '/ip dhcp-server lease print', '/log print', '/file print',
+      '/interface wireless print', '/interface wireless set 0 mode=ap-bridge band=2ghz-b/g/n ssid=OFFICE-WIFI',
+      '/interface wireless security-profiles add name=office mode=dynamic-keys authentication-types=wpa2-psk wpa2-pre-shared-key=Str0ngPass',
+      '/interface wireless registration-table print', '/interface wireless scan wlan1', '/interface wireless snooper',
+      '/interface wireless access-list add mac-address=A4:5E:60:C1:22:01 authentication=yes forwarding=yes',
+      '/queue simple add name=user-a target=192.168.88.24/32 max-limit=10M/10M',
+      '/queue type add name=pcq-down kind=pcq pcq-rate=2M pcq-classifier=dst-address',
+      '/ppp profile add name=pppoe-profile local-address=10.20.0.1 remote-address=pppoe-pool',
+      '/ppp secret add name=user01 service=pppoe profile=pppoe-profile', '/ppp active print',
+      '/interface pppoe-server server add interface=ether3 service-name=office default-profile=pppoe-profile',
+      '/interface pppoe-client add name=pppoe-out1 interface=ether1 user=isp-user',
+      '/interface sstp-client add name=sstp-out1 connect-to=203.0.113.9 user=vpnuser',
+      '/tool netwatch add host=8.8.8.8', '/tool traceroute 8.8.8.8', '/tool torch interface=ether1',
+      '/tool profile', '/tool graphing interface add interface=ether1',
+      '/tool e-mail set server=10.10.10.25 from=rtr@example.co.th',
+      '/interface monitor-traffic ether1',
       '/export', '/ping 8.8.8.8', '..', '/',
     ],
   };

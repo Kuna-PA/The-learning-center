@@ -1,14 +1,33 @@
+// ============================================================
+//  Learning Path: MikroTik Router
+//  เนื้อหาแกนอยู่ในไฟล์นี้ ส่วนหลักสูตร MTCNA เต็มรูปแบบ (Module 1–9)
+//  แยกไว้ที่ ./mikrotik/mtcna.js แล้วต่อท้ายแต่ละระดับด้วย withMtcna()
+// ============================================================
+import mtcna from './mikrotik/mtcna.js';
+
 const T = (s, p) => s.tables[p] || [];
+
+/** ต่อ sections / quiz / labs ของ MTCNA เข้าท้ายระดับที่ตรงกัน */
+const withMtcna = (levels) => {
+  Object.entries(mtcna).forEach(([lv, part]) => {
+    const target = levels[lv];
+    if (!target) return;
+    target.sections = [...(target.sections || []), ...(part.sections || [])];
+    target.quiz = [...(target.quiz || []), ...(part.quiz || [])];
+    target.labs = [...(target.labs || []), ...(part.labs || [])];
+  });
+  return levels;
+};
 
 export default {
   id: 'mikrotik-router',
   name: 'MikroTik Router',
   icon: '📡',
   device: 'mikrotik',
-  sub: 'RouterOS 7 — RouterBOARD / CHR',
-  desc: 'RouterOS ตั้งแต่โครงสร้างเมนู, IP/NAT/DHCP, Firewall, Routing, VPN ไปจนถึงการออกแบบ ISP/Enterprise และ scripting',
+  sub: 'RouterOS 7 — RouterBOARD / CHR · หลักสูตร MTCNA',
+  desc: 'RouterOS ตั้งแต่โครงสร้างเมนู, IP/NAT/DHCP, Firewall, Routing, VPN ไปจนถึงการออกแบบ ISP/Enterprise และ scripting — รวมหลักสูตร MTCNA ครบทั้ง 9 โมดูลพร้อม Lab ประจำโมดูล',
 
-  levels: {
+  levels: withMtcna({
     // =========================================================
     1: {
       title: 'รู้จัก RouterOS และโครงสร้างคำสั่ง',
@@ -540,5 +559,5 @@ add name=to-ISP1 remote.address=203.0.113.1 remote.as=64500 \\
         ],
       }],
     },
-  },
+  }),
 };

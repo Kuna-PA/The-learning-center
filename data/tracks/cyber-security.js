@@ -1,3 +1,10 @@
+// ============================================================
+//  Learning Path: Cyber Security
+//  เนื้อหาแกนอยู่ในไฟล์นี้ ส่วนหลักสูตร CompTIA Security+ (Lesson 1–21)
+//  แยกไว้ที่ ./cyber/secplus.js แล้วต่อท้ายแต่ละระดับด้วย withSecPlus()
+// ============================================================
+import secplus from './cyber/secplus.js';
+
 const node = (s, p) => {
   const parts = String(p).split('/').filter(Boolean);
   let n = s.fs;
@@ -9,15 +16,27 @@ const node = (s, p) => {
 };
 const said = (h, re) => h.some(c => re.test(c.trim()));
 
+/** ต่อ sections / quiz / labs ของ Security+ เข้าท้ายระดับที่ตรงกัน */
+const withSecPlus = (levels) => {
+  Object.entries(secplus).forEach(([lv, part]) => {
+    const target = levels[lv];
+    if (!target) return;
+    target.sections = [...(target.sections || []), ...(part.sections || [])];
+    target.quiz = [...(target.quiz || []), ...(part.quiz || [])];
+    target.labs = [...(target.labs || []), ...(part.labs || [])];
+  });
+  return levels;
+};
+
 export default {
   id: 'cyber-security',
   name: 'Cyber Security',
   icon: '🛡️',
   device: 'linux-sec',
-  sub: 'Defensive Security &amp; Incident Response',
-  desc: 'ความปลอดภัยไซเบอร์สำหรับคนดูแลระบบ — CIA Triad, การ hardening, อ่าน log หาการบุกรุก, incident response, forensics และการวางระบบเฝ้าระวังทั้งองค์กร',
+  sub: 'Defensive Security &amp; Incident Response · หลักสูตร Security+',
+  desc: 'ความปลอดภัยไซเบอร์สำหรับคนดูแลระบบ — CIA Triad, การ hardening, อ่าน log หาการบุกรุก, incident response, forensics และการวางระบบเฝ้าระวังทั้งองค์กร — รวมหลักสูตร CompTIA Security+ ครบทั้ง 21 บทเรียนพร้อม Lab',
 
-  levels: {
+  levels: withSecPlus({
     // =========================================================
     1: {
       title: 'พื้นฐานความปลอดภัยที่ทุกคนต้องรู้',
@@ -572,5 +591,5 @@ sha256sum /mnt/evidence/* &gt; /mnt/evidence/HASHES.txt</pre>
         ],
       }],
     },
-  },
+  }),
 };
