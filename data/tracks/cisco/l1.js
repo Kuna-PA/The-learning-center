@@ -202,15 +202,15 @@ WAN คือการเชื่อมข้ามที่ตั้ง ต้
         },
         {
           t: 'ตั้ง SVI ของ VLAN 20 = <code>192.168.50.65/26</code> (วงที่สอง)',
-          hint: 'ip address 192.168.50.65 255.255.255.192',
+          hint: 'interface vlan 20 → ip address 192.168.50.65 255.255.255.192',
           check: s => s.svis[20] && s.svis[20].ip === '192.168.50.65' && s.svis[20].mask === '255.255.255.192',
         },
         {
           t: 'ตั้ง SVI ของ VLAN 30 = <code>192.168.50.129/26</code> (วงที่สาม)',
-          hint: 'ip address 192.168.50.129 255.255.255.192',
+          hint: 'interface vlan 30 → ip address 192.168.50.129 255.255.255.192',
           check: s => s.svis[30] && s.svis[30].ip === '192.168.50.129' && s.svis[30].mask === '255.255.255.192',
         },
-        { t: 'เปิด SVI ทั้งสามวงให้ใช้งานได้ (ไม่มีตัวไหน shutdown)', hint: 'no shutdown ที่ทุก interface vlan', check: s => [10, 20, 30].every(v => s.svis[v] && s.svis[v].shutdown === false) },
+        { t: 'เปิด SVI ทั้งสามวงให้ใช้งานได้ (ไม่มีตัวไหน shutdown)', hint: 'interface vlan 20 → no shutdown → interface vlan 30 → no shutdown', check: s => [10, 20, 30].every(v => s.svis[v] && s.svis[v].shutdown === false) },
         { t: 'ตรวจผลด้วย <code>show ip interface brief</code>', hint: 'do show ip interface brief', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+ip\s+int/i) },
         { t: 'ตรวจว่า <code>show ip route</code> ขึ้นวงทั้งสามเป็น connected', hint: 'do show ip route', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+ip\s+ro/i) },
         { t: 'บันทึก config', hint: 'end → write memory', check: s => !!s.savedConfig },

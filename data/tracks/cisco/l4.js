@@ -135,7 +135,7 @@ snmp-server host 192.168.10.50 version 2c RO-ONLY</code></pre>
         { t: 'ตั้ง <b>default-router</b> เป็น <code>192.168.10.1</code>', hint: 'default-router 192.168.10.1', check: s => ((s.dhcpPools || {}).OFFICE || {}).router === '192.168.10.1' },
         { t: 'ตั้ง <b>dns-server</b> เป็น <code>192.168.10.5</code>', hint: 'dns-server 192.168.10.5', check: s => /192\.168\.10\.5/.test(((s.dhcpPools || {}).OFFICE || {}).dns || '') },
         { t: 'ตั้ง <b>domain-name</b> เป็น <code>corp.local</code>', hint: 'domain-name corp.local', check: s => ((s.dhcpPools || {}).OFFICE || {}).domain === 'corp.local' },
-        { t: 'ตั้งให้อุปกรณ์รู้จัก DNS ด้วย <code>ip name-server 192.168.10.5</code>', hint: 'ออกจาก pool ก่อน (exit) แล้วสั่งใน global config', check: s => (s.nameServers || []).includes('192.168.10.5') },
+        { t: 'ตั้งให้อุปกรณ์รู้จัก DNS ด้วย <code>ip name-server 192.168.10.5</code>', hint: 'exit → ip name-server 192.168.10.5', check: s => (s.nameServers || []).includes('192.168.10.5') },
         { t: 'ตรวจผลด้วย <code>show ip dhcp pool</code>', hint: 'do show ip dhcp pool', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+ip\s+dh/i) },
         { t: 'บันทึก config', hint: 'end → write memory', check: s => !!s.savedConfig },
       ],
@@ -167,7 +167,7 @@ snmp-server host 192.168.10.50 version 2c RO-ONLY</code></pre>
         { t: 'ตั้ง <code>GigabitEthernet0/1</code> เป็นฝั่ง <b>outside</b>', hint: 'interface gi0/1 → ip nat outside', check: s => (s.natOutside || []).some(x => /Gi0\/1/i.test(x)) },
         {
           t: 'เปิด <b>PAT</b> ให้ทั้งวงออกผ่านพอร์ต outside',
-          hint: 'ip nat inside source list 1 interface GigabitEthernet0/1 overload',
+          hint: 'exit → ip nat inside source list 1 interface GigabitEthernet0/1 overload',
           check: s => (s.natRules || []).some(r => r.kind === 'overload' && r.list === '1'),
         },
         {

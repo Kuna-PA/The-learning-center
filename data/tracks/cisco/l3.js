@@ -161,8 +161,8 @@ hello/dead timer ตรงกัน · การยืนยันตัวต�
           check: s => s.ospf && s.ospf.passive.some(x => /vlan\s*10/i.test(x)),
         },
         { t: 'ออกจากโหมด router แล้วตรวจ neighbor ด้วย <code>show ip ospf neighbor</code>', hint: 'exit → do show ip ospf neighbor', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+ip\s+ospf\s+nei/i) },
-        { t: 'ตรวจว่า interface ไหนเข้าร่วม OSPF แล้ว', hint: 'show ip ospf interface', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+ip\s+ospf\s+int/i) },
-        { t: 'ดูสรุปด้วย <code>show ip protocols</code>', hint: 'show ip protocols', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+ip\s+prot/i) },
+        { t: 'ตรวจว่า interface ไหนเข้าร่วม OSPF แล้ว', hint: 'do show ip ospf interface', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+ip\s+ospf\s+int/i) },
+        { t: 'ดูสรุปด้วย <code>show ip protocols</code>', hint: 'do show ip protocols', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+ip\s+prot/i) },
         { t: 'บันทึก config', hint: 'end → write memory', check: s => !!s.savedConfig },
       ],
       debrief: `<b>network + wildcard ไม่ได้แปลว่า "ประกาศวงนี้"</b> แต่แปลว่า "interface ที่ IP ตรงเงื่อนไขนี้ ให้เข้าร่วม OSPF" — ผลลัพธ์ที่ได้คือวงของ interface นั้นถูกประกาศออกไป<br>

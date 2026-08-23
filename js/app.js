@@ -849,6 +849,7 @@ function runLabView({ lab, trackId, backHref, hero }) {
 
   const isGui = lab.device === 'windows-gui';
   let replaying = false;            // ระหว่างเล่นคำสั่งเก่าซ้ำ ไม่ต้องเด้ง toast รบกวน
+  let cheered = false;              // จูล่งแสดงความยินดีไปแล้วในรอบนี้หรือยัง
   const term = (isGui ? createWindowsGui : createTerminal)({
     device: lab.device, initial: lab.init || {},
     onExec: ({ state, history }) => {
@@ -867,6 +868,15 @@ function runLabView({ lab, trackId, backHref, hero }) {
       refreshChrome();
       if (n === lab.tasks.length) {
         showFinish();
+        // จูล่งโผล่มาแสดงความยินดีทุกครั้งที่ทำจบในรอบนี้ (แม้เคยผ่านมาแล้วก็ยินดีด้วยอีก)
+        // แต่ไม่โผล่ตอนเล่นคำสั่งเก่าซ้ำตอนกลับมาทำต่อ เพราะผู้ใช้ยังไม่ได้ลงมือทำอะไร
+        if (!cheered && !replaying && julong) {
+          cheered = true;
+          julong.celebrate({
+            title: `ผ่าน ${strip0(lab.title)} แล้ว`,
+            sub: `ครบทั้ง ${lab.tasks.length} ข้อ`,
+          });
+        }
         if (!recorded) {
           recorded = true;
           toast('🎉 ทำสำเร็จครบทุกข้อ!', 'ok');

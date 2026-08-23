@@ -548,7 +548,7 @@ add name=to-ISP1 remote.address=203.0.113.1 remote.as=64500 \\
         tasks: [
           { t: 'เปลี่ยนชื่ออุปกรณ์เป็น <code>RTR-BRANCH-01</code>', hint: '/system identity set name=RTR-BRANCH-01', check: s => s.settings['system identity'].name === 'RTR-BRANCH-01' },
           { t: 'สร้าง user ใหม่ <code>netadmin</code> group <code>full</code>', hint: '/user add name=netadmin group=full', check: s => T(s, 'user').some(r => r.name === 'netadmin' && r.group === 'full') },
-          { t: 'ปิดบริการ telnet (ตั้ง disabled=yes ที่ ip service)', hint: '/ip service print แล้ว /ip service set [find name=telnet] disabled=yes', check: s => T(s, 'ip service').some(r => r.name === 'telnet' && (r.disabled === true || r.disabled === 'yes')) },
+          { t: 'ปิดบริการ telnet (ตั้ง disabled=yes ที่ ip service)', hint: '/ip service print → /ip service set [find name=telnet] disabled=yes', check: s => T(s, 'ip service').some(r => r.name === 'telnet' && (r.disabled === true || r.disabled === 'yes')) },
           { t: 'ปิดบริการ ftp', hint: '/ip service set [find name=ftp] disabled=yes', check: s => T(s, 'ip service').some(r => r.name === 'ftp' && (r.disabled === true || r.disabled === 'yes')) },
           { t: 'ปิดบริการ www (HTTP)', hint: '/ip service set [find name=www] disabled=yes', check: s => T(s, 'ip service').some(r => r.name === 'www' && (r.disabled === true || r.disabled === 'yes')) },
           { t: 'เปลี่ยนพอร์ต SSH เป็น <code>2222</code>', hint: '/ip service set [find name=ssh] port=2222', check: s => T(s, 'ip service').some(r => r.name === 'ssh' && String(r.port) === '2222') },

@@ -259,6 +259,34 @@ export function createJulong({ getCtx }) {
     return answerFromLessons(q);
   }
 
+  // ---------- ป๊อปอัพแสดงความยินดีตอนทำ Lab จบ ----------
+  const CHEER = 'ยอดเยี่ยมมากเจ้าเด็กน้อย แต่ยังห่างชั้นกับข้าเยอะ ' +
+    'จงหมั่นฝึกตนให้เป็นนิจ ดุจเหล็กกล้าผ่านไฟ ฮ่าฮ่าฮ่า';
+
+  function celebrate({ title = '', sub = '' } = {}) {
+    el.querySelector('.jl-cheer')?.remove();
+    const box = document.createElement('div');
+    box.className = 'jl-cheer';
+    box.innerHTML = `
+      <div class="jl-cheer-card" role="dialog" aria-label="จูล่งแสดงความยินดี">
+        <div class="jl-cheer-face">🐎</div>
+        <div class="jl-cheer-name">จูล่ง</div>
+        ${title ? `<div class="jl-cheer-title">${esc(title)}</div>` : ''}
+        <div class="jl-cheer-say">“${esc(CHEER)}”</div>
+        ${sub ? `<div class="jl-cheer-sub">${esc(sub)}</div>` : ''}
+        <button class="btn sm primary" data-close>รับคำ</button>
+      </div>`;
+    const bye = () => box.remove();
+    box.addEventListener('click', e => { if (e.target === box || e.target.hasAttribute('data-close')) bye(); });
+    document.addEventListener('keydown', function onEsc(e) {
+      if (e.key === 'Escape') { bye(); document.removeEventListener('keydown', onEsc); }
+    });
+    el.appendChild(box);
+    setTimeout(() => box.querySelector('[data-close]')?.focus(), 60);
+    // เก็บไว้ในบทสนทนาด้วย เผื่อเปิดแผงมาดูย้อนหลัง
+    say(`<b>${esc(title || 'ทำ Lab จบแล้ว')}</b><br>“${esc(CHEER)}”`);
+  }
+
   // ---------- เปิด/ปิด ----------
   /** อัปเดตหัวแผงและปุ่มลัดให้ตรงกับหน้าที่กำลังเปิดอยู่ */
   function syncCtx() {
@@ -283,5 +311,8 @@ export function createJulong({ getCtx }) {
   $('#jl-form').addEventListener('submit', e => { e.preventDefault(); ask($('#jl-input').value); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 
-  return { el, open, close, toggle, syncCtx, reset: () => { hintStep = {}; body().innerHTML = ''; } };
+  return {
+    el, open, close, toggle, syncCtx, celebrate,
+    reset: () => { hintStep = {}; body().innerHTML = ''; el.querySelector('.jl-cheer')?.remove(); },
+  };
 }
