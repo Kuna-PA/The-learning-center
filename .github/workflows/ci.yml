@@ -1,0 +1,25 @@
+# รันชุดทดสอบทุกครั้งที่ push หรือเปิด PR
+# ต้องใช้ Node 22.5 ขึ้นไปเพราะโปรเจกต์ใช้ node:sqlite และ node:test ที่ติดมากับ Node เอง
+name: test
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.x', '24.x']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: ตรวจเนื้อหา
+        run: npm run validate
+      - name: รันชุดทดสอบทั้งหมด
+        run: npm test

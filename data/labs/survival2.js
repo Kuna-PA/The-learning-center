@@ -504,7 +504,14 @@ export const SURVIVAL_LABS_2 = [
     story: 'รปภ. โทรมาบอกว่าไฟดับทั้งอาคารและการไฟฟ้าแจ้งว่าจะกลับมาใน 2 ชั่วโมง UPS ในห้อง server รองรับได้อีกประมาณ 20 นาทีเท่านั้น เครื่องปั่นไฟไม่ได้ทดสอบมา 8 เดือน คุณต้องตัดสินใจว่าจะ shutdown อะไรก่อนหลัง',
     impact: 'ถ้า UPS หมดโดยไม่ได้ shutdown อย่างถูกวิธี ฐานข้อมูลอาจเสียหายและกู้ไม่ได้',
     device: 'linux',
-    init: { hostname: 'srv-core01' },
+    init: {
+      hostname: 'srv-core01',
+      // โจทย์บอกให้ไล่ปิด container ตามลำดับ — เครื่องจึงต้องมี container ทำงานอยู่จริงตั้งแต่แรก
+      apply: st => {
+        st.containers.push({ name: 'web', image: 'nginx:1.25', state: 'Up', ports: '0.0.0.0:80->80/tcp' });
+        st.containers.push({ name: 'db', image: 'postgres:15', state: 'Up', ports: '5432/tcp' });
+      },
+    },
     tasks: [
       { t: 'ตรวจสถานะเครื่องและ uptime ก่อน', hint: 'uptime', check: (s, h) => said(h, /^uptime/i) },
       { t: 'ตรวจว่ามี service สำคัญอะไรทำงานอยู่', hint: 'systemctl list-units', check: (s, h) => said(h, /systemctl\s+list-units/i) },

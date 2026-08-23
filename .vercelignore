@@ -5,3 +5,8 @@ server/
 server.js
 data-db/
 package.json
+
+# ของสำหรับพัฒนา ไม่ต้องขึ้น static hosting
+test/
+scripts/
+.github/

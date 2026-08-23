@@ -1313,9 +1313,14 @@ export function createLinux(init = {}) {
     }
 
     if (redirect) {
+      // stderr ไม่ไหลลงไฟล์ (ของจริงต้องเขียน 2> เอง) — คำสั่งที่พังจึงได้ไฟล์ว่าง
+      // และ error ยังโผล่บนจอ ไม่ถูกกลืนหายจนดูเหมือนคำสั่งทำงานสำเร็จ
+      const isErr = o => o && typeof o === 'object' && o.c === 'err';
+      const errs = out.filter(isErr);
+      out = out.filter(o => !isErr(o));
       const txt = out.map(o => (typeof o === 'string' ? o : o.s)).join('\n') + '\n';
       writeFile(redirect, txt, append);
-      return [];
+      return errs;
     }
     return out;
   }
@@ -1331,6 +1336,9 @@ export function createLinux(init = {}) {
     let stdin = null, out = [];
     for (const p of parts) {
       out = runOne(p, stdin);
+      // ต้นทางพังทั้งอัน — หยุดตรงนี้ ไม่ส่งท่อต่อ ไม่งั้นคำสั่งถัดไปจะพ่นผลออกมา
+      // แล้วทั้งบรรทัดถูกนับว่า "รันสำเร็จ" ทั้งที่ผู้เรียนพิมพ์ผิด
+      if (out.length && out.every(o => o && typeof o === 'object' && o.c === 'err')) return out;
       stdin = out.map(o => (typeof o === 'string' ? o : o.s));
     }
     return out;

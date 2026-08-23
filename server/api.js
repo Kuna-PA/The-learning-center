@@ -5,8 +5,28 @@
 import { users, sessions, progress } from './db.js';
 import {
   register, login, changePassword, removeUser, publicUser,
-  currentUser, sessionCookie, clearCookie, SESSION_TTL, USERNAME_RE, MIN_PASSWORD,
+  currentUser, sessionCookie, clearCookie, isSecureRequest,
+  SESSION_TTL, USERNAME_RE, MIN_PASSWORD,
 } from './auth.js';
+
+// เปิดให้คนนอกสมัครเองได้ไหม — ตั้ง LC_OPEN_REGISTER=0 เมื่อเอาขึ้นอินเทอร์เน็ตแล้วอยากให้ admin เป็นคนสร้างบัญชีเท่านั้น
+export const OPEN_REGISTER = process.env.LC_OPEN_REGISTER !== '0';
+
+/**
+ * IP ของผู้เรียก — ใช้จำกัดการเดารหัส
+ * ไม่เชื่อ X-Forwarded-For เว้นแต่ตั้ง LC_TRUST_PROXY=1 เอง
+ * เพราะถ้าเชื่อทั้งที่ไม่มี proxy ใครก็ปลอม header หนีการนับได้
+ */
+const clientIp = (req) => {
+  if (process.env.LC_TRUST_PROXY === '1') {
+    const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    if (fwd) return fwd;
+  }
+  return req.socket?.remoteAddress || null;
+};
+
+// เส้นทางที่ยังเรียกได้ทั้งที่ยังไม่ได้เปลี่ยนรหัสเริ่มต้น
+const ALLOW_WHILE_LOCKED = new Set(['auth/me', 'auth/password', 'auth/logout', 'health']);
 
 const json = (res, code, body, headers = {}) => {
   const txt = JSON.stringify(body);
@@ -70,29 +90,37 @@ export default async function api(req, res, pathname) {
     catch (e) { return json(res, 400, { error: e.message }); }
   }
 
+  // บังคับเปลี่ยนรหัสที่ "เซิร์ฟเวอร์" ไม่ใช่แค่ที่หน้าจอ — ไม่งั้นข้ามได้ด้วยการยิง API ตรง
+  if (me && me.mustChange && !ALLOW_WHILE_LOCKED.has(parts.join('/'))) {
+    return json(res, 403, { error: 'ต้องตั้งรหัสผ่านใหม่ก่อนจึงจะใช้งานส่วนอื่นได้', code: 'must_change' });
+  }
+
   // ---------------- auth ----------------
   if (parts[0] === 'auth') {
     if (parts[1] === 'me' && method === 'GET') {
       return json(res, 200, { user: me ? publicUser(users.get(me.username)) : null });
     }
     if (parts[1] === 'register' && method === 'POST') {
+      if (!OPEN_REGISTER) return json(res, 403, { error: 'เซิร์ฟเวอร์นี้ปิดรับสมัครเอง — ให้ผู้ดูแลระบบสร้างบัญชีให้' });
       const r = register({ username: body.username, password: body.password, display: body.display });
       if (!r.ok) return json(res, 400, { error: r.msg });
-      const l = login({ username: body.username, password: body.password });
-      return json(res, 201, { user: r.user }, { 'Set-Cookie': sessionCookie(l.token, SESSION_TTL) });
+      const l = login({ username: body.username, password: body.password, ip: clientIp(req) });
+      return json(res, 201, { user: r.user }, { 'Set-Cookie': sessionCookie(l.token, SESSION_TTL, isSecureRequest(req)) });
     }
     if (parts[1] === 'login' && method === 'POST') {
-      const r = login({ username: body.username, password: body.password });
+      const r = login({ username: body.username, password: body.password, ip: clientIp(req) });
       if (!r.ok) return json(res, 401, { error: r.msg });
-      return json(res, 200, { user: r.user }, { 'Set-Cookie': sessionCookie(r.token, r.ttl) });
+      return json(res, 200, { user: r.user }, { 'Set-Cookie': sessionCookie(r.token, r.ttl, isSecureRequest(req)) });
     }
     if (parts[1] === 'logout' && method === 'POST') {
       if (me) sessions.destroy(me.token);
-      return json(res, 200, { ok: true }, { 'Set-Cookie': clearCookie() });
+      return json(res, 200, { ok: true }, { 'Set-Cookie': clearCookie(isSecureRequest(req)) });
     }
     if (parts[1] === 'password' && method === 'POST') {
       if (!me) return needAuth();
-      const r = changePassword({ username: me.username, newPass: body.newPass, oldPass: body.oldPass ?? null });
+      // ต้องยืนยันรหัสเดิมเสมอ — เดิมถ้า client ไม่ส่ง oldPass มาก็เปลี่ยนได้เลย
+      // แปลว่าใครยืมเครื่องที่ล็อกอินค้างไว้ ยึดบัญชีได้ทันทีโดยไม่รู้รหัสเดิม
+      const r = changePassword({ username: me.username, newPass: body.newPass, oldPass: String(body.oldPass ?? '') });
       return r.ok ? json(res, 200, { ok: true }) : json(res, 400, { error: r.msg });
     }
     if (parts[1] === 'display' && method === 'POST') {
@@ -150,6 +178,7 @@ export default async function api(req, res, pathname) {
       const r = register({
         username: body.username, password: body.password,
         display: body.display, role: body.role === 'admin' ? 'admin' : 'user',
+        mustChange: 1,   // รหัสที่ผู้ดูแลตั้งให้ ผู้ดูแลก็รู้ — ต้องให้เจ้าตัวเปลี่ยนก่อนใช้งาน
       });
       return r.ok ? json(res, 201, { user: r.user }) : json(res, 400, { error: r.msg });
     }
@@ -170,7 +199,7 @@ export default async function api(req, res, pathname) {
         }
         if ('display' in body) users.setDisplay(target, String(body.display || '').trim().slice(0, 40) || target);
         if ('password' in body) {
-          const r = changePassword({ username: target, newPass: body.password });
+          const r = changePassword({ username: target, newPass: body.password, mustChange: 1 });
           if (!r.ok) return json(res, 400, { error: r.msg });
           sessions.destroyUser(target);   // บังคับให้ล็อกอินใหม่ด้วยรหัสใหม่
         }
@@ -193,7 +222,10 @@ export default async function api(req, res, pathname) {
 
   // ---------------- health ----------------
   if (parts[0] === 'health' && method === 'GET') {
-    return json(res, 200, { ok: true, users: users.count(), uptime: Math.round(process.uptime()) });
+    return json(res, 200, {
+      ok: true, users: users.count(), uptime: Math.round(process.uptime()),
+      openRegister: OPEN_REGISTER,
+    });
   }
 
   return json(res, 404, { error: 'ไม่พบเส้นทางนี้' });

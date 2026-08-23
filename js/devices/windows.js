@@ -924,7 +924,11 @@ export function createWindows(init = {}) {
             '    Name                   : Wi-Fi', '    State                  : connected',
             `    SSID                   : ${st.wlanProfiles[0]}`, '    Signal                 : 82%', ''];
           if (a[1] === 'delete' && /profile/.test(a[2] || '')) {
-            const nm = (args.find(x => /name=/i.test(x)) || '').split('=')[1];
+            // ของจริงรับทั้ง name="CORP-WIFI" และ name=CORP-WIFI — ต้องตัดเครื่องหมายคำพูดออกก่อนเทียบ
+            const m = args.join(' ').match(/names*=s*"([^"]+)"|names*=s*(S+)/i);
+            const nm = m ? (m[1] || m[2]) : '';
+            if (!nm) return [E('The parameter is incorrect. — netsh wlan delete profile name="<ชื่อโปรไฟล์>"')];
+            if (!st.wlanProfiles.includes(nm)) return [E('Profile "' + nm + '" is not found on the system.')];
             st.wlanProfiles = st.wlanProfiles.filter(p => p !== nm);
             return [OK(`ลบโปรไฟล์ "${nm}" ออกจาก interface แล้ว`)];
           }
@@ -1193,7 +1197,7 @@ export function createWindows(init = {}) {
 
     if (/^[a-z]:$/i.test(cmd)) { st.cwd = cmd.toUpperCase() + '\\'; return []; }
     return [E(`${tokens[0]} : The term '${tokens[0]}' is not recognized as the name of a cmdlet, function, script file, or operable program.`),
-    D('ตรวจการสะกด หรือพิมพ์ ? เพื่อดูคำสั่งที่ lab นี้รองรับ')];
+      E('ตรวจการสะกด หรือพิมพ์ ? เพื่อดูคำสั่งที่ lab นี้รองรับ')];
   }
 
   function helpList() {
