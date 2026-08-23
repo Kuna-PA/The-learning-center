@@ -243,10 +243,10 @@ export default {
         tasks: [
           { t: 'ดูรายการ interface ทั้งหมดและสถานะลิงก์', hint: 'ip link', check: (s, h) => said(h, /^ip\s+(-\w+\s+)?link/i) },
           { t: 'ดู IP และ prefix ที่ตั้งอยู่ตอนนี้', hint: 'ip addr', check: (s, h) => said(h, /^ip\s+(addr|a)\b/i) },
-          { t: 'ตรวจ speed, duplex และ autonegotiation ของ <code>eth0</code>', hint: 'ethtool eth0', check: (s, h) => said(h, /^ethtool/i) },
-          { t: 'ดูสถิติ error และ drop ที่สะสมบน <code>eth0</code>', hint: 'ip -s link show eth0', check: (s, h) => said(h, /ip\s+-s\s+link/i) },
+          { t: 'ตรวจ speed, duplex และ autonegotiation ของ <code>ens33</code>', hint: 'ethtool ens33', check: (s, h) => said(h, /^ethtool/i) },
+          { t: 'ดูสถิติ error และ drop ที่สะสมบน <code>ens33</code>', hint: 'ip -s link show ens33', check: (s, h) => said(h, /ip\s+-s\s+link/i) },
           { t: 'ดูตาราง ARP ว่า IP ไหนคู่กับ MAC ไหนในวงนี้', hint: 'ip neigh', check: (s, h) => said(h, /ip\s+neigh|arp\s+-a/i) },
-          { t: 'ตั้ง MTU ของ <code>eth0</code> เป็น 9000 เพื่อรองรับ jumbo frame', hint: 'sudo ip link set eth0 mtu 9000', check: (s, h) => said(h, /ip\s+link\s+set.*mtu\s*9000/i) },
+          { t: 'ตั้ง MTU ของ <code>ens33</code> เป็น 9000 เพื่อรองรับ jumbo frame', hint: 'sudo ip link set ens33 mtu 9000', check: (s, h) => said(h, /ip\s+link\s+set.*mtu\s*9000/i) },
           { t: 'ทดสอบว่า TCP/IP stack ของเครื่องเองยังดีอยู่', hint: 'ping -c 2 127.0.0.1', check: (s, h) => said(h, /ping.*127\.0\.0\.1/i) },
           { t: 'ดูตารางเส้นทางเพื่อยืนยันว่ามี default gateway', hint: 'ip route', check: (s, h) => said(h, /^ip\s+(route|r)\b/i) },
         ],
@@ -305,8 +305,8 @@ export default {
 </table>
 <pre class="code"><span style="color:#5b6b8c"># ดูสถานะและสถิติของ interface บน Linux</span>
 ip addr
-ip -s link show eth0        <span style="color:#5b6b8c"># ดู error / drop สะสม</span>
-ethtool eth0                <span style="color:#5b6b8c"># ดู speed / duplex / autoneg</span></pre>
+ip -s link show ens33        <span style="color:#5b6b8c"># ดู error / drop สะสม</span>
+ethtool ens33                <span style="color:#5b6b8c"># ดู speed / duplex / autoneg</span></pre>
 <div class="note warn"><b>MTU ไม่ตรงกันทำให้เกิดอาการแปลก ๆ</b> — เปิดเว็บทั่วไปได้ แต่บางเว็บหรือบางไฟล์ค้าง
 เพราะแพ็กเก็ตใหญ่ถูกทิ้งกลางทางโดยไม่มีใครแจ้ง (path MTU discovery ถูกบล็อกเพราะปิด ICMP)
 เจอบ่อยมากกับลิงก์ VPN และ PPPoE ที่ MTU เหลือน้อยกว่า 1500</div>`,
@@ -392,7 +392,7 @@ ethtool eth0                <span style="color:#5b6b8c"># ดู speed / duplex 
         { type: 'mcq', q: 'สายที่ต่อครบทุกเส้นแต่จับคู่ผิดคู่ ทำให้ cable tester ธรรมดาบอกว่าผ่าน เรียกปัญหานี้ว่าอะไร', opts: ['Open', 'Short', 'Split pair', 'Crosstalk'], a: 2, why: 'split pair ต่อครบและถูกขาแต่ไม่ได้ใช้คู่เกลียวที่ควรคู่กัน ทำให้เกิดสัญญาณรบกวนสูง อาการคือใช้ได้แต่ช้าและ error เยอะ — ต้องใช้ certifier จึงจะจับได้' },
         { type: 'mcq', q: 'พอร์ต gigabit แต่ลิงก์ขึ้นแค่ 100 Mbps ควรสงสัยอะไรก่อน', opts: ['สวิตช์เสีย', 'มีคู่สายบางคู่ขาด เพราะ 1000BASE-T ต้องใช้ครบทั้ง 4 คู่', 'IP ผิด', 'VLAN ผิด'], a: 1, why: '100BASE-TX ใช้แค่ 2 คู่ ส่วน 1000BASE-T ต้องใช้ครบ 4 คู่ — สายที่เข้าหัวไม่ครบหรือมีเส้นขาดจึงยังใช้ได้ที่ 100 Mbps ทำให้เข้าใจผิดว่าสายดี' },
         { type: 'mcq', q: 'อาการ "เปิดเว็บทั่วไปได้ แต่บางเว็บค้าง" บนลิงก์ VPN มักเกิดจากอะไร', opts: ['DNS ผิด', 'MTU ไม่เหมาะสม ทำให้แพ็กเก็ตใหญ่ถูกทิ้งกลางทาง', 'สายขาด', 'IP ซ้ำ'], a: 1, why: 'VPN และ PPPoE ห่อหัวข้อมูลเพิ่มทำให้ MTU ที่ใช้ได้จริงเหลือน้อยกว่า 1500 ถ้า path MTU discovery ถูกบล็อก (ปิด ICMP) แพ็กเก็ตใหญ่จะหายเงียบ ๆ' },
-        { type: 'cmd', q: 'พิมพ์คำสั่งบน Linux เพื่อดูสถิติ error ของ interface <code>eth0</code>', ans: ['ip -s link show eth0', 'ip -s link', 'ethtool eth0', 'ip -s link show'], why: 'ตัวเลข error, drop และ collision ที่สะสมอยู่บอกได้ว่าปัญหาเป็นเรื่องสาย (CRC error) หรือ duplex mismatch (late collision)' },
+        { type: 'cmd', q: 'พิมพ์คำสั่งบน Linux เพื่อดูสถิติ error ของ interface <code>ens33</code>', ans: ['ip -s link show ens33', 'ip -s link', 'ethtool ens33', 'ip -s link show'], why: 'ตัวเลข error, drop และ collision ที่สะสมอยู่บอกได้ว่าปัญหาเป็นเรื่องสาย (CRC error) หรือ duplex mismatch (late collision)' },
         { type: 'multi', q: 'ข้อใดคือสัญญาณของปัญหาชั้น Physical (เลือกทุกข้อที่ถูก)', opts: ['ไฟที่พอร์ตไม่ติดเลย', 'CRC error เพิ่มขึ้นเรื่อย ๆ', 'ลิงก์ขึ้นที่ความเร็วต่ำกว่าที่ควรเป็น', 'เข้าเว็บ A ไม่ได้แต่เว็บ B ได้'], a: [0, 1, 2], why: 'สามข้อแรกคืออาการของสาย หัวต่อ หรือ transceiver ส่วนข้อสุดท้ายเป็นปัญหาที่ชั้นสูงกว่า เช่น DNS หรือ firewall' },
         { type: 'multi', q: 'ข้อใดคือหน้าที่ของ BPDU Guard และ PortFast (เลือกทุกข้อที่ถูก)', opts: ['PortFast ให้พอร์ตของเครื่องผู้ใช้ขึ้นทันทีโดยไม่รอ STP', 'BPDU Guard ปิดพอร์ตทันทีถ้ามีใครเอาสวิตช์มาต่อ', 'ทั้งคู่ใช้เข้ารหัสข้อมูล', 'มักเปิดใช้คู่กันที่พอร์ตของผู้ใช้'], a: [0, 1, 3], why: 'PortFast ทำให้ผู้ใช้ไม่ต้องรอ 30 วินาทีตอนเสียบสาย ส่วน BPDU Guard ป้องกันไม่ให้พอร์ตนั้นถูกใช้ต่อสวิตช์เถื่อนจนทำ topology พัง — จึงต้องเปิดคู่กันเสมอ' },
       ],
@@ -430,7 +430,7 @@ ethtool eth0                <span style="color:#5b6b8c"># ดู speed / duplex 
             { t: 'ขั้น 6 — ตรวจว่า DNS ตั้งไว้เป็นอะไร', hint: 'cat /etc/resolv.conf', check: (s, h) => said(h, /resolv\.conf/i) },
             { t: 'ขั้น 7 — ทดสอบว่าแปลงชื่อเป็น IP ได้ไหม', hint: 'dig example.com', check: (s, h) => said(h, /^(dig|nslookup|host)\s/i) },
             { t: 'ขั้น 8 — ถ้าออกได้แต่ช้า ให้ดูว่าตายหรือหน่วงที่ hop ไหน', hint: 'traceroute 8.8.8.8', check: (s, h) => said(h, /^(traceroute|tracepath|mtr)\s/i) },
-            { t: 'ขั้น 9 — ตรวจ error สะสมที่ interface เผื่อเป็นปัญหาสาย', hint: 'ip -s link show eth0', check: (s, h) => said(h, /ip\s+-s\s+link/i) },
+            { t: 'ขั้น 9 — ตรวจ error สะสมที่ interface เผื่อเป็นปัญหาสาย', hint: 'ip -s link show ens33', check: (s, h) => said(h, /ip\s+-s\s+link/i) },
           ],
         },
       ],
@@ -556,9 +556,9 @@ network = <b>192.168.10.64</b> · broadcast = <b>192.168.10.127</b> · host ท�
           h: `
 <p>Router ตัดสินใจจาก <b>routing table</b> โดยใช้กฎเดียว: <b>Longest Prefix Match</b> — เส้นทางที่เจาะจงกว่าชนะเสมอ</p>
 <pre class="code">ip route
-<span style="color:#5b6b8c">default via 192.168.1.1 dev eth0          ← 0.0.0.0/0 ที่ไหนก็ตามที่เหลือ</span>
-<span style="color:#5b6b8c">10.20.0.0/16 via 192.168.1.254 dev eth0   ← เส้นทางเจาะจง</span>
-<span style="color:#5b6b8c">192.168.1.0/24 dev eth0 proto kernel      ← connected เกิดเองจากการมี IP</span></pre>
+<span style="color:#5b6b8c">default via 192.168.1.1 dev ens33          ← 0.0.0.0/0 ที่ไหนก็ตามที่เหลือ</span>
+<span style="color:#5b6b8c">10.20.0.0/16 via 192.168.1.254 dev ens33   ← เส้นทางเจาะจง</span>
+<span style="color:#5b6b8c">192.168.1.0/24 dev ens33 proto kernel      ← connected เกิดเองจากการมี IP</span></pre>
 <table class="tbl">
 <tr><th>ที่มาของเส้นทาง</th><th>เกิดขึ้นอย่างไร</th></tr>
 <tr><td><b>Connected</b></td><td>เกิดเองทันทีที่ใส่ IP ให้ interface</td></tr>
@@ -626,9 +626,9 @@ network = <b>192.168.10.64</b> · broadcast = <b>192.168.10.127</b> · host ท�
           device: 'linux',
           tasks: [
             { t: 'ดู IP ปัจจุบันของเครื่องก่อนแก้อะไร', hint: 'ip addr', check: (s, h) => said(h, /^ip\s+(addr|a)\b/i) },
-            { t: 'ใส่ IP <code>192.168.10.65/26</code> ให้ <code>eth0</code> (แผนกที่สอง เริ่มที่ .64)', hint: 'sudo ip addr add 192.168.10.65/26 dev eth0', check: s => ifc(s, 'eth0').ip === '192.168.10.65' && +ifc(s, 'eth0').prefix === 26 },
-            { t: 'ยืนยันว่า IP และ prefix ถูกตั้งจริง', hint: 'ip addr show eth0', check: (s, h) => said(h, /ip\s+(addr|a).*eth0/i) },
-            { t: 'เปิดใช้งาน interface ให้แน่ใจว่าลิงก์ขึ้น', hint: 'sudo ip link set eth0 up', check: (s, h) => said(h, /ip\s+link\s+set\s+eth0\s+up/i) },
+            { t: 'ใส่ IP <code>192.168.10.65/26</code> ให้ <code>ens33</code> (แผนกที่สอง เริ่มที่ .64)', hint: 'sudo ip addr add 192.168.10.65/26 dev ens33', check: s => ifc(s, 'ens33').ip === '192.168.10.65' && +ifc(s, 'ens33').prefix === 26 },
+            { t: 'ยืนยันว่า IP และ prefix ถูกตั้งจริง', hint: 'ip addr show ens33', check: (s, h) => said(h, /^(sudo\s+)?ip\s+(addr|a)\s+show\s+ens33/i) },
+            { t: 'เปิดใช้งาน interface ให้แน่ใจว่าลิงก์ขึ้น', hint: 'sudo ip link set ens33 up', check: (s, h) => said(h, /ip\s+link\s+set\s+ens33\s+up/i) },
             { t: 'เพิ่มเส้นทางไปวงสาขา <code>10.20.0.0/16</code> ผ่าน <code>192.168.10.254</code>', hint: 'sudo ip route add 10.20.0.0/16 via 192.168.10.254', check: (s, h) => said(h, /ip\s+route\s+add\s+10\.20\.0\.0\/16\s+via\s+192\.168\.10\.254/i) },
             { t: 'เพิ่ม default route ผ่าน <code>192.168.10.1</code>', hint: 'sudo ip route add default via 192.168.10.1', check: (s, h) => said(h, /ip\s+route\s+add\s+default\s+via/i) },
             { t: 'ตรวจตารางเส้นทางที่ได้', hint: 'ip route', check: (s, h) => said(h, /^ip\s+(route|r)\s*$/i) },
@@ -643,10 +643,9 @@ network = <b>192.168.10.64</b> · broadcast = <b>192.168.10.127</b> · host ท�
           device: 'linux',
           tasks: [
             { t: 'ดู IPv6 address ทั้งหมดของเครื่อง', hint: 'ip -6 addr', check: (s, h) => said(h, /ip\s+-6\s+(addr|a)\b/i) },
-            { t: 'สังเกตว่ามี link-local ขึ้นต้นด้วย <code>fe80::</code> อยู่แล้วทุก interface', hint: 'ip -6 addr show eth0', check: (s, h) => said(h, /ip\s+-6\s+(addr|a).*eth0/i) },
+            { t: 'สังเกตว่ามี link-local ขึ้นต้นด้วย <code>fe80::</code> อยู่แล้วทุก interface', hint: 'ip -6 addr show ens33', check: (s, h) => said(h, /ip\s+-6\s+(addr|a).*ens33/i) },
             { t: 'ทดสอบ loopback ของ IPv6', hint: 'ping6 -c 2 ::1', check: (s, h) => said(h, /ping6?.*::1/i) },
-            { t: 'เพิ่ม global address <code>2001:db8::10/64</code> ให้ <code>eth0</code>', hint: 'sudo ip addr add 2001:db8::10/64 dev eth0', check: (s, h) => said(h, /ip\s+addr\s+add\s+2001:db8::10\/64/i) },
-            { t: 'ยืนยันว่า address ใหม่ถูกเพิ่มแล้ว', hint: 'ip -6 addr show eth0', check: (s, h) => h.filter(c => /ip\s+-6\s+(addr|a)/i.test(String(c))).length >= 2 },
+            { t: 'เพิ่ม global address <code>2001:db8::10/64</code> ให้ <code>ens33</code>', hint: 'sudo ip addr add 2001:db8::10/64 dev ens33', check: s => (ifc(s, 'ens33').ip6 || []).some(x => x.ip === '2001:db8::10' && +x.prefix === 64) },
             { t: 'ดูตารางเส้นทาง IPv6', hint: 'ip -6 route', check: (s, h) => said(h, /ip\s+-6\s+(route|r)\b/i) },
             { t: 'ถาม DNS หา AAAA record ของโดเมน', hint: 'dig AAAA example.com', check: (s, h) => said(h, /dig.*aaaa|aaaa.*example/i) },
             { t: 'ดูตาราง neighbor (สิ่งที่ IPv6 ใช้แทน ARP)', hint: 'ip -6 neigh', check: (s, h) => said(h, /ip\s+(-6\s+)?neigh/i) },

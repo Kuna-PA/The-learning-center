@@ -249,6 +249,25 @@ function renderSide() {
   $('#side-bar').style.width = tp.pct + '%';
   $('#side-xp').textContent = `${store.xp} XP`;
   $('#side-next').textContent = tp.t < 5 ? `→ ${tp.hi}` : 'MAX';
+  renderRankBadge(tp, lv);
+}
+
+/** ป้ายอันดับลอยมุมขวาล่าง — เห็นได้ทุกหน้าโดยไม่ต้องเปิดเมนูข้าง */
+function renderRankBadge(tp, lv) {
+  const el = $('#rank-badge');
+  if (!el) return;
+  const color = lv.color;                       // เช่น var(--lv3)
+  el.style.setProperty('--rb', color);
+  // เงาเรืองใช้สีเดียวกับ tier แต่จาง — ใช้ color-mix เพื่อไม่ต้องแปลงค่าเอง
+  el.style.setProperty('--rb-glow', `color-mix(in srgb, ${color} 45%, transparent)`);
+  el.innerHTML = `
+    <span class="rb-ico">${lv.icon}</span>
+    <span style="min-width:96px">
+      <span class="rb-name">${lv.name}</span>
+      <span class="rb-xp" style="display:block">${store.xp} XP ${tp.t < 5 ? `· → ${tp.hi}` : '· MAX'}</span>
+      <span class="rb-bar" style="display:block"><i style="width:${tp.pct}%"></i></span>
+    </span>`;
+  el.hidden = false;
 }
 
 function crumbs(parts) {
@@ -675,6 +694,8 @@ function runLabView({ lab, trackId, backHref, hero }) {
     <div class="lab">
       <div id="term-mount"></div>
       <div class="lab-side">
+        <!-- ปุ่มจบ Lab อยู่เหนือรายการสิ่งที่ต้องทำ จะได้ไม่ต้องเลื่อนหาตอนทำเสร็จ -->
+        <div id="nav-slot"></div>
         <div class="tasks">
           <h4>สิ่งที่ต้องทำ <span class="muted" style="font-weight:400;font-size:11.5px;font-family:var(--mono)">(<span id="tdone">0</span>/${lab.tasks.length})</span></h4>
           <div class="bar" style="margin:8px 0 4px"><div class="bar-fill" id="tbar" style="width:0"></div></div>
@@ -686,7 +707,6 @@ function runLabView({ lab, trackId, backHref, hero }) {
           <div style="font-family:var(--sans);font-size:11.8px;line-height:1.6">
             คำสั่งที่พิมพ์ผิดจะไม่ถูกนับว่าทำแล้ว — ต้องรันสำเร็จจริงเท่านั้น</div></div>
         <div id="debrief-slot"></div>
-        <div id="nav-slot"></div>
       </div>
     </div>`;
 
@@ -710,7 +730,7 @@ function runLabView({ lab, trackId, backHref, hero }) {
   function showFinish() {
     if (finished) return;
     finished = true;
-    $('#nav-slot').innerHTML = `<div class="card" id="lab-finish" style="margin-top:12px;border-color:var(--ok)">
+    $('#nav-slot').innerHTML = `<div class="card" id="lab-finish" style="margin-bottom:12px;border-color:var(--ok)">
       <h4 style="margin:0 0 4px;font-size:13px;font-family:var(--mono);color:var(--ok)">✓ ทำครบทุกข้อแล้ว</h4>
       ${nav.next ? `<div class="muted" style="font-size:11.8px;line-height:1.5;margin-bottom:10px">
         ถัดไป: ${esc(nav.next.title)}</div>`
@@ -1408,6 +1428,7 @@ function route() {
 window.addEventListener('hashchange', route);
 window.addEventListener('progress-changed', () => { if (auth.current) { renderSide(); topStats(); } });
 $('#menu-toggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+$('#rank-badge').addEventListener('click', () => { location.hash = '#/progress'; });
 $('#btn-logout').addEventListener('click', async () => {
   await auth.logout(); await setStoreUser(null); loginMode = 'login'; renderLogin();
 });

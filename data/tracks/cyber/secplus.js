@@ -11,6 +11,29 @@
 // ============================================================
 const said = (h, re) => h.some(c => re.test(String(c).trim()));
 
+// ---- ตัวช่วยจัดฉากให้ Lab: สร้างผู้ใช้ / ไฟล์ / service ที่โจทย์อ้างถึง ----
+// ถ้าไม่จัดฉากไว้ คำสั่งจะ error แล้ว terminal จะไม่นับว่าทำ task นั้นแล้ว
+const addUser = (st, name, extra = {}) => {
+  st.users[name] = {
+    uid: 1100 + Object.keys(st.users).length, home: `/home/${name}`,
+    shell: '/bin/bash', groups: [name], ...extra,
+  };
+};
+/** วางไฟล์ตาม path เต็ม สร้างโฟลเดอร์ระหว่างทางให้ด้วย */
+const addFile = (st, path, content, mode = '644', owner = 'root') => {
+  const parts = path.split('/').filter(Boolean);
+  const name = parts.pop();
+  let n = st.fs;
+  for (const p of parts) {
+    n.children[p] ||= { t: 'd', mode: '755', owner: 'root', group: 'root', children: {} };
+    n = n.children[p];
+  }
+  n.children[name] = { t: 'f', mode, owner, group: owner, content };
+};
+const startSvc = (st, name, desc = '') => {
+  st.services[name] = { active: true, enabled: true, desc: desc || name, pid: 900 + Object.keys(st.services).length };
+};
+
 export default {
   // ================================================================
   //  ระดับ 1 — Lesson 1, 2, 4
@@ -429,8 +452,9 @@ sudo ufw status verbose</pre>
         title: 'Security+ Lab 2B — จัดระเบียบบัญชีผู้ใช้และ hardening เครื่อง',
         brief: 'ผลการตรวจสอบภายในพบว่าบัญชีพนักงานที่ลาออกยังใช้งานได้ รหัสผ่านไม่เคยหมดอายุ และ service account ล็อกอินเข้าเครื่องได้ คุณต้องแก้ทั้งหมดแล้ววัดผลด้วย baseline',
         device: 'linux-sec',
+        init: { apply: st => { addUser(st, 'somchai'); addUser(st, 'backup-svc', { shell: '/bin/bash' }); } },
         tasks: [
-          { t: 'ดูรายชื่อผู้ใช้ทั้งหมดในระบบ', hint: 'cat /etc/passwd', check: (s, h) => said(h, /\/etc\/passwd/i) },
+          { t: 'ดูรายชื่อผู้ใช้ทั้งหมดในระบบ', hint: 'cat /etc/passwd', check: (s, h) => said(h, /^(sudo\s+)?cat\s+\/etc\/passwd/i) },
           { t: 'ตรวจอายุรหัสผ่านของผู้ใช้ <code>analyst</code>', hint: 'chage -l analyst', check: (s, h) => said(h, /chage\s+-l/i) },
           { t: 'บังคับให้รหัสผ่านหมดอายุทุก 90 วัน เตือนล่วงหน้า 7 วัน', hint: 'sudo chage -M 90 -W 7 analyst', check: (s, h) => said(h, /chage.*-M\s*90/i) },
           { t: 'ล็อกบัญชีของพนักงานที่ลาออก (ยังไม่ลบ เผื่อต้องสืบสวน)', hint: 'sudo usermod -L somchai', check: (s, h) => said(h, /usermod\s+-L|passwd\s+-l/i) },
@@ -462,6 +486,7 @@ sudo ufw status verbose</pre>
         title: 'Security+ Lab 2D — Hardening เครื่องปลายทางและวางเส้นฐานเฝ้าระวัง (Lesson 12)',
         brief: 'เซิร์ฟเวอร์ตัวใหม่กำลังจะขึ้นระบบ ก่อนส่งมอบต้องปิดสิ่งที่ไม่จำเป็น เปิดกลไกตรวจจับการเปลี่ยนแปลง และเก็บ baseline ไว้เทียบภายหลัง',
         device: 'linux-sec',
+        init: { apply: st => { startSvc(st, 'telnet', 'Telnet Server (ของเก่าที่ควรปิด)'); } },
         tasks: [
           { t: 'ตรวจว่ามีแพ็กเกจใดค้างอัปเดตอยู่บ้าง', hint: 'apt list --upgradable', check: (s, h) => said(h, /apt\s+list|apt\s+update|dnf\s+check-update/i) },
           { t: 'ดูว่ามี service อะไรทำงานอยู่บ้าง', hint: 'systemctl list-units --type=service', check: (s, h) => said(h, /systemctl\s+list-units/i) },
@@ -626,6 +651,7 @@ sudo fail2ban-client status     <span style="color:#5b6b8c"># ใครถูก
       title: 'Security+ Lab 3 — ประเมินความปลอดภัยและคัดกรองแจ้งเตือน',
       brief: 'ก่อนขึ้นระบบใหม่ หัวหน้าขอให้คุณประเมินความปลอดภัยของวงเซิร์ฟเวอร์ พร้อมตรวจแหล่ง log ที่จะส่งเข้า SIEM ว่าครบและอ่านออกจริง',
       device: 'linux-sec',
+      init: { apply: st => { st.services.auditd.active = true; st.services.fail2ban.active = true; st.fail2ban.active = true; } },
       tasks: [
         { t: 'ตรวจก่อนว่าเครื่องเราเองเปิดพอร์ตอะไรไว้บ้าง', hint: 'ss -tulpn', check: (s, h) => said(h, /ss\s+-\w+/i) },
         { t: 'สำรวจว่ามีเครื่องใดออนไลน์ในวง <code>10.10.10.0/24</code>', hint: 'nmap -sn 10.10.10.0/24', check: (s, h) => said(h, /nmap.*-sn/i) },
@@ -635,7 +661,7 @@ sudo fail2ban-client status     <span style="color:#5b6b8c"># ใครถูก
         { t: 'ค้นหาเหตุการณ์ล็อกอินจากระบบ audit', hint: 'sudo ausearch -m USER_LOGIN', check: (s, h) => said(h, /ausearch/i) },
         { t: 'ดูว่าระบบ audit เฝ้าอะไรอยู่บ้าง', hint: 'sudo auditctl -l', check: (s, h) => said(h, /auditctl/i) },
         { t: 'ตรวจว่ามี IP ใดถูกแบนจากการเดารหัสผ่าน', hint: 'sudo fail2ban-client status', check: (s, h) => said(h, /fail2ban/i) },
-        { t: 'ดักดู traffic เพื่อยืนยันว่ามีการเชื่อมต่อขาออกผิดปกติจริงหรือไม่', hint: 'sudo tcpdump -i eth0 -c 20', check: (s, h) => said(h, /tcpdump/i) },
+        { t: 'ดักดู traffic เพื่อยืนยันว่ามีการเชื่อมต่อขาออกผิดปกติจริงหรือไม่', hint: 'sudo tcpdump -i ens33 -c 20', check: (s, h) => said(h, /tcpdump/i) },
       ],
     },
     {
@@ -796,13 +822,14 @@ stat /tmp/sample.bin        <span style="color:#5b6b8c"># ดู timestamp: atim
       title: 'Security+ Lab 4 — รับมือเหตุการณ์และเก็บหลักฐานให้ใช้ได้จริง',
       brief: 'SIEM แจ้งเตือนว่าเซิร์ฟเวอร์ตัวหนึ่งมีการเชื่อมต่อออกไปยัง IP ต่างประเทศเป็นจังหวะสม่ำเสมอ คุณต้องเก็บหลักฐานตามลำดับความระเหยให้ถูกต้อง ก่อนจะ containment โดยไม่ทำลายหลักฐาน',
       device: 'linux-sec',
+      init: { apply: st => { addUser(st, 'somchai'); addFile(st, '/tmp/sample.bin', 'ELF payload\nhttp://c2-server.example.net/beacon\n203.0.113.66\n'); st.services.auditd.active = true; } },
       tasks: [
         { t: 'เก็บสถานะ process ที่กำลังทำงาน (ระเหยง่าย เก็บก่อน)', hint: 'ps aux', check: (s, h) => said(h, /^ps\s+aux/i) },
         { t: 'เก็บรายการเชื่อมต่อเครือข่ายที่เปิดอยู่ ณ ขณะนั้น', hint: 'ss -tunp', check: (s, h) => said(h, /ss\s+-\w+/i) },
         { t: 'ดูว่าใครกำลังล็อกอินอยู่ในเครื่องและทำอะไร', hint: 'w', check: (s, h) => said(h, /^w\s*$/i) },
         { t: 'ดูประวัติการล็อกอินย้อนหลัง', hint: 'last', check: (s, h) => said(h, /^last\s*$/i) },
         { t: 'ดึง log ในช่วงเวลาที่เกิดเหตุเพื่อทำ timeline', hint: 'journalctl --since "2026-08-20 08:00" --until "2026-08-20 12:00"', check: (s, h) => said(h, /journalctl.*--since/i) },
-        { t: 'ดักดู traffic ยืนยันปลายทางที่เครื่องติดต่อออกไป', hint: 'sudo tcpdump -i eth0 -c 20', check: (s, h) => said(h, /tcpdump/i) },
+        { t: 'ดักดู traffic ยืนยันปลายทางที่เครื่องติดต่อออกไป', hint: 'sudo tcpdump -i ens33 -c 20', check: (s, h) => said(h, /tcpdump/i) },
         { t: 'ทำสำเนา log ทั้งหมดเป็นไฟล์หลักฐาน', hint: 'sudo tar -czf /tmp/evidence-20260823.tar.gz /var/log', check: (s, h) => said(h, /tar\s+.*-c.*\/var\/log|tar\s+-czf/i) },
         { t: 'คำนวณ hash ของไฟล์หลักฐานทันทีเพื่อยืนยันความสมบูรณ์', hint: 'sha256sum /tmp/evidence-20260823.tar.gz', check: (s, h) => said(h, /sha256sum.*evidence|sha256sum/i) },
         { t: 'ตรวจ timestamp ของไฟล์ต้องสงสัย (atime / mtime / ctime)', hint: 'stat /tmp/sample.bin', check: (s, h) => said(h, /^stat\s/i) },
@@ -1072,7 +1099,7 @@ checklist offboarding ที่ครอบคลุมทั้งสองด�
           { t: 'อนุญาต SSH เฉพาะจากวง management <code>10.10.99.0/24</code>', hint: 'sudo ufw allow from 10.10.99.0/24 to any port 22', check: (s, h) => said(h, /ufw\s+allow\s+from\s+10\.10\.99|ufw\s+allow.*22/i) },
           { t: 'อนุญาต HTTPS ให้เข้าถึงได้จากทุกที่', hint: 'sudo ufw allow 443/tcp', check: (s, h) => said(h, /ufw\s+allow\s+443/i) },
           { t: 'เปิดใช้งานไฟร์วอลล์', hint: 'sudo ufw enable', check: (s, h) => said(h, /ufw\s+enable/i) },
-          { t: 'ตรวจกฎที่ได้ทั้งหมดอีกครั้ง', hint: 'sudo ufw status numbered', check: (s, h) => said(h, /ufw\s+status/i) },
+          { t: 'ตรวจกฎที่ได้ทั้งหมดอีกครั้ง', hint: 'sudo ufw status numbered', check: (s, h) => said(h, /ufw\s+status\s+numbered/i) },
           { t: 'ปิดการส่งต่อแพ็กเก็ต ไม่ให้เครื่องนี้กลายเป็นสะพานข้ามวง', hint: 'sudo sysctl net.ipv4.ip_forward=0', check: (s, h) => said(h, /sysctl.*ip_forward/i) },
           { t: 'ตรวจการตั้งค่าเครือข่ายว่าอยู่ในวงที่ควรอยู่', hint: 'ip addr', check: (s, h) => said(h, /^ip\s+(addr|a)\b|nmcli/i) },
           { t: 'สแกนตัวเองเพื่อยืนยันว่าจากภายนอกเห็นเฉพาะพอร์ตที่ตั้งใจเปิด', hint: 'nmap -sV 127.0.0.1', check: (s, h) => said(h, /nmap/i) },
@@ -1083,6 +1110,7 @@ checklist offboarding ที่ครอบคลุมทั้งสองด�
         title: 'Security+ Lab 5D — ความปลอดภัยของ Container และ Infrastructure as Code (Lesson 15)',
         brief: 'ทีมพัฒนาเริ่มย้ายงานไปรันบน container และเขียนโครงสร้างพื้นฐานเป็นโค้ด คุณต้องตรวจว่า container ที่รันอยู่ไม่ได้ใช้สิทธิ์เกินจำเป็น และ playbook ไม่มี secret ฝังอยู่',
         device: 'linux-sec',
+        init: { apply: st => { addFile(st, '/home/analyst/site.yml', '- hosts: all\n  tasks:\n    - name: install nginx\n      apt: name=nginx state=present\n'); st.services.auditd.active = true; } },
         tasks: [
           { t: 'ดูว่ามี container อะไรรันอยู่บ้าง', hint: 'docker ps', check: (s, h) => said(h, /docker\s+ps/i) },
           { t: 'ดูรายการ image ที่มีในเครื่องและเวอร์ชัน', hint: 'docker images', check: (s, h) => said(h, /docker\s+images/i) },
@@ -1090,8 +1118,8 @@ checklist offboarding ที่ครอบคลุมทั้งสองด�
           { t: 'ตรวจว่า container เปิดพอร์ตอะไรออกมาที่ host บ้าง', hint: 'ss -tulpn', check: (s, h) => said(h, /ss\s+-\w+/i) },
           { t: 'ค้นหา secret หรือรหัสผ่านที่อาจฝังอยู่ในไฟล์ตั้งค่า', hint: 'grep -ri password /etc', check: (s, h) => said(h, /grep.*password/i) },
           { t: 'ลองรัน playbook แบบ dry-run ก่อน เพื่อดูว่าจะเปลี่ยนอะไรบ้าง', hint: 'ansible-playbook --check site.yml', check: (s, h) => said(h, /ansible-playbook.*--check/i) },
-          { t: 'รัน playbook จริงแล้วอ่าน PLAY RECAP', hint: 'ansible-playbook site.yml', check: (s, h) => said(h, /ansible-playbook/i) },
-          { t: 'รันซ้ำอีกครั้งเพื่อพิสูจน์ว่า playbook เป็น idempotent (changed ต้องเป็น 0)', hint: 'ansible-playbook site.yml', check: (s, h) => h.filter(c => /ansible-playbook/i.test(String(c))).length >= 2 },
+          { t: 'รัน playbook จริงแล้วอ่าน PLAY RECAP', hint: 'ansible-playbook site.yml', check: (s, h) => said(h, /ansible-playbook(?!\s+--check)/i) },
+          { t: 'รันซ้ำอีกครั้งเพื่อพิสูจน์ว่า playbook เป็น idempotent (changed ต้องเป็น 0)', hint: 'ansible-playbook site.yml', check: (s, h) => h.filter(c => /ansible-playbook(?!\s+--check)/i.test(String(c))).length >= 2 },
           { t: 'ตรวจว่า audit log ของเครื่องยังเก็บการเปลี่ยนแปลงไว้ครบ', hint: 'sudo ausearch -m USER_LOGIN', check: (s, h) => said(h, /ausearch|journalctl/i) },
         ],
       },
@@ -1100,6 +1128,7 @@ checklist offboarding ที่ครอบคลุมทั้งสองด�
         title: 'Security+ Lab 5E — ค้นหาและปกป้องข้อมูลส่วนบุคคล (Lesson 16)',
         brief: 'ฝ่ายกฎหมายขอให้ตรวจตาม PDPA ว่าในเซิร์ฟเวอร์มีข้อมูลส่วนบุคคลเก็บอยู่ตรงไหนบ้าง ใครเข้าถึงได้ และมีการเข้ารหัสหรือยัง',
         device: 'linux-sec',
+        init: { apply: st => { addFile(st, '/home/analyst/customers.csv', 'name,citizen_id,phone\nsomchai,1234567890123,0812345678\n', '666', 'analyst'); st.groups.secops = 1200; } },
         tasks: [
           { t: 'ค้นหาไฟล์ที่น่าจะมีข้อมูลส่วนบุคคลอยู่', hint: 'find /home -name "*.csv"', check: (s, h) => said(h, /find\s+\/\w+.*-name/i) },
           { t: 'ตรวจสิทธิ์ของไฟล์ที่พบว่าเปิดกว้างเกินไปหรือไม่', hint: 'stat /etc/shadow', check: (s, h) => said(h, /^stat\s/i) },
@@ -1109,7 +1138,7 @@ checklist offboarding ที่ครอบคลุมทั้งสองด�
           { t: 'เข้ารหัสไฟล์ที่มีข้อมูลส่วนบุคคลก่อนเก็บ (data at rest)', hint: 'openssl enc -aes-256-cbc -in /etc/passwd -out /tmp/data.enc', check: (s, h) => said(h, /openssl\s+enc/i) },
           { t: 'คำนวณ hash ของไฟล์ที่เข้ารหัสไว้ตรวจความสมบูรณ์ภายหลัง', hint: 'sha256sum /tmp/data.enc', check: (s, h) => said(h, /sha256sum/i) },
           { t: 'ตรวจว่าดิสก์ที่เก็บข้อมูลมีการเข้ารหัสระดับดิสก์หรือไม่', hint: 'lsblk', check: (s, h) => said(h, /lsblk|blkid/i) },
-          { t: 'ตรวจว่าใครเข้าถึงเครื่องนี้ได้บ้าง เพื่อประเมินขอบเขตการเข้าถึงข้อมูล', hint: 'cat /etc/passwd', check: (s, h) => said(h, /\/etc\/passwd/i) },
+          { t: 'ตรวจว่าใครเข้าถึงเครื่องนี้ได้บ้าง เพื่อประเมินขอบเขตการเข้าถึงข้อมูล', hint: 'cat /etc/passwd', check: (s, h) => said(h, /^(sudo\s+)?cat\s+\/etc\/passwd/i) },
           { t: 'เปิด audit เฝ้าดูการเข้าถึงไฟล์ข้อมูลส่วนบุคคล', hint: 'sudo auditctl -w /home/analyst/customers.csv -p r -k pdpa', check: (s, h) => said(h, /auditctl\s+-w/i) },
         ],
       },

@@ -17,6 +17,8 @@ function baseFs() {
       fstab: file('UUID=8f3a-21bc  /       ext4  defaults        0 1\nUUID=1a2b-33cd  /boot   ext4  defaults        0 2\n/swap.img       none    swap  sw              0 0\n'),
       'os-release': file('NAME="Ubuntu"\nVERSION="22.04.4 LTS (Jammy Jellyfish)"\nID=ubuntu\nVERSION_ID="22.04"\n'),
       resolv: file(''),
+      'resolv.conf': file('# ไฟล์นี้ systemd-resolved เป็นคนดูแล\nnameserver 127.0.0.53\noptions edns0 trust-ad\nsearch example.co.th\n'),
+      ssl: dir({ 'cert.pem': file('-----BEGIN CERTIFICATE-----\n(ใบรับรองตัวอย่างของ lab)\n-----END CERTIFICATE-----\n') }),
       ssh: dir({ sshd_config: file('#Port 22\n#PermitRootLogin prohibit-password\nPasswordAuthentication yes\n') }),
       nginx: dir({ 'nginx.conf': file('user www-data;\nworker_processes auto;\nhttp {\n  server {\n    listen 80;\n    root /var/www/html;\n  }\n}\n') }),
       netplan: dir({ '01-netcfg.yaml': file('network:\n  version: 2\n  ethernets:\n    ens33:\n      dhcp4: false\n      addresses: [192.168.10.20/24]\n      routes:\n        - to: default\n          via: 192.168.10.1\n      nameservers:\n        addresses: [8.8.8.8]\n') }),
@@ -242,16 +244,67 @@ export function createLinux(init = {}) {
     }
   }
 
+  /** link-local ของ IPv6 สร้างจาก MAC แบบ EUI-64 — ของจริงทุก interface มีเสมอ */
+  function linkLocal(mac) {
+    const b = String(mac || '00:0c:29:aa:bb:cc').split(':');
+    if (b.length !== 6) return 'fe80::1';
+    const first = (parseInt(b[0], 16) ^ 0x02).toString(16).padStart(2, '0');
+    return `fe80::${first}${b[1]}:${b[2]}ff:fe${b[3]}:${b[4]}${b[5]}`;
+  }
+
   function ipCmd(args) {
+    // แยก option นำหน้าออกก่อน เช่น  ip -s link · ip -6 addr · ip -br a
+    const opts = [];
+    while (args.length && /^-/.test(args[0])) opts.push(args.shift().toLowerCase());
+    const stats = opts.some(o => /^-s/.test(o));
+    const v6 = opts.includes('-6');
+
     const a = args.map(x => x.toLowerCase());
+
+    // ---- ip neigh — ตาราง ARP (v4) หรือ NDP (v6) ----
+    if (['n', 'neigh', 'neighbor', 'neighbour'].includes(a[0])) {
+      const rows = Object.entries(st.ifaces).filter(([n, i]) => n !== 'lo' && i.ip);
+      if (!rows.length) return [D('(ตารางว่าง)')];
+      const out = [];
+      rows.forEach(([n, i]) => {
+        if (v6) { out.push(`${linkLocal(i.mac)} dev ${n} lladdr ${i.mac} router REACHABLE`); return; }
+        const base = i.ip.split('.').slice(0, 3).join('.');
+        out.push(`${base}.1 dev ${n} lladdr 00:0c:29:11:00:01 REACHABLE`);
+        out.push(`${base}.24 dev ${n} lladdr a4:5e:60:c1:22:01 STALE`);
+      });
+      return out;
+    }
+
     if (!a.length || ['a', 'addr', 'address'].includes(a[0])) {
       if (a[1] === 'add') {
-        const m = (args[2] || '').match(/^(\d+\.\d+\.\d+\.\d+)\/(\d+)$/);
         const dev = args[args.indexOf('dev') + 1];
+        const raw = args[2] || '';
+        if (raw.includes(':')) {                                  // IPv6
+          const m6 = raw.match(/^([0-9a-f:]+)\/(\d+)$/i);
+          if (!m6 || !dev) return [E('Usage: ip addr add IP/PREFIX dev IFACE')];
+          st.ifaces[dev] ||= { up: true, mac: '00:0c:29:aa:bb:cc' };
+          (st.ifaces[dev].ip6 ||= []).push({ ip: m6[1], prefix: +m6[2] });
+          return [];
+        }
+        const m = raw.match(/^(\d+\.\d+\.\d+\.\d+)\/(\d+)$/);
         if (!m || !dev) return [E('Usage: ip addr add IP/PREFIX dev IFACE')];
         st.ifaces[dev] ||= { up: true, mac: '00:0c:29:aa:bb:cc' };
         st.ifaces[dev].ip = m[1]; st.ifaces[dev].prefix = +m[2];
         return [];
+      }
+      if (v6) {
+        const out6 = [];
+        let k = 1;
+        Object.entries(st.ifaces).forEach(([name, i]) => {
+          out6.push(`${k}: ${name}: <${i.up ? 'BROADCAST,MULTICAST,UP,LOWER_UP' : 'BROADCAST,MULTICAST'}> mtu ${i.mtu || 1500} state ${i.up ? 'UP' : 'DOWN'}`);
+          if (name === 'lo') out6.push('    inet6 ::1/128 scope host');
+          else {
+            (i.ip6 || []).forEach(x => out6.push(`    inet6 ${x.ip}/${x.prefix} scope global`));
+            out6.push(`    inet6 ${linkLocal(i.mac)}/64 scope link`);
+          }
+          k++;
+        });
+        return out6;
       }
       const out = [];
       let n = 1;
@@ -267,7 +320,17 @@ export function createLinux(init = {}) {
       if (a[1] === 'add') {
         const via = args[args.indexOf('via') + 1];
         if (args[2] === 'default' || args[2] === '0.0.0.0/0') st.gateway = via;
+        else (st.routes ||= []).push({ dst: args[2], via });
         return [];
+      }
+      if (v6) {
+        const out6 = [];
+        Object.entries(st.ifaces).forEach(([name, i]) => {
+          if (name === 'lo') return;
+          (i.ip6 || []).forEach(x => out6.push(`${x.ip}/${x.prefix} dev ${name} proto kernel metric 256`));
+          out6.push(`fe80::/64 dev ${name} proto kernel metric 256`);
+        });
+        return out6.length ? out6 : [D('(ยังไม่มีเส้นทาง IPv6)')];
       }
       const out = [];
       if (st.gateway) out.push(`default via ${st.gateway} dev ens33 proto static`);
@@ -278,11 +341,32 @@ export function createLinux(init = {}) {
     }
     if (['l', 'link'].includes(a[0])) {
       if (a[1] === 'set') {
-        const dev = args[2]; const s = args[3];
-        if (st.ifaces[dev]) st.ifaces[dev].up = s === 'up';
+        const dev = args[2];
+        if (!st.ifaces[dev]) return [E(`Cannot find device "${dev}"`)];
+        const mi = a.indexOf('mtu');
+        if (mi >= 0) { st.ifaces[dev].mtu = +args[mi + 1] || 1500; return []; }
+        if (a.includes('up') || a.includes('down')) st.ifaces[dev].up = a.includes('up');
         return [];
       }
-      return Object.keys(st.ifaces).map((n, i) => `${i + 1}: ${n}: <UP> mtu 1500 state ${st.ifaces[n].up ? 'UP' : 'DOWN'}`);
+      // เลือกเฉพาะ interface ที่ระบุ เช่น  ip -s link show eth0
+      const only = args.filter(x => !/^(show|dev)$/i.test(x)).slice(1)[0];
+      const names = Object.keys(st.ifaces).filter(n => !only || n === only);
+      if (only && !names.length) return [E(`Device "${only}" does not exist.`)];
+      const out = [];
+      names.forEach((n) => {
+        const i = st.ifaces[n];
+        const idx = Object.keys(st.ifaces).indexOf(n) + 1;
+        out.push(`${idx}: ${n}: <${i.up ? 'BROADCAST,MULTICAST,UP,LOWER_UP' : 'BROADCAST,MULTICAST'}> mtu ${i.mtu || 1500} state ${i.up ? 'UP' : 'DOWN'}`);
+        out.push(`    link/${n === 'lo' ? 'loopback' : 'ether'} ${i.mac} brd ff:ff:ff:ff:ff:ff`);
+        if (stats) {
+          const e = i.errors || 0;
+          out.push('    RX: bytes  packets  errors  dropped overrun mcast');
+          out.push(`    ${lpad(84213904, 12)} ${lpad(412330, 8)} ${lpad(e, 7)} ${lpad(0, 7)} ${lpad(0, 7)} ${lpad(120, 5)}`);
+          out.push('    TX: bytes  packets  errors  dropped carrier collsns');
+          out.push(`    ${lpad(20114552, 12)} ${lpad(388120, 8)} ${lpad(0, 7)} ${lpad(0, 7)} ${lpad(0, 7)} ${lpad(0, 7)}`);
+        }
+      });
+      return out;
     }
     return [E('Object "' + a[0] + '" is unknown')];
   }
@@ -348,10 +432,24 @@ export function createLinux(init = {}) {
       .map(l => (files.length > 1 ? `${tag}:${l}` : l));
     if (!files.length) return stdin ? scan(stdin, '') : [E('grep: ต้องระบุไฟล์ หรือใช้กับ pipe')];
     const out = [];
+    const recursive = flags.includes('r') || flags.includes('R');
+    /** ไล่ทุกไฟล์ในไดเรกทอรี — ใช้กับ grep -r */
+    const walk = (n, path, acc) => {
+      if (n.t === 'f') { acc.push([path, n]); return acc; }
+      Object.entries(n.children || {}).forEach(([k, v]) => walk(v, `${path}/${k}`, acc));
+      return acc;
+    };
     files.forEach(f => {
       const n = node(f);
       if (!n) { out.push(E(`grep: ${f}: No such file or directory`)); return; }
-      if (n.t === 'd') { out.push(E(`grep: ${f}: Is a directory`)); return; }
+      if (n.t === 'd') {
+        if (!recursive) { out.push(E(`grep: ${f}: Is a directory`)); return; }
+        walk(n, f.replace(/\/$/, ''), []).forEach(([p, fn]) =>
+          fn.content.replace(/\n$/, '').split('\n')
+            .filter(l => re.test(l) !== flags.includes('v'))
+            .forEach(l => out.push(`${p}:${l}`)));
+        return;
+      }
       out.push(...scan(n.content.replace(/\n$/, '').split('\n'), f));
     });
     if (flags.includes('c')) return [String(out.length)];
@@ -684,10 +782,31 @@ export function createLinux(init = {}) {
       }
       case 'ip': out = ipCmd(args); break;
       case 'ifconfig': out = ipCmd(['a']); break;
-      case 'ping': {
-        const host = args.filter(a => !a.startsWith('-'))[0];
+      case 'arp': out = ipCmd(['neigh']); break;
+      case 'ethtool': {
+        const dev = args.filter(x => !x.startsWith('-'))[0];
+        const i = st.ifaces[dev];
+        if (!i) { out = [E(`ethtool: Cannot get device settings: No such device (${dev || 'ไม่ได้ระบุ interface'})`)]; break; }
+        out = [`Settings for ${dev}:`,
+          '\tSupported ports: [ TP ]',
+          '\tSupported link modes:   10baseT/Half 10baseT/Full',
+          '\t                        100baseT/Half 100baseT/Full',
+          '\t                        1000baseT/Full',
+          '\tSupports auto-negotiation: Yes',
+          `\tSpeed: ${i.up ? '1000Mb/s' : 'Unknown!'}`,
+          `\tDuplex: ${i.up ? 'Full' : 'Unknown!'}`,
+          '\tPort: Twisted Pair',
+          '\tAuto-negotiation: on',
+          `\tLink detected: ${i.up ? 'yes' : 'no'}`];
+        break;
+      }
+      case 'ping6': case 'ping': {
+        const host = args.filter(a => !a.startsWith('-') && !/^\d+$/.test(a))[0];
         if (!host) { out = [E('ping: usage error: Destination address required')]; break; }
-        const ok = st.hosts[host] !== undefined || host === '127.0.0.1' || Object.values(st.ifaces).some(i => i.ip === host) || host === st.gateway;
+        const ok = st.hosts[host] !== undefined || host === '127.0.0.1' || Object.values(st.ifaces).some(i => i.ip === host) || host === st.gateway
+          // IPv6: loopback, link-local และ address ที่ตั้งไว้บนเครื่องเอง ต้องตอบได้
+          || host === '::1' || /^fe80:/i.test(host)
+          || Object.values(st.ifaces).some(i => (i.ip6 || []).some(x => x.ip === host));
         out = [`PING ${host} (${host}) 56(84) bytes of data.`];
         for (let i = 1; i <= 4; i++) out.push(ok ? `64 bytes from ${host}: icmp_seq=${i} ttl=64 time=0.${i}${i} ms` : '');
         out.push('', `--- ${host} ping statistics ---`);
@@ -717,7 +836,16 @@ export function createLinux(init = {}) {
       case 'firewall-cmd': out = args.includes('--list-all')
         ? ['public (active)', '  target: default', '  interfaces: ens33', '  services: dhcpv6-client ssh', '  ports: ']
         : [OK('success')]; break;
-      case 'tar': out = args.includes('-czf') || args.includes('czf') ? [D('(สร้าง archive แล้ว)')] : [D('(tar)')]; break;
+      case 'tar': {
+        const create = args.some(x => /^-?c/.test(x) && /f/.test(x));
+        if (!create) { out = [D('(tar)')]; break; }
+        // สร้างไฟล์ archive จริงในระบบไฟล์ จะได้ sha256sum / ls ต่อได้
+        const fi = args.findIndex(x => /^-?[czjvf]*f$/.test(x));
+        const target = fi >= 0 ? args[fi + 1] : args.filter(x => /\.(tar|tgz|gz)/.test(x))[0];
+        if (target) { writeFile(norm(target), '(binary archive data)\n'); out = [D(`(สร้าง ${target} แล้ว)`)]; }
+        else out = [D('(สร้าง archive แล้ว)')];
+        break;
+      }
       case 'nano': case 'vi': case 'vim': out = [D(`(editor แบบ interactive ใช้ใน lab ไม่ได้ — ใช้ echo "..." > ${args[0] || 'file'} แทน)`)]; break;
       case 'which': out = [args[0] ? `/usr/bin/${args[0]}` : E('which: missing argument')]; break;
       case 'env': out = Object.entries(st.env).map(([k, v]) => `${k}=${v}`); break;
@@ -804,6 +932,9 @@ export function createLinux(init = {}) {
           break;
         }
         const k = args.filter(a => !a.startsWith('-'))[0];
+        // sysctl ของจริงรับ key=value ได้โดยไม่ต้องใส่ -w
+        const kv = k && k.match(/^([\w.]+)=(\S+)$/);
+        if (kv) { st.sysctl[kv[1]] = kv[2]; out = [`${kv[1]} = ${kv[2]}`]; break; }
         out = k ? [st.sysctl[k] !== undefined ? `${k} = ${st.sysctl[k]}` : E(`sysctl: cannot stat /proc/sys/${k.replace(/\./g, '/')}`)]
           : [E('usage: sysctl [-a] [-w key=value] [--system]')];
         break;
@@ -914,7 +1045,8 @@ export function createLinux(init = {}) {
       }
       case 'fail2ban-client': {
         if (args[0] === 'status') {
-          out = st.fail2ban.active
+          // service ถูกสั่ง start แล้วก็ถือว่าใช้ได้ ไม่ต้องพึ่ง flag แยกอีกตัว
+          out = (st.fail2ban.active || (st.services.fail2ban || {}).active)
             ? ['Status', '|- Number of jail:\t1', '`- Jail list:\tsshd']
             : [E('ERROR   Failed to access socket path — ยังไม่ได้เริ่ม service fail2ban')];
           break;
@@ -1097,7 +1229,40 @@ export function createLinux(init = {}) {
             'verify return:1', '---', 'SSL handshake has read 5142 bytes', 'Protocol  : TLSv1.3',
             'Cipher    : TLS_AES_256_GCM_SHA384'];
         } else if (args[0] === 'rand') out = [OK('bR7xK2mQ9vN4pL8sT1wY6zC3fH5jD0gA')];
-        else out = [D('openssl: lab นี้รองรับ x509, s_client, rand')];
+        else if (args[0] === 'genrsa') {
+          const o = args[args.indexOf('-out') + 1];
+          const bits = args.find(x => /^\d{4}$/.test(x)) || '2048';
+          if (o) writeFile(norm(o), '-----BEGIN PRIVATE KEY-----\n(lab key data)\n-----END PRIVATE KEY-----\n');
+          out = [`Generating RSA private key, ${bits} bit long modulus (2 primes)`, '.....++++', 'e is 65537 (0x010001)',
+            ...(o ? [OK(`เขียนคีย์ลง ${o} แล้ว`)] : [])];
+        } else if (args[0] === 'req') {
+          const o = args[args.indexOf('-out') + 1];
+          if (args.includes('-new') && o) {
+            writeFile(norm(o), '-----BEGIN CERTIFICATE REQUEST-----\n(lab csr data)\n-----END CERTIFICATE REQUEST-----\n');
+            out = [D('กรอกข้อมูลองค์กรสำหรับใบรับรอง (lab นี้ใส่ค่าตัวอย่างให้แล้ว)'),
+              'Country Name (2 letter code) [TH]:', 'Organization Name [Example Co., Ltd.]:',
+              'Common Name (e.g. server FQDN) [www.example.co.th]:', OK(`สร้าง CSR ที่ ${o} แล้ว`)];
+          } else {
+            out = ['Certificate Request:', '    Data:', '        Version: 1 (0x0)',
+              '        Subject: C = TH, O = Example Co., Ltd., CN = www.example.co.th',
+              '        Subject Public Key Info:', '            Public Key Algorithm: rsaEncryption',
+              '                RSA Public-Key: (2048 bit)'];
+          }
+        } else if (args[0] === 'verify') {
+          const f = args.filter(x => !x.startsWith('-'))[1];
+          out = node(norm(f || '')) ? [OK(`${f}: OK`)] : [E(`${f}: ไม่พบไฟล์`)];
+        } else if (args[0] === 'enc') {
+          const o = args[args.indexOf('-out') + 1];
+          const i = args[args.indexOf('-in') + 1];
+          if (i && !node(norm(i))) { out = [E(`openssl: ${i}: No such file or directory`)]; break; }
+          if (o) writeFile(norm(o), 'Salted__(ciphertext)\n');
+          out = [OK(o ? `เข้ารหัสแล้วเขียนลง ${o}` : 'เข้ารหัสแล้ว')];
+        } else if (/^(sha256|sha1|md5|dgst)$/.test(args[0])) {
+          const f = args.filter(x => !x.startsWith('-') && x !== args[0])[0];
+          const n = f && node(norm(f));
+          out = n ? [`SHA256(${f})= 9f2c4a1e7b3d5068ac91fe4472bd8e0351c6a7d9f0b2e4318c5a6d7e8f901234`]
+            : [E(`openssl: ${f || '(ไม่ได้ระบุไฟล์)'}: No such file or directory`)];
+        } else out = [D('openssl: lab นี้รองรับ x509, s_client, rand, genrsa, req, verify, enc, sha256')];
         break;
       }
       case 'file': {
@@ -1112,7 +1277,24 @@ export function createLinux(init = {}) {
         break;
       }
       case 'chage': {
-        const u = args.filter(a => !a.startsWith('-'))[0];
+        // แยกค่าที่ตามหลัง flag ออกก่อน ไม่งั้น chage -M 90 -W 7 somchai จะเข้าใจว่า user คือ "90"
+        const FLAGV = new Set(['-m', '-M', '-W', '-E', '-I', '-d']);
+        const rest = [];
+        for (let k = 0; k < args.length; k++) {
+          if (FLAGV.has(args[k])) { k++; continue; }
+          if (!args[k].startsWith('-')) rest.push(args[k]);
+        }
+        const u = rest[0];
+        if (u && st.users[u] && args.some(x => FLAGV.has(x))) {
+          const g = f => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : null; };
+          const p = (st.users[u].pwAge ||= {});
+          if (g('-M')) p.max = +g('-M');
+          if (g('-m')) p.min = +g('-m');
+          if (g('-W')) p.warn = +g('-W');
+          if (g('-E')) p.expire = g('-E');
+          out = [];
+          break;
+        }
         out = st.users[u]
           ? [`Last password change\t\t\t\t\t: Aug 01, 2026`, `Password expires\t\t\t\t\t: never`,
             `Password inactive\t\t\t\t\t: never`, `Account expires\t\t\t\t\t\t: never`,

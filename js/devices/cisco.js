@@ -1122,7 +1122,19 @@ export function createCisco(init = {}) {
       const mi = rawArgs.findIndex(x => x.toLowerCase() === 'mode');
       if (!g || mi < 0) return [E('% Incomplete command.')];
       const poName = `Port-channel${g}`;
-      if (!st.ifaces[poName]) { st.ifaces[poName] = newIface(poName, `Po${g}`, { link: true, swMode: 'trunk' }); st.order.push(poName); }
+      if (!st.ifaces[poName]) {
+        // ของจริง Port-channel รับค่ามาจากพอร์ตสมาชิกตอนที่ถูกรวม ไม่ได้เกิดมาเป็น trunk เสมอ
+        // (เดิม hard-code เป็น trunk ทำให้ task "ตั้ง Po เป็น trunk" ผ่านเองโดยไม่ต้องพิมพ์)
+        const src = targets[0] || {};
+        st.ifaces[poName] = newIface(poName, `Po${g}`, {
+          link: true,
+          swMode: src.swMode || 'dynamic',
+          accessVlan: src.accessVlan ?? 1,
+          nativeVlan: src.nativeVlan ?? 1,
+          allowed: src.allowed ?? null,
+        });
+        st.order.push(poName);
+      }
       return each(i => { i.channel = { group: g, mode: rawArgs[mi + 1].toLowerCase() }; });
     }
     if (w(0, 'spanning-tree')) {
