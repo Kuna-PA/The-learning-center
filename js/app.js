@@ -7,9 +7,16 @@ import { createTerminal } from './terminal.js';
 import { createWindowsGui } from './gui/windows-gui.js';
 import { normCmd } from './devices/util.js';
 import { DEVICE_LABELS, DEVICE_SHORT } from './devices/index.js';
+import { createJulong } from './julong.js';
 
 const $ = s => document.querySelector(s);
 const view = () => $('#view');
+
+// บริบทหน้าปัจจุบัน — จูล่งใช้ตัดสินว่าจะช่วยแบบไหน (ทำ Lab / ทำข้อสอบ / ทั่วไป)
+let julongCtx = { kind: 'home' };
+let julong = null;                  // สร้างจริงตอนบูต — ประกาศไว้ก่อนเพราะ route() อ้างถึง
+const setJulongCtx = (c) => { julongCtx = c; if (julong) julong.syncCtx(); };
+const strip0 = s => String(s).replace(/<[^>]+>/g, '').trim();
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
@@ -599,6 +606,7 @@ function vQuiz(id, level) {
   }
   // สุ่มลำดับข้อและตัวเลือกใหม่ทุกครั้งที่เข้ามาทำ — สอบตกแล้วทำใหม่จะไม่ได้ชุดเดิม
   const d = t.levels[level], l = levelOf(level), items = makeQuizSet(id, level, d.quiz);
+  setJulongCtx({ kind: 'quiz', track: id, level: +level });
   crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: t.name, href: `#/track/${id}` },
   { t: `L${level}`, href: `#/learn/${id}/${level}` }, { t: 'แบบทดสอบ' }]);
 
@@ -772,7 +780,8 @@ function runLabView({ lab, trackId, backHref, hero }) {
           <h4>สิ่งที่ต้องทำ <span class="muted" style="font-weight:400;font-size:11.5px;font-family:var(--mono)">(<span id="tdone">0</span>/${lab.tasks.length})</span></h4>
           <div class="bar" style="margin:8px 0 4px"><div class="bar-fill" id="tbar" style="width:0"></div></div>
           <div id="tlist"></div>
-          <button class="btn sm ghost block" id="toggle-hints" style="margin-top:10px">แสดง/ซ่อนคำใบ้</button>
+          <button class="btn sm ghost block" id="toggle-hints" style="margin-top:10px">แสดงคำใบ้ทุกข้อ</button>
+          <button class="btn sm ghost block" id="restart-lab" hidden style="margin-top:6px">↺ เริ่ม Lab นี้ใหม่</button>
         </div>
         <div class="cheat" id="cheat-slot"></div>
         <div class="cheat"><h5>หมายเหตุ</h5>
@@ -782,19 +791,31 @@ function runLabView({ lab, trackId, backHref, hero }) {
       </div>
     </div>`;
 
-  let showHints = false;
+  // คำใบ้เปิด/ปิดแยกทีละข้อ — เดิมกดทีเดียวเปิดหมดทุกข้อจนเห็นคำตอบที่ยังไม่ถึงคิว
+  const hintOpen = new Array(lab.tasks.length).fill(false);
   function renderTasks() {
     $('#tlist').innerHTML = lab.tasks.map((tk, i) => `
       <div class="task ${done[i] ? 'done' : ''}">
         <div class="chk">${done[i] ? '✓' : ''}</div>
-        <div style="flex:1"><div class="tt">${tk.t}</div>
-        ${showHints && !done[i] && tk.hint ? `<div class="hint">💡 ${esc(tk.hint)}</div>` : ''}</div>
+        <div style="flex:1">
+          <div class="tt">${tk.t}</div>
+          ${hintOpen[i] && tk.hint ? `<div class="hint">💡 ${esc(tk.hint)}</div>` : ''}
+        </div>
+        ${tk.hint ? `<button class="hint-btn ${hintOpen[i] ? 'on' : ''}" data-hint="${i}"
+          title="${hintOpen[i] ? 'ซ่อนคำใบ้ข้อนี้' : 'ดูคำใบ้ข้อนี้'}">💡</button>` : ''}
       </div>`).join('');
+    $('#tlist').querySelectorAll('[data-hint]').forEach(b =>
+      b.addEventListener('click', () => { const i = +b.dataset.hint; hintOpen[i] = !hintOpen[i]; renderTasks(); }));
     const n = done.filter(Boolean).length;
     $('#tdone').textContent = n;
     $('#tbar').style.width = (n / lab.tasks.length * 100) + '%';
+    $('#toggle-hints').textContent = hintOpen.some(Boolean) ? 'ซ่อนคำใบ้ทั้งหมด' : 'แสดงคำใบ้ทุกข้อ';
   }
-  $('#toggle-hints').addEventListener('click', () => { showHints = !showHints; renderTasks(); });
+  $('#toggle-hints').addEventListener('click', () => {
+    const anyOpen = hintOpen.some(Boolean);
+    hintOpen.fill(!anyOpen);
+    renderTasks();
+  });
 
   // ปุ่มท้าย Lab: ไป Lab ถัดไป · กลับบทเรียนที่มา · กลับหน้าหลัก
   const nav = labNav(lab, trackId);
@@ -820,7 +841,14 @@ function runLabView({ lab, trackId, backHref, hero }) {
       b.addEventListener('click', () => { location.hash = go[b.dataset.nav]; }));
   }
 
+  // บอกจูล่งว่ากำลังทำ Lab ไหน ค้างข้อไหน จะได้ใบ้ได้ตรงจุด
+  setJulongCtx({
+    kind: 'lab', track: trackId, labTitle: strip0(lab.title),
+    device: lab.device, tasks: lab.tasks, done,
+  });
+
   const isGui = lab.device === 'windows-gui';
+  let replaying = false;            // ระหว่างเล่นคำสั่งเก่าซ้ำ ไม่ต้องเด้ง toast รบกวน
   const term = (isGui ? createWindowsGui : createTerminal)({
     device: lab.device, initial: lab.init || {},
     onExec: ({ state, history }) => {
@@ -834,7 +862,8 @@ function runLabView({ lab, trackId, backHref, hero }) {
       if (!changed) return;
       renderTasks();
       const n = done.filter(Boolean).length;
-      store.recordLab(trackId, lab.id, n, lab.tasks.length);
+      // เก็บคำสั่งที่รันสำเร็จไว้ด้วย จะได้กลับมาทำต่อจากตรงนี้ได้
+      store.recordLab(trackId, lab.id, n, lab.tasks.length, isGui ? null : history);
       refreshChrome();
       if (n === lab.tasks.length) {
         showFinish();
@@ -847,8 +876,8 @@ function runLabView({ lab, trackId, backHref, hero }) {
               <div class="debrief">${lab.debrief}</div></div>`;
           }
         }
-        $('#nav-slot').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      } else toast('✅ ผ่านอีกหนึ่งข้อ', 'ok');
+        if (!replaying) $('#nav-slot').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else if (!replaying) toast('✅ ผ่านอีกหนึ่งข้อ', 'ok');
     },
   });
   $('#cheat-slot').innerHTML = isGui
@@ -866,6 +895,25 @@ function runLabView({ lab, trackId, backHref, hero }) {
        <div>? — ดูคำสั่งที่ใช้ได้</div>`;
   $('#term-mount').appendChild(term.el);
   renderTasks();
+
+  // ---- กลับมาทำต่อจากที่ค้างไว้ ----
+  // เล่นคำสั่งที่เคยรันสำเร็จซ้ำเข้า emulator เพื่อคืนสถานะเดิม ไม่ต้องพิมพ์ใหม่ทั้งหมด
+  const saved = (store.labOf(trackId, lab.id) || {}).history || [];
+  if (!isGui && saved.length && term.runSilent) {
+    replaying = true;
+    saved.forEach(c => { try { term.runSilent(c); } catch { /* คำสั่งเก่าใช้ไม่ได้แล้วก็ข้าม */ } });
+    replaying = false;
+    renderTasks();
+    const n = done.filter(Boolean).length;
+    if (n === lab.tasks.length) showFinish();
+    toast(`↩ ทำต่อจากที่ค้างไว้ — เล่นคำสั่งเดิม ${saved.length} คำสั่งให้แล้ว (${n}/${lab.tasks.length})`, 'ok');
+    $('#restart-lab').hidden = false;
+  }
+  $('#restart-lab').addEventListener('click', () => {
+    store.clearLabProgress(trackId, lab.id);
+    location.reload();
+  });
+
   term.focus();
 }
 
@@ -1478,6 +1526,9 @@ function route() {
   const parts = (location.hash.replace(/^#\/?/, '') || '').split('/').filter(Boolean);
   window.scrollTo(0, 0);
   refreshChrome();
+  // ค่าเริ่มต้นของบริบทจูล่ง — หน้า lab/quiz จะเขียนทับเองตอนเรนเดอร์
+  setJulongCtx({ kind: 'home', track: parts[0] === 'track' || parts[0] === 'learn' ? parts[1] : null });
+  if (julong) julong.reset();
   switch (parts[0]) {
     case undefined: return vDashboard();
     case 'levels': return vLevels();
@@ -1501,6 +1552,10 @@ window.addEventListener('hashchange', route);
 window.addEventListener('progress-changed', () => { if (auth.current) { renderSide(); topStats(); } });
 $('#menu-toggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
 $('#rank-badge').addEventListener('click', () => { location.hash = '#/progress'; });
+
+// จูล่ง — ผู้ช่วยลอยอยู่ทุกหน้า สร้างครั้งเดียวตอนบูต
+julong = createJulong({ getCtx: () => julongCtx });
+$('#app').appendChild(julong.el);
 $('#btn-logout').addEventListener('click', async () => {
   await auth.logout(); await setStoreUser(null); loginMode = 'login'; renderLogin();
 });

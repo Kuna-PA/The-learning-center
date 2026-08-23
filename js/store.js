@@ -172,19 +172,34 @@ export const store = {
   },
   quizOf(track, level) { return data.quiz[`${track}:${level}`] || null; },
 
-  recordLab(track, labId, tasksDone, total) {
+  /**
+   * บันทึกความคืบหน้าของ Lab
+   * history = คำสั่งที่รันสำเร็จไปแล้ว เก็บไว้เพื่อกลับมาทำต่อได้โดยไม่ต้องเริ่มใหม่
+   */
+  recordLab(track, labId, tasksDone, total, history = null) {
     const k = `${track}:${labId}`;
     const cur = data.labs[k] || { done: false, best: 0 };
     const done = tasksDone >= total && total > 0;
     let gained = 0;
     if (done && !cur.done) gained += 80;
     else if (tasksDone > (cur.best || 0)) gained += (tasksDone - (cur.best || 0)) * 5;
-    data.labs[k] = { done: cur.done || done, best: Math.max(cur.best || 0, tasksDone), total, at: Date.now() };
+    data.labs[k] = {
+      done: cur.done || done,
+      best: Math.max(cur.best || 0, tasksDone),
+      total, at: Date.now(),
+      // เก็บไม่เกิน 300 คำสั่ง กัน localStorage บวม
+      history: history ? history.slice(-300) : (cur.history || []),
+    };
     data.xp += gained;
     save();
     return gained;
   },
   labOf(track, labId) { return data.labs[`${track}:${labId}`] || null; },
+  /** ล้างเฉพาะความคืบหน้าที่บันทึกไว้ของ Lab นั้น (คงสถิติ done/best ไว้) */
+  clearLabProgress(track, labId) {
+    const k = `${track}:${labId}`;
+    if (data.labs[k]) { data.labs[k].history = []; save(); }
+  },
 
   setUnlockAll(v) { data.unlockAll = !!v; save(); },
 
