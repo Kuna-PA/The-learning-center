@@ -19,10 +19,13 @@ const T = (s, p) => s.tables[p] || [];                 // MikroTik
 const has = (s, p, fn) => T(s, p).some(fn);
 const ifc = (s, n) => (s.ifaces || {})[n] || {};       // Cisco / Linux
 
+import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
+
 export default {
   id: 'network',
   name: 'Network',
-  icon: '🌐',
+  icon: TRACK_ICONS.network,
+  emoji: TRACK_EMOJI.network,
   device: 'linux',
   sub: 'CompTIA Network+ N10-008',
   desc: 'พื้นฐานเครือข่ายแบบไม่ผูกกับยี่ห้อ — OSI, สายสัญญาณ, สวิตช์, IP/subnet, routing, VLAN, DNS/DHCP, ไร้สาย, WAN, ความปลอดภัย และการไล่ปัญหาอย่างเป็นระบบ',

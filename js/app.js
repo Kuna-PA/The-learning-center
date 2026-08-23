@@ -8,6 +8,7 @@ import { createWindowsGui } from './gui/windows-gui.js';
 import { normCmd } from './devices/util.js';
 import { DEVICE_LABELS, DEVICE_SHORT } from './devices/index.js';
 import { createJulong } from './julong.js';
+import { registerServiceWorker } from './pwa.js';
 
 const $ = s => document.querySelector(s);
 const view = () => $('#view');
@@ -193,8 +194,10 @@ function certCode(trackId) {
 let loginMode = 'login';
 let serverUsers = null;      // จำนวนบัญชีในระบบ — ใช้ตัดสินว่าจะโชว์คำแนะนำครั้งแรกไหม
 let serverUp = true;
+let openRegister = true;     // เซิร์ฟเวอร์อาจปิดรับสมัครเอง (LC_OPEN_REGISTER=0)
 
 function renderLogin(err = '') {
+  if (!openRegister) loginMode = 'login';   // ปิดรับสมัครแล้วก็ไม่ต้องมีแท็บให้กดค้างไว้
   $('#app').hidden = true;
   const lw = $('#login-wrap');
   lw.hidden = false;
@@ -202,15 +205,15 @@ function renderLogin(err = '') {
   lw.innerHTML = `
     <div class="login-card">
       <div class="brand">
-        <div class="brand-mark">SE</div>
-        <div><div class="brand-title">Learning Center</div><div class="brand-sub">IT &amp; SysEng</div></div>
+        <img class="brand-logo" src="assets/logo-full.png" alt="The Learning Center">
       </div>
       <h1>${loginMode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครบัญชีผู้เรียน'}</h1>
       <div class="sub">${loginMode === 'login' ? 'ความคืบหน้าจะถูกเก็บแยกตามบัญชีของคุณ' : 'สร้างบัญชีใหม่เพื่อเริ่มเก็บความคืบหน้า'}</div>
-      <div class="login-tabs">
+      ${openRegister ? `<div class="login-tabs">
         <button data-m="login" class="${loginMode === 'login' ? 'on' : ''}">เข้าสู่ระบบ</button>
         <button data-m="register" class="${loginMode === 'register' ? 'on' : ''}">สมัครใหม่</button>
-      </div>
+      </div>` : `<div class="hint-box">
+        เซิร์ฟเวอร์นี้ปิดรับสมัครเอง — ให้ผู้ดูแลระบบสร้างบัญชีให้ก่อน</div>`}
       ${err ? `<div class="login-err">${esc(err)}</div>` : ''}
       <form id="login-form">
         <div class="fld"><label>ชื่อผู้ใช้</label>
@@ -268,13 +271,18 @@ function renderLogin(err = '') {
 async function startSession() {
   $('#login-wrap').hidden = true;
   $('#app').hidden = false;
+  // ยังใช้รหัสที่ผู้ดูแลตั้งให้อยู่ — เซิร์ฟเวอร์ปฏิเสธทุกเส้นทางอยู่แล้ว
+  // จึงต้องพาไปหน้าเปลี่ยนรหัสก่อน ไม่ใช่แค่เตือนแล้วปล่อยให้กดต่อจนเจอ error
+  if (auth.current.mustChange && !auth.isLocal) {
+    location.hash = '#/account';
+    route();
+    toast('ต้องตั้งรหัสผ่านใหม่ก่อน จึงจะเข้าใช้งานส่วนอื่นได้', 'bad');
+    return;
+  }
   await setStoreUser(auth.username);
   if (auth.isAdmin) await auth.loadUsers();
   if (!location.hash || location.hash === '#/') location.hash = '#/';
   route();
-  if (auth.current.mustChange) {
-    toast('แนะนำให้เปลี่ยนรหัสผ่านเริ่มต้นที่หน้า "บัญชีของฉัน"', 'bad');
-  }
 }
 
 // ================= CHROME =================
@@ -367,11 +375,11 @@ function vDashboard() {
   const u = auth.current;
   view().innerHTML = `
     <div class="room-hero" style="--hero:rgba(230,57,74,.22)">
-      <div class="room-ico">🛡️</div>
+      <div class="room-ico"><img class="hero-logo" src="assets/logo-mark.png" alt=""></div>
       <div class="room-meta">
-        <span class="pill acc">LEARNING CENTER</span>
+        <span class="pill acc">THE LEARNING CENTER</span>
         <h1>สวัสดี ${esc(u.display || u.username)} 👋</h1>
-        <p>เส้นทางเรียนรู้สำหรับ IT / System / Network Engineer — 6 หัวข้อ 5–6 ระดับ
+        <p>เส้นทางเรียนรู้สำหรับ IT / System / Network Engineer — ${TRACKS.length} หัวข้อ 5–6 ระดับ
            พร้อม Lab ที่มี command prompt จำลอง และหมวด "เอาชีวิตรอด" ที่จำลองเหตุการณ์จริง</p>
       </div>
       <div class="room-side">
@@ -1102,7 +1110,7 @@ function vLabs() {
     </div>
     <div class="card" style="padding:12px 14px;margin-bottom:16px">
       <div class="row" style="gap:16px;align-items:flex-start">
-        ${[['หัวข้อ', 'f-track', [['all', 'ทั้งหมด'], ...TRACKS.map(t => [t.id, `${t.icon} ${t.name}`])], labFilter.track],
+        ${[['หัวข้อ', 'f-track', [['all', 'ทั้งหมด'], ...TRACKS.map(t => [t.id, `${t.emoji} ${t.name}`])], labFilter.track],
       ['ระดับ', 'f-level', [['all', 'ทั้งหมด'], ...LEVELS.map(l => [String(l.n), 'L' + l.n])], labFilter.level],
       ['สถานะ', 'f-status', [['all', 'ทั้งหมด'], ['todo', 'ยังไม่เสร็จ'], ['done', 'สำเร็จแล้ว']], labFilter.status]]
       .map(([lbl, fid, opts, cur]) => `<div>
@@ -1348,7 +1356,7 @@ function vCertificate() {
       <div class="what">ขอมอบใบประกาศนียบัตรสูงสุดให้แก่</div>
       <div class="who">${esc(u.display || u.username)}</div>
       <div class="what">ผู้สำเร็จหลักสูตร <span class="track-name">ครบทั้ง ${TRACKS.length} หัวข้อ</span><br>
-        Cisco Switch · MikroTik Router · MikroTik Switch · Windows Server · Linux · Cyber Security</div>
+        ${TRACKS.map(t => esc(t.name)).join(' · ')}</div>
       <div class="cert-stats">
         <div><b>${quizTotal()}</b><span>ระดับที่ผ่าน</span></div>
         <div><b>${doneLabs}/${totalLabs}</b><span>Lab</span></div>
@@ -1395,9 +1403,9 @@ function vAccount() {
 
       <div class="card">
         <h3 style="margin:0 0 12px;font-size:15px">เปลี่ยนรหัสผ่าน</h3>
-        ${u.mustChange ? `<div class="login-err">คุณยังใช้รหัสผ่านเริ่มต้นอยู่ — แนะนำให้เปลี่ยนทันที</div>` : ''}
+        ${u.mustChange ? `<div class="login-err">ต้องตั้งรหัสผ่านใหม่ก่อน จึงจะใช้งานส่วนอื่นได้<br>(รหัสปัจจุบันคือรหัสที่ผู้ดูแลระบบตั้งให้ ซึ่งผู้ดูแลก็รู้)</div>` : ''}
         <div class="fld"><label>รหัสผ่านเดิม</label><input id="p-old" type="password"></div>
-        <div class="fld"><label>รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label><input id="p-new" type="password"></div>
+        <div class="fld"><label>รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)</label><input id="p-new" type="password"></div>
         <div class="fld"><label>ยืนยันรหัสผ่านใหม่</label><input id="p-new2" type="password"></div>
         <button class="btn primary sm" id="p-save">เปลี่ยนรหัสผ่าน</button>
       </div>
@@ -1412,6 +1420,7 @@ function vAccount() {
     const r = await auth.changePassword(u.username, $('#p-new').value, $('#p-old').value);
     if (!r.ok) return toast(r.msg, 'bad');
     toast('เปลี่ยนรหัสผ่านเรียบร้อย', 'ok');
+    if (u.mustChange) return startSession();   // เพิ่งปลดล็อก — โหลดความคืบหน้าและเมนูที่เหลือ
     vAccount();
   });
 }
@@ -1444,7 +1453,7 @@ function vAdmin() {
       <div class="row" style="align-items:flex-end;gap:12px">
         <div class="fld" style="margin:0;flex:1;min-width:140px"><label>ชื่อผู้ใช้</label><input id="n-user" placeholder="a-z 0-9"></div>
         <div class="fld" style="margin:0;flex:1;min-width:140px"><label>ชื่อที่แสดง</label><input id="n-display" placeholder="ชื่อ-นามสกุล"></div>
-        <div class="fld" style="margin:0;flex:1;min-width:130px"><label>รหัสผ่าน</label><input id="n-pass" type="text" placeholder="อย่างน้อย 6 ตัว"></div>
+        <div class="fld" style="margin:0;flex:1;min-width:130px"><label>รหัสผ่าน</label><input id="n-pass" type="text" placeholder="อย่างน้อย 8 ตัว"></div>
         <div class="fld" style="margin:0;min-width:110px"><label>บทบาท</label>
           <select id="n-role"><option value="user">user</option><option value="admin">admin</option></select></div>
         <button class="btn primary" id="n-add">เพิ่ม</button>
@@ -1499,7 +1508,7 @@ function vAdmin() {
       toast(`เปลี่ยนบทบาทของ ${un} แล้ว`, 'ok');
     }
     if (act === 'pass') {
-      const np = prompt(`ตั้งรหัสผ่านใหม่ให้ ${un} (อย่างน้อย 6 ตัว)`);
+      const np = prompt(`ตั้งรหัสผ่านใหม่ให้ ${un} (อย่างน้อย 8 ตัว)`);
       if (!np) return;
       const r = await auth.changePassword(un, np);
       if (!r.ok) return toast(r.msg, 'bad');
@@ -1572,10 +1581,14 @@ $('#btn-logout').addEventListener('click', async () => {
 
 // ---------------- BOOT ----------------
 // อ่านเซสชันจากเซิร์ฟเวอร์ก่อน แล้วค่อยตัดสินว่าจะเข้าหน้าเรียนหรือหน้าล็อกอิน
+registerServiceWorker(() => toast('มีเวอร์ชันใหม่ของเว็บแล้ว — รีเฟรชหน้าเพื่ออัปเดต', 'ok'));
+
 (async () => {
   await auth.bootstrap();               // ตัดสินเองว่าเป็นโหมดเซิร์ฟเวอร์หรือออฟไลน์
   serverUp = !auth.isLocal;
-  serverUsers = await auth.accountCount();
+  const info = await auth.serverInfo();
+  serverUsers = info ? info.users : null;
+  openRegister = !info || info.openRegister !== false;
   if (auth.current) await startSession();
   else renderLogin();
 })();

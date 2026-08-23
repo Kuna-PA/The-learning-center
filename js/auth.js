@@ -157,4 +157,10 @@ export const auth = {
     if (mode === 'local') return localAuth.count();
     try { return (await api.get('/api/health')).users; } catch { return null; }
   },
+
+  /** ข้อมูลเซิร์ฟเวอร์ที่หน้าล็อกอินต้องใช้ — จำนวนบัญชี และเปิดให้สมัครเองไหม */
+  async serverInfo() {
+    if (mode === 'local') return { users: localAuth.count(), openRegister: true };
+    try { return await api.get('/api/health'); } catch { return null; }
+  },
 };

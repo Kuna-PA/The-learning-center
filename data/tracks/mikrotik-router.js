@@ -3,6 +3,7 @@
 //  เนื้อหาแกนอยู่ในไฟล์นี้ ส่วนหลักสูตร MTCNA เต็มรูปแบบ (Module 1–9)
 //  แยกไว้ที่ ./mikrotik/mtcna.js แล้วต่อท้ายแต่ละระดับด้วย withMtcna()
 // ============================================================
+import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
 import mtcna from './mikrotik/mtcna.js';
 
 const T = (s, p) => s.tables[p] || [];
@@ -22,7 +23,8 @@ const withMtcna = (levels) => {
 export default {
   id: 'mikrotik-router',
   name: 'MikroTik Router',
-  icon: '📡',
+  icon: TRACK_ICONS['mikrotik-router'],
+  emoji: TRACK_EMOJI['mikrotik-router'],
   device: 'mikrotik',
   sub: 'RouterOS 7 — RouterBOARD / CHR · หลักสูตร MTCNA',
   desc: 'RouterOS ตั้งแต่โครงสร้างเมนู, IP/NAT/DHCP, Firewall, Routing, VPN ไปจนถึงการออกแบบ ISP/Enterprise และ scripting — รวมหลักสูตร MTCNA ครบทั้ง 9 โมดูลพร้อม Lab ประจำโมดูล',

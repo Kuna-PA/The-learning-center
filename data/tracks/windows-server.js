@@ -1,7 +1,10 @@
+import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
+
 export default {
   id: 'windows-server',
   name: 'Windows Server',
-  icon: '🪟',
+  icon: TRACK_ICONS['windows-server'],
+  emoji: TRACK_EMOJI['windows-server'],
   device: 'windows',
   sub: 'Server 2019 / 2022 + PowerShell',
   desc: 'ตั้งแต่การติดตั้ง Role, Active Directory, DNS/DHCP, Group Policy, File Server ไปจนถึง HA, Hyper-V และการออกแบบ AD ระดับองค์กร',

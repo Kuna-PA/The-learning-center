@@ -3,6 +3,7 @@
 //  เนื้อหาแกนอยู่ในไฟล์นี้ ส่วนหลักสูตร CompTIA Security+ (Lesson 1–21)
 //  แยกไว้ที่ ./cyber/secplus.js แล้วต่อท้ายแต่ละระดับด้วย withSecPlus()
 // ============================================================
+import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
 import secplus from './cyber/secplus.js';
 
 const node = (s, p) => {
@@ -31,7 +32,8 @@ const withSecPlus = (levels) => {
 export default {
   id: 'cyber-security',
   name: 'Cyber Security',
-  icon: '🛡️',
+  icon: TRACK_ICONS['cyber-security'],
+  emoji: TRACK_EMOJI['cyber-security'],
   device: 'linux-sec',
   sub: 'Defensive Security &amp; Incident Response · หลักสูตร Security+',
   desc: 'ความปลอดภัยไซเบอร์สำหรับคนดูแลระบบ — CIA Triad, การ hardening, อ่าน log หาการบุกรุก, incident response, forensics และการวางระบบเฝ้าระวังทั้งองค์กร — รวมหลักสูตร CompTIA Security+ ครบทั้ง 21 บทเรียนพร้อม Lab',

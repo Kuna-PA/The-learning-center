@@ -1,10 +1,13 @@
 const T = (s, p) => s.tables[p] || [];
 const hasVlan = (s, id) => T(s, 'interface bridge vlan').some(r => String(r['vlan-ids']).split(',').includes(String(id)));
 
+import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
+
 export default {
   id: 'mikrotik-switch',
   name: 'MikroTik Switch',
-  icon: '🧩',
+  icon: TRACK_ICONS['mikrotik-switch'],
+  emoji: TRACK_EMOJI['mikrotik-switch'],
   device: 'mikrotik-sw',
   sub: 'CRS / CSS — RouterOS &amp; SwOS',
   desc: 'สวิตช์ตระกูล CRS/CSS: bridge, VLAN filtering, hardware offload, RSTP, bonding, port isolation และการเชื่อมกับสวิตช์ยี่ห้ออื่น',

@@ -9,6 +9,7 @@
 //    L1 Network Fundamentals · L2 Network Access · L3 IP Connectivity
 //    L4 IP Services · L5 Security Fundamentals · L6 Automation
 // ============================================================
+import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
 import legacy from './cisco/legacy.js';
 import l1 from './cisco/l1.js';
 import l3 from './cisco/l3.js';
@@ -31,7 +32,8 @@ const merge = (title, objectives, parts, extra = {}) => ({
 export default {
   id: 'cisco-switch',
   name: 'Cisco CCNA',
-  icon: '🔀',
+  icon: TRACK_ICONS['cisco-switch'],
+  emoji: TRACK_EMOJI['cisco-switch'],
   device: 'cisco',
   sub: 'CCNA 200-301 · Catalyst / IOS CLI',
   desc: 'เส้นทางเรียน Cisco ตามขอบเขต CCNA 200-301 ครบทั้ง 6 domain — จากพื้นฐานเครือข่ายและ OSI, การต่อ LAN ด้วย VLAN/STP, การ route ด้วย static และ OSPF, บริการอย่าง DHCP/NAT/DNS, ความปลอดภัยและ ACL ไปจนถึงการทำ automation',

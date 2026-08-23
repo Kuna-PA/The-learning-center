@@ -98,11 +98,11 @@ export function createJulong({ getCtx }) {
   el.className = 'jl-wrap';
   el.innerHTML = `
     <button class="jl-fab" id="jl-fab" aria-label="ถามจูล่ง">
-      <span class="jl-face">🐎</span><span class="jl-fab-name">จูล่ง</span>
+      <img class="jl-face" src="assets/julong.png" alt=""><span class="jl-fab-name">จูล่ง</span>
     </button>
     <div class="jl-panel" id="jl-panel" hidden>
       <div class="jl-head">
-        <div class="jl-title"><span class="jl-face">🐎</span>
+        <div class="jl-title"><img class="jl-face" src="assets/julong.png" alt="">
           <div><b>จูล่ง</b><div class="jl-sub" id="jl-where">ผู้ช่วยประจำศูนย์เรียนรู้</div></div>
         </div>
         <button class="jl-x" id="jl-close" aria-label="ปิด">✕</button>
@@ -269,7 +269,7 @@ export function createJulong({ getCtx }) {
     box.className = 'jl-cheer';
     box.innerHTML = `
       <div class="jl-cheer-card" role="dialog" aria-label="จูล่งแสดงความยินดี">
-        <div class="jl-cheer-face">🐎</div>
+        <img class="jl-cheer-face" src="assets/julong-full.png" alt="จูล่ง">
         <div class="jl-cheer-name">จูล่ง</div>
         ${title ? `<div class="jl-cheer-title">${esc(title)}</div>` : ''}
         <div class="jl-cheer-say">“${esc(CHEER)}”</div>

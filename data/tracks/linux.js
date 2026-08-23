@@ -10,6 +10,7 @@
 //    L1 รู้จักและติดตั้ง · L2 ผู้ใช้และสิทธิ์ · L3 ซอฟต์แวร์/service/kernel
 //    L4 storage และ container · L5 เครือข่ายและความปลอดภัย · L6 script และ IaC
 // ============================================================
+import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
 import legacy from './linux/legacy.js';
 import extra from './linux/extra.js';
 
@@ -23,7 +24,8 @@ const build = (title, objectives, sections, quiz, labs) => ({ title, objectives,
 export default {
   id: 'linux',
   name: 'Linux',
-  icon: '🐧',
+  icon: TRACK_ICONS.linux,
+  emoji: TRACK_EMOJI.linux,
   device: 'linux',
   sub: 'Ubuntu / RHEL — Server Administration',
   desc: 'เส้นทางเรียน Linux สำหรับงานดูแลเซิร์ฟเวอร์ — ตั้งแต่ติดตั้งและโครงสร้างไฟล์, ผู้ใช้และสิทธิ์, แพ็กเกจ/service/kernel, storage และ container, เครือข่ายและความปลอดภัย ไปจนถึงการเขียนสคริปต์และทำ Infrastructure as Code',
