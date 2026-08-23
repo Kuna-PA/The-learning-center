@@ -14,6 +14,50 @@ const view = () => $('#view');
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
 
+// ---------------- สุ่มข้อสอบ ----------------
+/** สลับลำดับแบบ Fisher-Yates โดยไม่แตะ array ต้นฉบับ */
+const shuffled = (arr) => {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+/** สลับตัวเลือกภายในข้อ พร้อมย้ายเฉลยตามไปด้วย — กันการจำว่า "ข้อนี้ตอบ B" */
+function shuffleOptions(q) {
+  if (!Array.isArray(q.opts) || q.opts.length < 2) return { ...q };
+  const idx = shuffled(q.opts.map((_, i) => i));       // idx[ตำแหน่งใหม่] = ตำแหน่งเดิม
+  const remap = (old) => idx.indexOf(old);
+  return {
+    ...q,
+    opts: idx.map(i => q.opts[i]),
+    a: Array.isArray(q.a) ? q.a.map(remap).sort((x, y) => x - y) : remap(q.a),
+  };
+}
+
+/** จำลำดับข้อของครั้งล่าสุดไว้ เพื่อไม่ให้ทำใหม่แล้วได้ชุดเดิมเป๊ะ */
+const lastQuizOrder = new Map();
+
+/**
+ * สร้างชุดข้อสอบสำหรับการทำหนึ่งครั้ง — สลับทั้งลำดับข้อและลำดับตัวเลือก
+ * และพยายามไม่ให้ลำดับซ้ำกับครั้งก่อนหน้าของระดับเดียวกัน
+ */
+function makeQuizSet(trackId, level, pool) {
+  const key = `${trackId}:${level}`;
+  const prev = lastQuizOrder.get(key);
+  let order = shuffled(pool);
+  // สุ่มใหม่ถ้าบังเอิญได้ลำดับเดิม (ข้อสอบน้อยกว่า 2 ข้อก็ไม่มีอะไรให้สลับ)
+  for (let n = 0; n < 8 && pool.length > 1; n++) {
+    const sig = order.map(q => pool.indexOf(q)).join(',');
+    if (sig !== prev) break;
+    order = shuffled(pool);
+  }
+  lastQuizOrder.set(key, order.map(q => pool.indexOf(q)).join(','));
+  return order.map(shuffleOptions);
+}
+
 function toast(msg, kind = '') {
   const t = h(`<div class="toast ${kind}">${msg}</div>`);
   $('#toast-wrap').appendChild(t);
@@ -534,7 +578,8 @@ function vQuiz(id, level) {
     location.hash = `#/learn/${id}/${level}`;
     return;
   }
-  const d = t.levels[level], l = levelOf(level), items = d.quiz;
+  // สุ่มลำดับข้อและตัวเลือกใหม่ทุกครั้งที่เข้ามาทำ — สอบตกแล้วทำใหม่จะไม่ได้ชุดเดิม
+  const d = t.levels[level], l = levelOf(level), items = makeQuizSet(id, level, d.quiz);
   crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: t.name, href: `#/track/${id}` },
   { t: `L${level}`, href: `#/learn/${id}/${level}` }, { t: 'แบบทดสอบ' }]);
 
@@ -544,7 +589,10 @@ function vQuiz(id, level) {
     <div class="q-head">
       <div class="row"><span class="pill acc">${t.icon} ${t.name} · L${level}</span>${diffPill(level)}</div>
       <div class="q-prog"><div id="qbar" style="width:0"></div></div>
-      <div class="muted" style="font-family:var(--mono);font-size:12px" id="qcount"></div>
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <span class="muted" style="font-size:11.5px">🎲 สุ่มลำดับข้อและตัวเลือกใหม่ทุกครั้งที่ทำ</span>
+        <span class="muted" style="font-family:var(--mono);font-size:12px" id="qcount"></span>
+      </div>
     </div><div id="qbox"></div></div>`;
 
   function renderQ() {
