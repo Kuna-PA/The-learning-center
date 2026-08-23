@@ -1660,6 +1660,8 @@ function vAdminUsers() {
       บัญชีที่สร้างหรือรีเซ็ตรหัสจากหน้านี้ จะถูกบังคับให้เจ้าตัวตั้งรหัสใหม่ก่อนใช้งาน
     </div>`}`;
 
+  goHooks();      // แท็บด้านบน (ภาพรวม / จัดการผู้ใช้ / จัดการเนื้อหา) ใช้ [data-go] เหมือนหน้าอื่น
+
   $('#n-add').addEventListener('click', async () => {
     const r = await auth.register($('#n-user').value, $('#n-pass').value, $('#n-display').value.trim(), $('#n-role').value);
     if (!r.ok) return toast(r.msg, 'bad');

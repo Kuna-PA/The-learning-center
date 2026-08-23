@@ -9,6 +9,11 @@ import { SURVIVAL_LABS } from '../data/labs/survival.js';
 import { summarise, overview, toCsv, levelPct } from '../js/admin-stats.js';
 import { compileCheck, mergeCustom, validateCustom, sanitizeHtml, blankCustom } from '../data/custom.js';
 import { createDevice } from '../js/devices/index.js';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const CONTENT = { tracks: TRACKS, allLabs: ALL_LABS, survivalLabs: SURVIVAL_LABS };
 const track = TRACKS[0];
@@ -165,4 +170,16 @@ test('เนื้อหาที่เพิ่มเองถูก merge เ�
   assert.equal(lab.tasks[0].check(dev.state, []), false, 'ยังไม่ได้ทำ ต้องยังไม่ผ่าน');
   dev.exec('sudo systemctl start nginx');
   assert.equal(lab.tasks[0].check(dev.state, ['sudo systemctl start nginx']), true, 'ทำตามคำใบ้แล้วต้องผ่าน');
+});
+
+// เคสนี้มาจากบั๊กจริง: หน้า "จัดการผู้ใช้" เรนเดอร์แท็บแต่ลืมผูก event
+// ผู้ดูแลเข้าไปแล้วกดแท็บไหนก็ไม่ไป ออกจากหน้านั้นไม่ได้เลย
+// เทสต์นี้อ่านซอร์สตรง ๆ เพราะเป็นข้อตกลงระดับ "หน้าที่มีแท็บต้องผูก event"
+test('ทุกหน้าที่มีแท็บผู้ดูแล ต้องผูก event ให้ปุ่มด้วย', async () => {
+  const src = readFileSync(join(ROOT, 'js', 'app.js'), 'utf8');
+  const blocks = src.split(/\nfunction /).slice(1);
+  const missing = blocks
+    .filter(b => b.includes('adminTabs(') && !b.startsWith('adminTabs') && !b.includes('goHooks('))
+    .map(b => b.slice(0, b.indexOf('(')));
+  assert.deepEqual(missing, [], 'หน้าเหล่านี้เรนเดอร์แท็บแต่ไม่ได้เรียก goHooks()');
 });
