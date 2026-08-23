@@ -75,14 +75,20 @@ function levelStatus(trackId, level) {
 }
 function levelPct(trackId, level) {
   const s = levelStatus(trackId, level);
+  // ระดับที่ไม่มี Lab (หัวข้อเชิงทฤษฎีล้วน) ต้องถ่วงน้ำหนักเฉพาะอ่าน+สอบ
+  // ไม่งั้นจะค้างอยู่ที่ 70% ตลอดไปเพราะไม่มี Lab ให้ทำ
+  if (!s.labsTotal) return (s.read ? 40 : 0) + (s.passed ? 60 : 0);
   let p = 0;
   if (s.read) p += 30;
   if (s.passed) p += 40;
-  if (s.labsTotal) p += Math.round((s.labsDone / s.labsTotal) * 30);
+  p += Math.round((s.labsDone / s.labsTotal) * 30);
   return Math.min(100, p);
 }
-const trackPct = id => Math.round(Object.keys(trackById(id).levels)
-  .reduce((a, l) => a + levelPct(id, +l), 0) / 5);
+/** หารด้วยจำนวนระดับที่หัวข้อนั้นมีจริง — บาง track มี 6 ระดับ ไม่ใช่ 5 ทุกอัน */
+const trackPct = (id) => {
+  const lv = Object.keys(trackById(id).levels);
+  return lv.length ? Math.round(lv.reduce((a, l) => a + levelPct(id, +l), 0) / lv.length) : 0;
+};
 const overallPct = () => Math.round(TRACKS.reduce((a, t) => a + trackPct(t.id), 0) / TRACKS.length);
 
 const survivalDone = () => SURVIVAL_LABS.filter(l => (store.labOf('survival', l.id) || {}).done).length;
@@ -447,8 +453,8 @@ function vLearn(id, level) {
       <ul style="margin:6px 0 0;padding-left:20px">
         ${unlockNeeds(id, level).map(x => `<li>${x}</li>`).join('')}
       </ul>
-      <div class="muted" style="font-size:12px;margin-top:6px">
-        ด้านล่างคือ Lab ทั้ง ${(d.labs || []).length} ชุดที่รออยู่ในระดับนี้</div>
+      ${(d.labs || []).length ? `<div class="muted" style="font-size:12px;margin-top:6px">
+        ด้านล่างคือ Lab ทั้ง ${d.labs.length} ชุดที่รออยู่ในระดับนี้</div>` : ''}
       <div style="margin-top:10px"><button class="btn sm primary" id="to-prev">← ไปที่ระดับ ${+level - 1}</button></div>
     </div>`}
 
@@ -464,7 +470,7 @@ function vLearn(id, level) {
         ${open ? `<div class="card" style="text-align:center">
           <h3 style="margin:0 0 6px">พร้อมทดสอบความเข้าใจหรือยัง?</h3>
           <p class="muted" style="font-size:12.8px;margin:0 0 14px">
-            ${d.quiz.length} ข้อ · ต้องได้ ${PASS_SCORE}% ขึ้นไป <b>และทำ Lab ของระดับนี้ให้ครบ</b> จึงจะปลดล็อกระดับถัดไป</p>
+            ${d.quiz.length} ข้อ · ต้องได้ ${PASS_SCORE}% ขึ้นไป${(d.labs || []).length ? ' <b>และทำ Lab ของระดับนี้ให้ครบ</b>' : ''} จึงจะปลดล็อกระดับถัดไป</p>
           <button class="btn primary" id="to-quiz">📝 ทำแบบทดสอบ</button>
         </div>` : ''}
 
