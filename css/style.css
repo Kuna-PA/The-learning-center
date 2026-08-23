@@ -46,7 +46,10 @@ button{font-family:inherit}
 ::-webkit-scrollbar-thumb{background:#2b3446;border-radius:8px}
 ::-webkit-scrollbar-track{background:transparent}
 
-/* [hidden] ต้องชนะ selector แบบ id ที่กำหนด display ไว้ */
+/* [hidden] ต้องชนะทุก selector ที่กำหนด display ไว้
+   ไม่งั้น element ที่มี class ตั้ง display:flex/inline-flex จะไม่ยอมซ่อน
+   (เคยพลาดมาแล้วกับ .jl-panel และปุ่มที่ใช้ class .btn) */
+[hidden]{display:none!important}
 #login-wrap[hidden],#app[hidden]{display:none!important}
 
 /* ---------- LOGIN ---------- */
