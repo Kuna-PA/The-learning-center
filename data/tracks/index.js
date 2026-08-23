@@ -15,9 +15,21 @@ export const TRACKS = mergeExtraQuiz(
 export const trackById = id => TRACKS.find(t => t.id === id);
 
 // รวมทุก lab ไว้ที่เดียว เพื่อให้หน้า Labs และ router หาเจอ
-export const ALL_LABS = TRACKS.flatMap(t =>
-  Object.entries(t.levels).flatMap(([lvl, data]) =>
-    (data.labs || []).map(l => ({ ...l, track: t.id, trackName: t.name, icon: t.icon, level: +lvl }))
-  )
-);
+export const ALL_LABS = [];
+
+/**
+ * สร้างรายการ lab ใหม่จาก TRACKS
+ * ต้องเรียกซ้ำหลังเอาเนื้อหาที่ผู้ดูแลเพิ่มเองมา merge เข้าไป (ดู js/content.js)
+ * แก้ในตัว array เดิม ไม่สร้างตัวใหม่ เพราะที่อื่น import ตัวนี้ไปถือไว้แล้ว
+ */
+export function rebuildAllLabs() {
+  ALL_LABS.length = 0;
+  ALL_LABS.push(...TRACKS.flatMap(t =>
+    Object.entries(t.levels).flatMap(([lvl, data]) =>
+      (data.labs || []).map(l => ({ ...l, track: t.id, trackName: t.name, icon: t.icon, level: +lvl }))
+    )
+  ));
+  return ALL_LABS;
+}
+rebuildAllLabs();
 export const labById = (trackId, labId) => ALL_LABS.find(l => l.track === trackId && l.id === labId);

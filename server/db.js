@@ -38,6 +38,14 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(username);
 
+  -- เนื้อหาที่ผู้ดูแลเพิ่มเอง (บทเรียน/ข้อสอบ/Lab) เก็บเป็น JSON ก้อนเดียว มีแถวเดียวเสมอ
+  CREATE TABLE IF NOT EXISTS content (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),
+    data       TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT
+  );
+
   -- ความคืบหน้าเก็บเป็น JSON ก้อนเดียว โครงเดียวกับฝั่งเบราว์เซอร์
   CREATE TABLE IF NOT EXISTS progress (
     username   TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
@@ -120,6 +128,26 @@ export const progress = {
     try { return { username: r.username, data: JSON.parse(r.data), updatedAt: r.updated_at }; }
     catch { return { username: r.username, data: null, updatedAt: r.updated_at }; }
   }),
+};
+
+// ---------- เนื้อหาที่ผู้ดูแลเพิ่มเอง ----------
+const contentStmt = {
+  get: q('SELECT data, updated_at, updated_by FROM content WHERE id = 1'),
+  save: q(`INSERT INTO content (id, data, updated_at, updated_by) VALUES (1, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET data = excluded.data,
+             updated_at = excluded.updated_at, updated_by = excluded.updated_by`),
+};
+
+export const content = {
+  get() {
+    const row = contentStmt.get.get();
+    if (!row) return null;
+    try { return { data: JSON.parse(row.data), updatedAt: row.updated_at, updatedBy: row.updated_by }; }
+    catch { return null; }
+  },
+  save(data, by) {
+    contentStmt.save.run(JSON.stringify(data), Date.now(), by || null);
+  },
 };
 
 export default db;

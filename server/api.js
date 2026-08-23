@@ -2,7 +2,7 @@
 //  REST API — ทุกเส้นทางอยู่ใต้ /api
 //  ผู้ใช้ทั่วไปแก้ได้เฉพาะของตัวเอง · admin เห็นและจัดการได้ทุกคน
 // ============================================================
-import { users, sessions, progress } from './db.js';
+import { users, sessions, progress, content } from './db.js';
 import {
   register, login, changePassword, removeUser, publicUser,
   currentUser, sessionCookie, clearCookie, isSecureRequest,
@@ -56,6 +56,45 @@ function readBody(req) {
     });
     req.on('error', reject);
   });
+}
+
+/**
+ * โครงเนื้อหาที่ผู้ดูแลเพิ่มเอง — เก็บเฉพาะ field ที่รู้จัก
+ * ตัวตรวจเนื้อหาแบบละเอียด (เช่นเฉลยอยู่ในช่วงตัวเลือกไหม) อยู่ที่ data/custom.js
+ * ฝั่งนี้ทำหน้าที่กันของแปลกปลอมและกันขนาดล้นเท่านั้น
+ */
+function sanitiseContent(c) {
+  const arr = (v) => (Array.isArray(v) ? v : []);
+  const out = {
+    version: 1,
+    updatedAt: Number(c?.updatedAt) || Date.now(),
+    sections: arr(c?.sections).map(s => ({
+      id: String(s.id || ''), track: String(s.track || ''), level: Number(s.level) || 1,
+      t: String(s.t || ''), h: String(s.h || ''),
+    })),
+    quiz: arr(c?.quiz).map(q => ({
+      id: String(q.id || ''), track: String(q.track || ''), level: Number(q.level) || 1,
+      type: String(q.type || 'mcq'), q: String(q.q || ''), why: String(q.why || ''),
+      opts: arr(q.opts).map(String), a: Array.isArray(q.a) ? q.a.map(Number) : Number(q.a) || 0,
+      ans: arr(q.ans).map(String),
+    })),
+    labs: arr(c?.labs).map(l => ({
+      id: String(l.id || ''), track: String(l.track || ''), level: Number(l.level) || 1,
+      title: String(l.title || ''), brief: String(l.brief || ''), device: String(l.device || ''),
+      debrief: String(l.debrief || ''),
+      tasks: arr(l.tasks).map(t => ({
+        t: String(t.t || ''), hint: String(t.hint || ''),
+        rules: arr(t.rules).map(r => ({
+          kind: String(r.kind || ''), pattern: String(r.pattern || ''), min: Number(r.min) || 0,
+          path: String(r.path || ''), op: String(r.op || ''), value: String(r.value ?? ''),
+          contains: String(r.contains || ''),
+        })),
+      })),
+    })),
+  };
+  const total = out.sections.length + out.quiz.length + out.labs.length;
+  if (total > 2000) throw new Error('เนื้อหาที่เพิ่มเองเยอะผิดปกติ');
+  return out;
 }
 
 /** โครงความคืบหน้าที่ยอมรับ — กันไม่ให้ client ยัดอะไรแปลก ๆ ลงฐานข้อมูล */
@@ -218,6 +257,25 @@ export default async function api(req, res, pathname) {
       }
       if (method === 'DELETE') { progress.clear(target); return json(res, 200, { ok: true }); }
     }
+  }
+
+  // ---------------- เนื้อหาที่ผู้ดูแลเพิ่มเอง ----------------
+  // ผู้เรียนทุกคนต้องอ่านได้ (ไม่งั้นจะไม่เห็นบทเรียนที่เพิ่มเข้ามา) แต่เขียนได้เฉพาะ admin
+  if (parts[0] === 'content') {
+    if (!me) return needAuth();
+    if (method === 'GET') {
+      const row = content.get();
+      return json(res, 200, { data: row ? row.data : null, updatedAt: row ? row.updatedAt : null, updatedBy: row ? row.updatedBy : null });
+    }
+    if (method === 'PUT' || method === 'POST') {
+      if (!isAdmin) return needAdmin();
+      let clean;
+      try { clean = sanitiseContent(body.data ?? body); }
+      catch (e) { return json(res, 400, { error: e.message }); }
+      content.save(clean, me.username);
+      return json(res, 200, { ok: true, updatedAt: Date.now() });
+    }
+    return json(res, 405, { error: 'วิธีเรียกไม่ถูกต้อง' });
   }
 
   // ---------------- health ----------------

@@ -9,6 +9,9 @@ import { normCmd } from './devices/util.js';
 import { DEVICE_LABELS, DEVICE_SHORT } from './devices/index.js';
 import { createJulong } from './julong.js';
 import { registerServiceWorker } from './pwa.js';
+import { overview, summarise, toCsv } from './admin-stats.js';
+import { customContent, loadCustomContent, saveCustomContent } from './content.js';
+import { blankCustom, RULE_KINDS } from '../data/custom.js';
 
 const $ = s => document.querySelector(s);
 const view = () => $('#view');
@@ -279,6 +282,7 @@ async function startSession() {
     toast('ต้องตั้งรหัสผ่านใหม่ก่อน จึงจะเข้าใช้งานส่วนอื่นได้', 'bad');
     return;
   }
+  await loadCustomContent();          // ต้องมาก่อนเรนเดอร์ ไม่งั้นบทเรียนที่เพิ่มเองจะยังไม่โผล่
   await setStoreUser(auth.username);
   if (auth.isAdmin) await auth.loadUsers();
   if (!location.hash || location.hash === '#/') location.hash = '#/';
@@ -307,7 +311,12 @@ function renderNav() {
     item('#/progress', '📊', 'ความคืบหน้า') +
     item('#/certificate', '🏅', 'ใบประกาศนียบัตร') +
     item('#/account', '👤', 'บัญชีของฉัน') +
-    (auth.isAdmin ? `<div class="nav-h">ผู้ดูแลระบบ</div>` + item('#/admin', '🛠️', 'จัดการผู้ใช้') : '');
+    (auth.isAdmin
+      ? `<div class="nav-h">ผู้ดูแลระบบ</div>`
+      + item('#/admin', '📋', 'ภาพรวมผู้เรียน')
+      + item('#/admin/content', '✏️', 'จัดการเนื้อหา')
+      + item('#/admin/users', '🛠️', 'จัดการผู้ใช้')
+      : '');
 
   nav.querySelectorAll('.nav-i').forEach(n =>
     n.addEventListener('click', () => { location.hash = n.dataset.href; $('#sidebar').classList.remove('open'); }));
@@ -562,7 +571,7 @@ function vLearn(id, level) {
           <ul>${d.objectives.map(o => `<li>${o}</li>`).join('')}</ul>
         </div>
         ${open ? d.sections.map((s, i) => `<div class="sect" id="s${i}">
-          <h3><span class="num">${i + 1}</span> ${s.t}</h3>${s.h}</div>`).join('') : ''}
+          <h3><span class="num">${i + 1}</span> ${s.t}${s.custom ? ' <span class="pill" title="เนื้อหาที่ผู้ดูแลเพิ่มเองจากหน้าจัดการเนื้อหา">เพิ่มโดยผู้ดูแล</span>' : ''}</h3>${s.h}</div>`).join('') : ''}
 
         ${open ? `<div class="card" style="text-align:center">
           <h3 style="margin:0 0 6px">พร้อมทดสอบความเข้าใจหรือยัง?</h3>
@@ -1426,9 +1435,162 @@ function vAccount() {
 }
 
 // ---------------- ADMIN ----------------
+/** ข้อมูลที่ admin-stats ต้องใช้ — รวมไว้ที่เดียวจะได้ไม่ต้องส่งทีละตัว */
+const CONTENT = { tracks: TRACKS, allLabs: ALL_LABS, survivalLabs: SURVIVAL_LABS };
+
+/** แถบเมนูย่อยของหน้าผู้ดูแลระบบ */
+const adminTabs = (active) => `<div class="login-tabs adm-tabs">
+  ${[['#/admin', 'ภาพรวม'], ['#/admin/users', 'จัดการผู้ใช้'], ['#/admin/content', 'จัดการเนื้อหา']]
+    .map(([href, label]) => `<button data-go="${href}" class="${active === href ? 'on' : ''}">${label}</button>`).join('')}
+</div>`;
+
+const goHooks = () => view().querySelectorAll('[data-go]').forEach(b =>
+  b.addEventListener('click', () => { location.hash = b.dataset.go; }));
+
+/** แถบความคืบหน้าเล็ก ๆ ที่ใช้ซ้ำหลายที่ในหน้าผู้ดูแล */
+const miniBar = (pct, color = 'var(--acc)') =>
+  `<div class="bar" style="height:6px"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>`;
+
+// ---------------- ADMIN · ภาพรวม ----------------
 function vAdmin() {
   if (!auth.isAdmin) { location.hash = '#/'; return; }
-  crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: 'จัดการผู้ใช้' }]);
+  crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: 'ผู้ดูแลระบบ' }]);
+  const users = Object.values(auth.users);
+  const o = overview(users, CONTENT);
+
+  const card = (icon, value, label, color) => `<div class="card" style="text-align:center;padding:14px">
+    <div style="font-size:18px">${icon}</div>
+    <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:${color}">${value}</div>
+    <div class="muted" style="font-size:10.5px;text-transform:uppercase;letter-spacing:1px">${label}</div>
+  </div>`;
+
+  view().innerHTML = `
+    <div class="page-head"><h1>ภาพรวมผู้เรียน</h1>
+      <p>สรุปว่าตอนนี้ทีมเรียนไปถึงไหนแล้ว ใครยังไม่เริ่ม และหัวข้อไหนคนไปไม่ถึง</p></div>
+    ${adminTabs('#/admin')}
+
+    <div class="grid g5" style="margin-bottom:6px">
+      ${card('👥', o.users, 'บัญชีทั้งหมด', 'var(--info)')}
+      ${card('🟢', o.active7, 'เข้าใช้ใน 7 วัน', 'var(--ok)')}
+      ${card('📈', o.avgPct + '%', 'ความคืบหน้าเฉลี่ย', 'var(--acc-2)')}
+      ${card('🧪', o.labsDone, 'Lab ที่ทำสำเร็จ', 'var(--purple)')}
+      ${card('🏅', o.certs, 'ใบประกาศที่ได้', 'var(--warn)')}
+    </div>
+
+    ${o.neverStarted ? `<div class="note warn">มี <b>${o.neverStarted} คน</b> ที่ยังไม่เริ่มเรียนเลย —
+      ลองทักไปช่วยตั้งต้นให้ หรือมอบหมายหัวข้อแรกให้ชัดเจน</div>` : ''}
+
+    <h2 class="sec">ความคืบหน้ารายหัวข้อ</h2>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="adm">
+        <tr><th>หัวข้อ</th><th style="width:38%">ความคืบหน้าเฉลี่ย</th><th>เรียนจบแล้ว</th><th>ระดับที่ไปถึง</th></tr>
+        ${o.perTrack.map(t => `<tr>
+          <td><b>${esc(t.name)}</b></td>
+          <td><div class="row" style="gap:9px;flex-wrap:nowrap;align-items:center">
+            <div style="flex:1;min-width:90px">${miniBar(t.avgPct)}</div>
+            <span style="font-family:var(--mono);font-size:12px">${t.avgPct}%</span></div></td>
+          <td style="font-family:var(--mono)">${t.finished}/${o.learners || o.users} คน</td>
+          <td style="font-family:var(--mono)">${t.deepestLevel ? 'ระดับ ' + t.deepestLevel : '—'}</td>
+        </tr>`).join('')}
+      </table>
+    </div>
+
+    <h2 class="sec">ผู้เรียนรายคน <span class="muted" style="font-weight:400;font-size:12px">(${o.rows.length} คน · เรียงตามความคืบหน้า)</span></h2>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="adm">
+        <tr><th>ผู้ใช้</th><th style="width:24%">ความคืบหน้า</th><th>XP</th><th>แบบทดสอบ</th><th>Lab</th>
+          <th>เอาชีวิตรอด</th><th>ใบประกาศ</th><th>เข้าล่าสุด</th><th></th></tr>
+        ${o.rows.map(({ user: u, stats }) => `<tr>
+          <td><div class="row" style="gap:9px;flex-wrap:nowrap">
+            <div class="avatar ${u.role === 'admin' ? 'adm' : ''}" style="width:28px;height:28px;flex:0 0 28px;font-size:12px">${esc((u.display || u.username)[0].toUpperCase())}</div>
+            <div><div style="font-size:13px;font-weight:600">${esc(u.display || u.username)}</div>
+            <div class="muted" style="font-size:10.5px;font-family:var(--mono)">${esc(u.username)}${u.role === 'admin' ? ' · admin' : ''}</div></div></div></td>
+          <td><div class="row" style="gap:9px;flex-wrap:nowrap;align-items:center">
+            <div style="flex:1;min-width:70px">${miniBar(stats.pct, stats.pct >= 80 ? 'var(--ok)' : stats.pct >= 40 ? 'var(--warn)' : 'var(--acc)')}</div>
+            <span style="font-family:var(--mono);font-size:12px">${stats.pct}%</span></div></td>
+          <td style="font-family:var(--mono)">${stats.xp}</td>
+          <td style="font-family:var(--mono)">${stats.quizPassed}/${stats.quizTotal}</td>
+          <td style="font-family:var(--mono)">${stats.labsDone}/${stats.labsTotal}</td>
+          <td style="font-family:var(--mono)">${stats.survivalDone}/${stats.survivalTotal}</td>
+          <td style="font-family:var(--mono)">${stats.masterCert ? '👑 Master' : stats.certs ? '🏅 ' + stats.certs : '—'}</td>
+          <td class="muted" style="font-size:11.5px">${u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('th-TH') : 'ยังไม่เคยเข้า'}</td>
+          <td><button class="btn sm ghost" data-go="#/admin/user/${encodeURIComponent(u.username)}">ดูรายละเอียด</button></td>
+        </tr>`).join('')}
+      </table>
+    </div>
+
+    <div class="row" style="gap:8px;margin-top:14px">
+      <button class="btn" id="adm-csv">⬇ ดาวน์โหลดเป็น CSV</button>
+      <button class="btn ghost" data-go="#/admin/users">จัดการผู้ใช้ →</button>
+    </div>`;
+
+  goHooks();
+  $('#adm-csv').addEventListener('click', () => {
+    const blob = new Blob(['\uFEFF' + toCsv(o.rows, CONTENT)], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `learning-center-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+}
+
+// ---------------- ADMIN · รายบุคคล ----------------
+function vAdminUser(username) {
+  if (!auth.isAdmin) { location.hash = '#/'; return; }
+  const u = auth.users[username];
+  if (!u) { toast('ไม่พบผู้ใช้นี้', 'bad'); location.hash = '#/admin'; return; }
+  crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: 'ผู้ดูแลระบบ', href: '#/admin' }, { t: esc(u.display || u.username) }]);
+  const stats = summarise(u.progress, CONTENT);
+
+  const mark = (ok) => (ok ? '<span style="color:var(--ok)">✓</span>' : '<span class="muted">—</span>');
+
+  view().innerHTML = `
+    <div class="page-head"><h1>${esc(u.display || u.username)}</h1>
+      <p><code>${esc(u.username)}</code> · ${u.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ผู้เรียน'} ·
+        เข้าล่าสุด ${u.lastLogin ? new Date(u.lastLogin).toLocaleString('th-TH') : 'ยังไม่เคยเข้า'}</p></div>
+
+    <div class="grid g5" style="margin-bottom:6px">
+      ${[['ความคืบหน้ารวม', stats.pct + '%'], ['XP', stats.xp],
+      ['แบบทดสอบผ่าน', `${stats.quizPassed}/${stats.quizTotal}`],
+      ['Lab สำเร็จ', `${stats.labsDone}/${stats.labsTotal}`],
+      ['เอาชีวิตรอด', `${stats.survivalDone}/${stats.survivalTotal}`]]
+      .map(([l, v]) => `<div class="card" style="text-align:center;padding:14px">
+        <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--acc-2)">${v}</div>
+        <div class="muted" style="font-size:10.5px;text-transform:uppercase;letter-spacing:1px">${l}</div></div>`).join('')}
+    </div>
+
+    ${stats.perTrack.map(t => `
+      <h2 class="sec">${esc(t.name)} <span class="muted" style="font-weight:400;font-size:12px">${t.pct}%${t.certified ? ' · 🏅 จบแล้ว' : ''}</span></h2>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="adm">
+          <tr><th>ระดับ</th><th>อ่านบทเรียน</th><th>แบบทดสอบ</th><th>คะแนนดีที่สุด</th><th>ครั้งที่สอบ</th><th>Lab</th><th style="width:20%">รวม</th></tr>
+          ${t.levels.map(l => `<tr>
+            <td><b>ระดับ ${l.n}</b></td>
+            <td>${mark(l.read)}</td>
+            <td>${l.passed ? '<span class="pill ok">ผ่าน</span>' : l.attempts ? '<span class="pill">ยังไม่ผ่าน</span>' : '<span class="muted">ยังไม่ได้สอบ</span>'}</td>
+            <td style="font-family:var(--mono)">${l.attempts ? l.best + '%' : '—'}</td>
+            <td style="font-family:var(--mono)">${l.attempts || '—'}</td>
+            <td style="font-family:var(--mono)">${l.labsTotal ? `${l.labsDone}/${l.labsTotal}` : '—'}</td>
+            <td><div class="row" style="gap:8px;flex-wrap:nowrap;align-items:center">
+              <div style="flex:1;min-width:60px">${miniBar(l.pct)}</div>
+              <span style="font-family:var(--mono);font-size:11.5px">${l.pct}%</span></div></td>
+          </tr>`).join('')}
+        </table>
+      </div>`).join('')}
+
+    <div class="row" style="gap:8px;margin-top:16px">
+      <button class="btn ghost" data-go="#/admin">← กลับไปภาพรวม</button>
+      <button class="btn ghost" data-go="#/admin/users">จัดการผู้ใช้</button>
+    </div>`;
+
+  goHooks();
+}
+
+// ---------------- ADMIN · จัดการผู้ใช้ ----------------
+function vAdminUsers() {
+  if (!auth.isAdmin) { location.hash = '#/'; return; }
+  crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: 'ผู้ดูแลระบบ', href: '#/admin' }, { t: 'จัดการผู้ใช้' }]);
   const users = Object.values(auth.users);
 
   const summary = un => {
@@ -1446,7 +1608,8 @@ function vAdmin() {
 
   view().innerHTML = `
     <div class="page-head"><h1>จัดการผู้ใช้</h1>
-      <p>เพิ่ม/ลบผู้ใช้ กำหนดบทบาท และดูความคืบหน้าของทุกคน — เห็นเฉพาะบัญชี admin</p></div>
+      <p>เพิ่ม/ลบผู้ใช้ กำหนดบทบาท และรีเซ็ตรหัสผ่าน — เห็นเฉพาะบัญชี admin</p></div>
+    ${adminTabs('#/admin/users')}
 
     <div class="card" style="margin-bottom:16px">
       <h3 style="margin:0 0 12px;font-size:15px">เพิ่มผู้ใช้ใหม่</h3>
@@ -1487,16 +1650,20 @@ function vAdmin() {
       </table>
     </div>
 
-    <div class="note warn" style="margin-top:16px">
-      <b>ข้อจำกัดที่ต้องรู้:</b> ระบบผู้ใช้นี้ทำงานในเบราว์เซอร์ (localStorage) ของเครื่องนี้เท่านั้น
-      ไม่มีเซิร์ฟเวอร์ ไม่ได้เข้ารหัสระดับใช้งานจริง และไม่ sync ข้ามเครื่อง
-      — เหมาะกับการแยกความคืบหน้าของผู้เรียนหลายคนบนเครื่องเดียวกัน ไม่ใช่ระบบยืนยันตัวตนจริง
-    </div>`;
+    ${auth.isLocal ? `<div class="note warn" style="margin-top:16px">
+      <b>ข้อจำกัดที่ต้องรู้:</b> ตอนนี้เปิดจาก static hosting จึงไม่มีเซิร์ฟเวอร์ —
+      บัญชีและความคืบหน้าอยู่ใน<b>เบราว์เซอร์เครื่องนี้เท่านั้น</b> ไม่ sync ข้ามเครื่อง
+      และไม่ใช่ระบบยืนยันตัวตนจริง<br>
+      อยากให้ผู้เรียนเข้าจากเครื่องไหนก็ได้และผู้ดูแลเห็นของทุกคน ให้รันเซิร์ฟเวอร์เองด้วย <code>npm start</code>
+    </div>` : `<div class="note" style="margin-top:16px">
+      บัญชีและความคืบหน้าเก็บที่เซิร์ฟเวอร์ · รหัสผ่านแฮชด้วย scrypt ·
+      บัญชีที่สร้างหรือรีเซ็ตรหัสจากหน้านี้ จะถูกบังคับให้เจ้าตัวตั้งรหัสใหม่ก่อนใช้งาน
+    </div>`}`;
 
   $('#n-add').addEventListener('click', async () => {
     const r = await auth.register($('#n-user').value, $('#n-pass').value, $('#n-display').value.trim(), $('#n-role').value);
     if (!r.ok) return toast(r.msg, 'bad');
-    toast('เพิ่มผู้ใช้แล้ว', 'ok'); vAdmin();
+    toast('เพิ่มผู้ใช้แล้ว', 'ok'); vAdminUsers();
   });
 
   view().querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', async () => {
@@ -1527,8 +1694,294 @@ function vAdmin() {
       if (!r.ok) return toast(r.msg, 'bad');
       toast('ลบผู้ใช้แล้ว', 'ok');
     }
-    refreshChrome(); vAdmin();
+    refreshChrome(); vAdminUsers();
   }));
+}
+
+// ---------------- ADMIN · จัดการเนื้อหา ----------------
+const trackOptions = (sel = '') => TRACKS
+  .map(t => `<option value="${t.id}" ${t.id === sel ? 'selected' : ''}>${esc(t.emoji + ' ' + t.name)}</option>`).join('');
+const levelOptions = (trackId) => levelsOf(trackId)
+  .map(l => `<option value="${l}">ระดับ ${l} — ${esc((trackById(trackId).levels[l] || {}).title || '')}</option>`).join('');
+
+/** ช่องเลือกหัวข้อ + ระดับ ที่ระดับเปลี่ยนตามหัวข้อ */
+function trackLevelPicker(prefix) {
+  return `<div class="row" style="gap:12px">
+    <div class="fld" style="flex:1;min-width:160px;margin:0"><label>หัวข้อ</label>
+      <select id="${prefix}-track">${trackOptions()}</select></div>
+    <div class="fld" style="flex:1;min-width:200px;margin:0"><label>ระดับ</label>
+      <select id="${prefix}-level">${levelOptions(TRACKS[0].id)}</select></div>
+  </div>`;
+}
+function bindPicker(prefix) {
+  const t = $(`#${prefix}-track`), l = $(`#${prefix}-level`);
+  t.addEventListener('change', () => { l.innerHTML = levelOptions(t.value); });
+}
+
+const newId = (kind) => `${kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+function vAdminContent() {
+  if (!auth.isAdmin) { location.hash = '#/'; return; }
+  crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: 'ผู้ดูแลระบบ', href: '#/admin' }, { t: 'จัดการเนื้อหา' }]);
+  const c = customContent.all;
+
+  view().innerHTML = `
+    <div class="page-head"><h1>จัดการเนื้อหา</h1>
+      <p>เพิ่มบทเรียน ข้อสอบ และ Lab ได้เองจากหน้านี้ — ของที่เพิ่มจะไปต่อท้ายเนื้อหาเดิมของระดับที่เลือก</p></div>
+    ${adminTabs('#/admin/content')}
+
+    <div class="grid g5" style="margin-bottom:6px">
+      ${[['บทเรียนที่เพิ่ม', c.sections.length], ['ข้อสอบที่เพิ่ม', c.quiz.length], ['Lab ที่เพิ่ม', c.labs.length]]
+      .map(([l, v]) => `<div class="card" style="text-align:center;padding:14px">
+        <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--acc-2)">${v}</div>
+        <div class="muted" style="font-size:10.5px;text-transform:uppercase;letter-spacing:1px">${l}</div></div>`).join('')}
+      <div class="card" style="text-align:center;padding:14px">
+        <div style="font-size:13px;font-weight:700;color:${auth.isLocal ? 'var(--warn)' : 'var(--ok)'}">${auth.isLocal ? 'เครื่องนี้เท่านั้น' : 'เซิร์ฟเวอร์'}</div>
+        <div class="muted" style="font-size:10.5px;text-transform:uppercase;letter-spacing:1px">ที่เก็บเนื้อหา</div></div>
+      <div class="card" style="text-align:center;padding:14px">
+        <div style="font-size:13px;font-weight:700">${c.updatedAt ? new Date(c.updatedAt).toLocaleDateString('th-TH') : '—'}</div>
+        <div class="muted" style="font-size:10.5px;text-transform:uppercase;letter-spacing:1px">แก้ล่าสุด</div></div>
+    </div>
+
+    ${auth.isLocal ? `<div class="note warn">ตอนนี้ไม่มีเซิร์ฟเวอร์ เนื้อหาที่เพิ่มจะอยู่ใน<b>เบราว์เซอร์เครื่องนี้เท่านั้น</b> —
+      กด "ดาวน์โหลดไฟล์เนื้อหา" เก็บไว้ แล้วนำเข้าที่เครื่องอื่นหรือส่งให้คนดูแล repo เอาไปใส่ถาวรได้</div>` : ''}
+
+    <div class="login-tabs adm-tabs" style="margin-top:16px">
+      <button data-form="sec" class="on">➕ บทเรียน</button>
+      <button data-form="quiz">➕ ข้อสอบ</button>
+      <button data-form="lab">➕ Lab</button>
+    </div>
+
+    <!-- ---------- ฟอร์มบทเรียน ---------- -->
+    <div class="card" id="form-sec" style="margin-bottom:16px">
+      <h3 style="margin:0 0 12px;font-size:15px">เพิ่มบทเรียน</h3>
+      ${trackLevelPicker('sec')}
+      <div class="fld"><label>หัวข้อย่อย</label><input id="sec-title" placeholder="เช่น VLAN คืออะไร"></div>
+      <div class="fld"><label>เนื้อหา (ใส่ HTML ได้ เช่น &lt;p&gt; &lt;ul&gt; &lt;code&gt;)</label>
+        <textarea id="sec-html" rows="7" placeholder="<p>อธิบายเนื้อหาตรงนี้</p>"></textarea></div>
+      <button class="btn primary" id="sec-add">เพิ่มบทเรียน</button>
+    </div>
+
+    <!-- ---------- ฟอร์มข้อสอบ ---------- -->
+    <div class="card" id="form-quiz" hidden style="margin-bottom:16px">
+      <h3 style="margin:0 0 12px;font-size:15px">เพิ่มข้อสอบ</h3>
+      ${trackLevelPicker('quiz')}
+      <div class="fld"><label>ชนิดข้อสอบ</label>
+        <select id="quiz-type">
+          <option value="mcq">เลือกตอบข้อเดียว</option>
+          <option value="multi">เลือกตอบหลายข้อ</option>
+          <option value="cmd">พิมพ์คำสั่ง</option>
+        </select></div>
+      <div class="fld"><label>คำถาม</label><textarea id="quiz-q" rows="2"></textarea></div>
+      <div id="quiz-opts">
+        ${[0, 1, 2, 3].map(i => `<div class="row" style="gap:9px;align-items:center;margin-bottom:7px">
+          <input type="checkbox" data-correct="${i}" title="ติ๊กถ้าข้อนี้ถูก">
+          <input class="q-opt" data-i="${i}" placeholder="ตัวเลือกที่ ${i + 1}" style="flex:1">
+        </div>`).join('')}
+        <div class="muted" style="font-size:11.5px">ติ๊กช่องหน้าตัวเลือกที่เป็นคำตอบที่ถูก (เลือกตอบข้อเดียว = ติ๊กอันเดียว)</div>
+      </div>
+      <div class="fld" id="quiz-ans-wrap" hidden><label>คำตอบที่ยอมรับ (บรรทัดละ 1 แบบ)</label>
+        <textarea id="quiz-ans" rows="3" placeholder="conf t&#10;configure terminal"></textarea></div>
+      <div class="fld"><label>คำอธิบายเฉลย</label><textarea id="quiz-why" rows="3"></textarea></div>
+      <button class="btn primary" id="quiz-add">เพิ่มข้อสอบ</button>
+    </div>
+
+    <!-- ---------- ฟอร์ม Lab ---------- -->
+    <div class="card" id="form-lab" hidden style="margin-bottom:16px">
+      <h3 style="margin:0 0 12px;font-size:15px">เพิ่ม Lab</h3>
+      ${trackLevelPicker('lab')}
+      <div class="row" style="gap:12px">
+        <div class="fld" style="flex:2;min-width:200px"><label>ชื่อ Lab</label><input id="lab-title" placeholder="เช่น Lab 1F — ตั้งค่า VLAN"></div>
+        <div class="fld" style="flex:1;min-width:180px"><label>อุปกรณ์</label>
+          <select id="lab-device">${Object.entries(DEVICE_LABELS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></div>
+      </div>
+      <div class="fld"><label>สถานการณ์ (brief)</label><textarea id="lab-brief" rows="2"></textarea></div>
+
+      <h4 style="margin:14px 0 8px;font-size:13px;font-family:var(--mono);color:var(--txt-dim)">ขั้นตอนที่ผู้เรียนต้องทำ</h4>
+      <div id="lab-tasks"></div>
+      <button class="btn sm ghost" id="lab-add-task">+ เพิ่มขั้นตอน</button>
+
+      <div class="fld" style="margin-top:14px"><label>สรุปบทเรียนท้าย Lab (debrief)</label><textarea id="lab-debrief" rows="3"></textarea></div>
+      <button class="btn primary" id="lab-add">เพิ่ม Lab</button>
+    </div>
+
+    <h2 class="sec">เนื้อหาที่เพิ่มไว้แล้ว</h2>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="adm">
+        <tr><th>ชนิด</th><th>อยู่ที่</th><th>รายละเอียด</th><th></th></tr>
+        ${[...c.sections.map(x => ({ kind: 'บทเรียน', id: x.id, at: `${x.track} · ระดับ ${x.level}`, what: x.t, go: `#/learn/${x.track}/${x.level}` })),
+      ...c.quiz.map(x => ({ kind: 'ข้อสอบ', id: x.id, at: `${x.track} · ระดับ ${x.level}`, what: x.q, go: `#/learn/${x.track}/${x.level}` })),
+      ...c.labs.map(x => ({ kind: 'Lab', id: x.id, at: `${x.track} · ระดับ ${x.level}`, what: `${x.title} (${(x.tasks || []).length} ขั้นตอน)`, go: `#/lab/${x.track}/${x.id}` }))]
+      .map(row => `<tr>
+        <td><span class="pill">${row.kind}</span></td>
+        <td style="font-family:var(--mono);font-size:11.5px">${esc(row.at)}</td>
+        <td>${esc(String(row.what).replace(/<[^>]+>/g, '').slice(0, 90))}</td>
+        <td><div class="row" style="gap:6px;flex-wrap:nowrap">
+          <button class="btn sm ghost" data-go="${row.go}">เปิดดู</button>
+          <button class="btn sm danger" data-del="${row.id}">ลบ</button></div></td>
+      </tr>`).join('') || '<tr><td colspan="4" class="muted" style="padding:16px">ยังไม่มีเนื้อหาที่เพิ่มเอง</td></tr>'}
+      </table>
+    </div>
+
+    <div class="row" style="gap:8px;margin-top:14px">
+      <button class="btn ghost" id="ct-export">⬇ ดาวน์โหลดไฟล์เนื้อหา</button>
+      <button class="btn ghost" id="ct-import">⬆ นำเข้าไฟล์เนื้อหา</button>
+      <input type="file" id="ct-file" accept="application/json" hidden>
+    </div>`;
+
+  bindPicker('sec'); bindPicker('quiz'); bindPicker('lab');
+  goHooks();
+
+  // สลับฟอร์ม
+  view().querySelectorAll('[data-form]').forEach(b => b.addEventListener('click', () => {
+    view().querySelectorAll('[data-form]').forEach(x => x.classList.toggle('on', x === b));
+    ['sec', 'quiz', 'lab'].forEach(k => { $(`#form-${k}`).hidden = k !== b.dataset.form; });
+  }));
+
+  // ข้อสอบ: สลับระหว่างตัวเลือกกับช่องพิมพ์คำสั่ง
+  const syncQuizType = () => {
+    const cmd = $('#quiz-type').value === 'cmd';
+    $('#quiz-opts').hidden = cmd;
+    $('#quiz-ans-wrap').hidden = !cmd;
+  };
+  $('#quiz-type').addEventListener('change', syncQuizType);
+  syncQuizType();
+
+  // ---------- ขั้นตอนของ Lab ----------
+  const taskRow = () => {
+    const row = h(`<div class="card" style="background:var(--bg-2);margin-bottom:9px">
+      <div class="row" style="gap:9px">
+        <div class="fld" style="flex:2;min-width:180px;margin:0"><label>สิ่งที่ต้องทำ</label><input class="tk-t"></div>
+        <div class="fld" style="flex:2;min-width:180px;margin:0"><label>คำใบ้ (คำสั่งจริง)</label><input class="tk-hint"></div>
+      </div>
+      <div class="row" style="gap:9px;margin-top:9px;align-items:flex-end">
+        <div class="fld" style="flex:1;min-width:190px;margin:0"><label>ตรวจว่าผ่านด้วยกติกา</label>
+          <select class="tk-kind">${RULE_KINDS.map(r => `<option value="${r.kind}">${esc(r.label)}</option>`).join('')}</select></div>
+        <div class="fld tk-f-a" style="flex:1;min-width:160px;margin:0"><label class="tk-l-a">รูปแบบคำสั่ง</label><input class="tk-a"></div>
+        <div class="fld tk-f-op" style="min-width:120px;margin:0" hidden><label>เงื่อนไข</label>
+          <select class="tk-op">
+            <option value="eq">เท่ากับ</option><option value="ne">ไม่เท่ากับ</option>
+            <option value="contains">มีคำว่า</option><option value="exists">มีค่าอยู่</option>
+            <option value="gt">มากกว่า</option><option value="lt">น้อยกว่า</option>
+          </select></div>
+        <div class="fld tk-f-b" style="flex:1;min-width:130px;margin:0" hidden><label class="tk-l-b">ค่า</label><input class="tk-b"></div>
+        <button class="btn sm ghost tk-del" title="ลบขั้นตอนนี้">ลบ</button>
+      </div>
+      <div class="muted tk-hintline" style="font-size:11.3px;margin-top:7px"></div>
+    </div>`);
+
+    const kind = row.querySelector('.tk-kind');
+    const sync = () => {
+      const k = kind.value;
+      const meta = RULE_KINDS.find(r => r.kind === k) || {};
+      row.querySelector('.tk-hintline').textContent = meta.hint || '';
+      row.querySelector('.tk-f-op').hidden = k !== 'state';
+      row.querySelector('.tk-f-b').hidden = !(k === 'state' || k === 'file' || k === 'ranCount');
+      row.querySelector('.tk-l-a').textContent = (k === 'state' || k === 'file') ? 'path' : 'รูปแบบคำสั่ง';
+      row.querySelector('.tk-l-b').textContent = k === 'ranCount' ? 'อย่างน้อยกี่ครั้ง' : k === 'file' ? 'ต้องมีคำว่า' : 'ค่า';
+      if (k === 'ranCount') row.querySelector('.tk-b').value = row.querySelector('.tk-b').value || '2';
+    };
+    kind.addEventListener('change', sync);
+    sync();
+    row.querySelector('.tk-del').addEventListener('click', () => {
+      if ($('#lab-tasks').children.length > 1) row.remove();
+      else toast('Lab ต้องมีอย่างน้อย 1 ขั้นตอน', 'bad');
+    });
+    return row;
+  };
+  $('#lab-tasks').appendChild(taskRow());
+  $('#lab-add-task').addEventListener('click', () => $('#lab-tasks').appendChild(taskRow()));
+
+  // ---------- บันทึก ----------
+  const persist = async (next, okMsg) => {
+    const r = await saveCustomContent(next);
+    if (!r.ok) return toast(r.problems[0], 'bad');
+    toast(okMsg + (r.mode === 'local' ? ' (เก็บในเครื่องนี้)' : ''), 'ok');
+    setTimeout(() => location.reload(), 600);      // merge ไปแล้วตอนเปิดหน้า ต้องโหลดใหม่ให้เห็นผล
+  };
+
+  $('#sec-add').addEventListener('click', () => {
+    const item = {
+      id: newId('sec'), track: $('#sec-track').value, level: +$('#sec-level').value,
+      t: $('#sec-title').value.trim(), h: $('#sec-html').value.trim(),
+    };
+    if (!item.t || !item.h) return toast('ใส่หัวข้อและเนื้อหาให้ครบก่อน', 'bad');
+    persist({ ...c, sections: [...c.sections, item] }, 'เพิ่มบทเรียนแล้ว');
+  });
+
+  $('#quiz-add').addEventListener('click', () => {
+    const type = $('#quiz-type').value;
+    const item = {
+      id: newId('q'), track: $('#quiz-track').value, level: +$('#quiz-level').value,
+      type, q: $('#quiz-q').value.trim(), why: $('#quiz-why').value.trim(),
+    };
+    if (type === 'cmd') {
+      item.ans = $('#quiz-ans').value.split('\n').map(x => x.trim()).filter(Boolean);
+    } else {
+      const opts = [...view().querySelectorAll('.q-opt')].map(i => i.value.trim());
+      const correct = [...view().querySelectorAll('[data-correct]')].map((cb, i) => (cb.checked ? i : -1)).filter(i => i >= 0);
+      item.opts = opts.filter(Boolean);
+      if (correct.some(i => i >= item.opts.length)) return toast('ติ๊กคำตอบที่ถูกให้ตรงกับตัวเลือกที่กรอกไว้', 'bad');
+      item.a = type === 'mcq' ? (correct[0] ?? -1) : correct;
+    }
+    persist({ ...c, quiz: [...c.quiz, item] }, 'เพิ่มข้อสอบแล้ว');
+  });
+
+  $('#lab-add').addEventListener('click', () => {
+    const tasks = [...$('#lab-tasks').children].map(row => {
+      const kind = row.querySelector('.tk-kind').value;
+      const a = row.querySelector('.tk-a').value.trim();
+      const b = row.querySelector('.tk-b').value.trim();
+      const rule = { kind };
+      if (kind === 'ran') rule.pattern = a;
+      if (kind === 'ranCount') { rule.pattern = a; rule.min = +b || 2; }
+      if (kind === 'state') { rule.path = a; rule.op = row.querySelector('.tk-op').value; rule.value = b; }
+      if (kind === 'file') { rule.path = a; rule.contains = b; }
+      return { t: row.querySelector('.tk-t').value.trim(), hint: row.querySelector('.tk-hint').value.trim(), rules: [rule] };
+    });
+    const item = {
+      id: newId('lab'), track: $('#lab-track').value, level: +$('#lab-level').value,
+      title: $('#lab-title').value.trim(), brief: $('#lab-brief').value.trim(),
+      device: $('#lab-device').value, debrief: $('#lab-debrief').value.trim(), tasks,
+    };
+    persist({ ...c, labs: [...c.labs, item] }, 'เพิ่ม Lab แล้ว');
+  });
+
+  view().querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.del;
+    if (!confirm('ลบเนื้อหาชิ้นนี้ออกจากเว็บใช่หรือไม่?')) return;
+    persist({
+      ...c,
+      sections: c.sections.filter(x => x.id !== id),
+      quiz: c.quiz.filter(x => x.id !== id),
+      labs: c.labs.filter(x => x.id !== id),
+    }, 'ลบแล้ว');
+  }));
+
+  // ---------- ย้ายเนื้อหาข้ามเครื่อง ----------
+  $('#ct-export').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(c, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `learning-center-content-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  $('#ct-import').addEventListener('click', () => $('#ct-file').click());
+  $('#ct-file').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const merged = {
+        ...blankCustom(),
+        sections: [...c.sections, ...(data.sections || [])],
+        quiz: [...c.quiz, ...(data.quiz || [])],
+        labs: [...c.labs, ...(data.labs || [])],
+      };
+      persist(merged, 'นำเข้าเนื้อหาแล้ว');
+    } catch { toast('อ่านไฟล์ไม่ได้ — ต้องเป็นไฟล์ที่ดาวน์โหลดจากหน้านี้', 'bad'); }
+  });
 }
 
 function vNotFound() {
@@ -1562,7 +2015,11 @@ function route() {
     case 'progress': return vProgress();
     case 'certificate': return vCertificate();
     case 'account': return vAccount();
-    case 'admin': return vAdmin();
+    case 'admin':
+      if (parts[1] === 'users') return vAdminUsers();
+      if (parts[1] === 'user') return vAdminUser(decodeURIComponent(parts[2] || ''));
+      if (parts[1] === 'content') return vAdminContent();
+      return vAdmin();
     default: return vNotFound();
   }
 }
