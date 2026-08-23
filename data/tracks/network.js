@@ -8,7 +8,16 @@
 //
 //  ข้อสอบในไฟล์นี้เขียนขึ้นใหม่ทั้งหมดให้ตรงกับหัวข้อสอบ N10-008
 //  ไม่ได้คัดลอกมาจากคลังข้อสอบของเว็บไหน
+//
+//  หัวข้อนี้ไม่ผูกกับยี่ห้อ Lab จึงยืม emulator ของหัวข้ออื่นมาใช้ตามความเหมาะสม
+//    Linux    — IP, subnet, DNS และการไล่ปัญหา
+//    Cisco    — สวิตช์, STP, VLAN และ port security
+//    MikroTik — monitoring, WAN สำรอง และไร้สาย
 // ============================================================
+const said = (h, re) => h.some(c => re.test(String(c).trim()));
+const T = (s, p) => s.tables[p] || [];                 // MikroTik
+const has = (s, p, fn) => T(s, p).some(fn);
+const ifc = (s, n) => (s.ifaces || {})[n] || {};       // Cisco / Linux
 
 export default {
   id: 'network',
@@ -226,7 +235,22 @@ export default {
         { type: 'multi', q: 'ข้อใดคือสิ่งที่ควรทำเมื่อติดตั้ง router SOHO ตัวใหม่ (เลือกทุกข้อที่ถูก)', opts: ['เปลี่ยนรหัสผ่านผู้ดูแลจากค่าโรงงาน', 'ปิดการจัดการจากฝั่ง WAN', 'ตั้ง WPA2/WPA3 ให้ไวไฟ', 'เปิด WEP ไว้เพื่อรองรับอุปกรณ์เก่า'], a: [0, 1, 2], why: 'WEP ถูกเจาะได้ในเวลาไม่กี่นาทีและไม่ควรใช้ในทุกกรณี ถ้ามีอุปกรณ์เก่าที่รองรับแค่ WEP ให้แยกวงและจำกัดสิทธิ์แทน' },
         { type: 'multi', q: 'ข้อใดคือเหตุผลที่ต้องใช้สายแบบ plenum-rated (เลือกทุกข้อที่ถูก)', opts: ['เดินในช่องลมแอร์เหนือฝ้า', 'ปลอกไม่ลามไฟ', 'ไม่ปล่อยควันพิษเมื่อถูกความร้อน', 'ส่งข้อมูลได้เร็วกว่าสายปกติ'], a: [0, 1, 2], why: 'plenum เป็นเรื่องความปลอดภัยจากอัคคีภัยล้วน ๆ ไม่เกี่ยวกับความเร็วในการส่งข้อมูล — แต่เป็นข้อบังคับตามกฎหมายอาคารในหลายพื้นที่' },
       ],
-      labs: [],
+      labs: [{
+        id: 'net-l1-phy',
+        title: 'Lab 1 — สำรวจชั้น Physical และ Data Link ของเครื่อง',
+        brief: 'ผู้ใช้แจ้งว่าเครื่องช้าเวลาโอนไฟล์ใหญ่ ก่อนจะไปโทษเซิร์ฟเวอร์ ให้ตรวจชั้นล่างสุดก่อนตามหลัก OSI — ลิงก์ขึ้นที่ความเร็วเท่าไหร่ duplex ตรงไหม และมี error สะสมหรือเปล่า',
+        device: 'linux',
+        tasks: [
+          { t: 'ดูรายการ interface ทั้งหมดและสถานะลิงก์', hint: 'ip link', check: (s, h) => said(h, /^ip\s+(-\w+\s+)?link/i) },
+          { t: 'ดู IP และ prefix ที่ตั้งอยู่ตอนนี้', hint: 'ip addr', check: (s, h) => said(h, /^ip\s+(addr|a)\b/i) },
+          { t: 'ตรวจ speed, duplex และ autonegotiation ของ <code>eth0</code>', hint: 'ethtool eth0', check: (s, h) => said(h, /^ethtool/i) },
+          { t: 'ดูสถิติ error และ drop ที่สะสมบน <code>eth0</code>', hint: 'ip -s link show eth0', check: (s, h) => said(h, /ip\s+-s\s+link/i) },
+          { t: 'ดูตาราง ARP ว่า IP ไหนคู่กับ MAC ไหนในวงนี้', hint: 'ip neigh', check: (s, h) => said(h, /ip\s+neigh|arp\s+-a/i) },
+          { t: 'ตั้ง MTU ของ <code>eth0</code> เป็น 9000 เพื่อรองรับ jumbo frame', hint: 'sudo ip link set eth0 mtu 9000', check: (s, h) => said(h, /ip\s+link\s+set.*mtu\s*9000/i) },
+          { t: 'ทดสอบว่า TCP/IP stack ของเครื่องเองยังดีอยู่', hint: 'ping -c 2 127.0.0.1', check: (s, h) => said(h, /ping.*127\.0\.0\.1/i) },
+          { t: 'ดูตารางเส้นทางเพื่อยืนยันว่ามี default gateway', hint: 'ip route', check: (s, h) => said(h, /^ip\s+(route|r)\b/i) },
+        ],
+      }],
     },
 
     // =========================================================
@@ -372,7 +396,44 @@ ethtool eth0                <span style="color:#5b6b8c"># ดู speed / duplex 
         { type: 'multi', q: 'ข้อใดคือสัญญาณของปัญหาชั้น Physical (เลือกทุกข้อที่ถูก)', opts: ['ไฟที่พอร์ตไม่ติดเลย', 'CRC error เพิ่มขึ้นเรื่อย ๆ', 'ลิงก์ขึ้นที่ความเร็วต่ำกว่าที่ควรเป็น', 'เข้าเว็บ A ไม่ได้แต่เว็บ B ได้'], a: [0, 1, 2], why: 'สามข้อแรกคืออาการของสาย หัวต่อ หรือ transceiver ส่วนข้อสุดท้ายเป็นปัญหาที่ชั้นสูงกว่า เช่น DNS หรือ firewall' },
         { type: 'multi', q: 'ข้อใดคือหน้าที่ของ BPDU Guard และ PortFast (เลือกทุกข้อที่ถูก)', opts: ['PortFast ให้พอร์ตของเครื่องผู้ใช้ขึ้นทันทีโดยไม่รอ STP', 'BPDU Guard ปิดพอร์ตทันทีถ้ามีใครเอาสวิตช์มาต่อ', 'ทั้งคู่ใช้เข้ารหัสข้อมูล', 'มักเปิดใช้คู่กันที่พอร์ตของผู้ใช้'], a: [0, 1, 3], why: 'PortFast ทำให้ผู้ใช้ไม่ต้องรอ 30 วินาทีตอนเสียบสาย ส่วน BPDU Guard ป้องกันไม่ให้พอร์ตนั้นถูกใช้ต่อสวิตช์เถื่อนจนทำ topology พัง — จึงต้องเปิดคู่กันเสมอ' },
       ],
-      labs: [],
+      labs: [
+        {
+          id: 'net-l2-switch',
+          title: 'Lab 2A — ตรวจสวิตช์และตั้งพอร์ตผู้ใช้ให้ถูกต้อง',
+          brief: 'คุณรับดูแลสวิตช์ประจำชั้นต่อจากคนเก่า งานแรกคือสำรวจว่าพอร์ตไหนใช้อยู่บ้าง สวิตช์ตัวไหนเป็น root bridge แล้วตั้งค่าพอร์ตของผู้ใช้ให้เปิดเร็วและกันคนเอาสวิตช์มาต่อเอง',
+          device: 'cisco',
+          tasks: [
+            { t: 'เข้าสู่ privileged EXEC mode', hint: 'enable', check: s => s.mode !== 'user' },
+            { t: 'ดูสถานะพอร์ตทั้งหมดว่าพอร์ตไหน connected', hint: 'show interfaces status', check: (s, h) => said(h, /sh(ow)?\s+int\w*\s+st/i) },
+            { t: 'ดูตาราง MAC ที่สวิตช์เรียนรู้ไว้', hint: 'show mac address-table', check: (s, h) => said(h, /sh(ow)?\s+mac/i) },
+            { t: 'ดูสถานะ STP ว่าใครเป็น root bridge และพอร์ตไหนถูก block', hint: 'show spanning-tree', check: (s, h) => said(h, /sh(ow)?\s+span/i) },
+            { t: 'เข้าโหมด config แล้วเลือกพอร์ต <code>FastEthernet0/1</code>', hint: 'configure terminal → interface FastEthernet0/1', check: s => s.ctx && /FastEthernet0\/1/i.test(JSON.stringify(s.ctx)) },
+            { t: 'ใส่ description ให้พอร์ตเป็น <code>PC-Office</code>', hint: 'description PC-Office', check: s => /PC-Office/i.test(ifc(s, 'FastEthernet0/1').desc || '') },
+            { t: 'ตั้งพอร์ตเป็น access mode', hint: 'switchport mode access', check: s => ifc(s, 'FastEthernet0/1').swMode === 'access' },
+            { t: 'เปิด PortFast ให้พอร์ตขึ้นทันทีโดยไม่ต้องรอ STP', hint: 'spanning-tree portfast', check: s => ifc(s, 'FastEthernet0/1').portfast === true },
+            { t: 'เปิด BPDU Guard กันคนเอาสวิตช์มาต่อที่พอร์ตนี้', hint: 'spanning-tree bpduguard enable', check: s => ifc(s, 'FastEthernet0/1').bpduguard === true },
+            { t: 'ปิดพอร์ต <code>FastEthernet0/9</code> ที่ไม่ได้ใช้งาน', hint: 'interface FastEthernet0/9 → shutdown', check: s => ifc(s, 'FastEthernet0/9').shutdown === true },
+            { t: 'ตรวจ config ที่ได้ทั้งหมด', hint: 'do show running-config', check: (s, h) => said(h, /sh(ow)?\s+run/i) },
+          ],
+        },
+        {
+          id: 'net-l2-tshoot',
+          title: 'Lab 2B — ไล่ปัญหา "เน็ตใช้ไม่ได้" ตามลำดับ OSI',
+          brief: 'ผู้ใช้โทรมาบอกสั้น ๆ ว่า "เน็ตใช้ไม่ได้" คุณต้องไล่จากชั้นล่างขึ้นบนทีละขั้นเพื่อระบุว่าปัญหาอยู่ตรงไหนจริง ๆ แทนการเดาสุ่ม',
+          device: 'linux',
+          tasks: [
+            { t: 'ขั้น 1 — ทดสอบ TCP/IP stack ของเครื่องเอง', hint: 'ping -c 2 127.0.0.1', check: (s, h) => said(h, /ping.*127\.0\.0\.1/i) },
+            { t: 'ขั้น 2 — ตรวจว่าการ์ดได้ IP และลิงก์ขึ้นจริง', hint: 'ip addr', check: (s, h) => said(h, /^ip\s+(addr|a)\b/i) },
+            { t: 'ขั้น 3 — ตรวจว่ามี default gateway ตั้งไว้', hint: 'ip route', check: (s, h) => said(h, /^ip\s+(route|r)\b/i) },
+            { t: 'ขั้น 4 — ทดสอบว่าออกจากวงตัวเองได้ไหม', hint: 'ping -c 2 192.168.10.1', check: (s, h) => said(h, /ping.*192\.168\.10\.1/i) },
+            { t: 'ขั้น 5 — ทดสอบว่าออกอินเทอร์เน็ตได้ไหม (ใช้ IP ไม่ใช่ชื่อ)', hint: 'ping -c 2 8.8.8.8', check: (s, h) => said(h, /ping.*8\.8\.8\.8/i) },
+            { t: 'ขั้น 6 — ตรวจว่า DNS ตั้งไว้เป็นอะไร', hint: 'cat /etc/resolv.conf', check: (s, h) => said(h, /resolv\.conf/i) },
+            { t: 'ขั้น 7 — ทดสอบว่าแปลงชื่อเป็น IP ได้ไหม', hint: 'dig example.com', check: (s, h) => said(h, /^(dig|nslookup|host)\s/i) },
+            { t: 'ขั้น 8 — ถ้าออกได้แต่ช้า ให้ดูว่าตายหรือหน่วงที่ hop ไหน', hint: 'traceroute 8.8.8.8', check: (s, h) => said(h, /^(traceroute|tracepath|mtr)\s/i) },
+            { t: 'ขั้น 9 — ตรวจ error สะสมที่ interface เผื่อเป็นปัญหาสาย', hint: 'ip -s link show eth0', check: (s, h) => said(h, /ip\s+-s\s+link/i) },
+          ],
+        },
+      ],
     },
 
     // =========================================================
@@ -557,7 +618,41 @@ network = <b>192.168.10.64</b> · broadcast = <b>192.168.10.127</b> · host ท�
         { type: 'cmd', q: 'พิมพ์คำสั่งบน Linux เพื่อไล่ดูว่าเส้นทางไป <code>8.8.8.8</code> ตายที่ hop ไหน', ans: ['traceroute 8.8.8.8', 'tracepath 8.8.8.8', 'mtr 8.8.8.8'], why: 'traceroute แสดงทีละ hop ทำให้บอกได้ว่าปัญหาอยู่ในเครือข่ายเราหรือที่ผู้ให้บริการ — บน Windows ใช้ tracert' },
         { type: 'multi', q: 'ข้อใดคืออาการของ subnet mask ที่ตั้งผิด (เลือกทุกข้อที่ถูก)', opts: ['คุยกับบางเครื่องในวงได้ บางเครื่องไม่ได้', 'เครื่องพยายาม ARP หาปลายทางที่จริง ๆ อยู่คนละวง', 'ping loopback ไม่ผ่าน', 'อาจออกอินเทอร์เน็ตไม่ได้เพราะคิดว่า gateway อยู่คนละวง'], a: [0, 1, 3], why: 'ping 127.0.0.1 ไม่ผ่านเป็นปัญหาที่ TCP/IP stack ของเครื่องเอง ไม่เกี่ยวกับ mask — ส่วนอีกสามข้อเกิดจากเครื่องคำนวณขอบเขตวงผิด' },
       ],
-      labs: [],
+      labs: [
+        {
+          id: 'net-l3-subnet',
+          title: 'Lab 3A — แบ่ง Subnet ให้สามแผนกแล้วตั้งเส้นทาง',
+          brief: 'ออฟฟิศได้วง <code>192.168.10.0/24</code> มาก้อนเดียว ต้องแบ่งเป็นสามแผนกด้วย /26 แล้วตั้ง IP ให้เครื่องนี้อยู่ในแผนกที่สอง พร้อมวางเส้นทางไปวงสาขา',
+          device: 'linux',
+          tasks: [
+            { t: 'ดู IP ปัจจุบันของเครื่องก่อนแก้อะไร', hint: 'ip addr', check: (s, h) => said(h, /^ip\s+(addr|a)\b/i) },
+            { t: 'ใส่ IP <code>192.168.10.65/26</code> ให้ <code>eth0</code> (แผนกที่สอง เริ่มที่ .64)', hint: 'sudo ip addr add 192.168.10.65/26 dev eth0', check: s => ifc(s, 'eth0').ip === '192.168.10.65' && +ifc(s, 'eth0').prefix === 26 },
+            { t: 'ยืนยันว่า IP และ prefix ถูกตั้งจริง', hint: 'ip addr show eth0', check: (s, h) => said(h, /ip\s+(addr|a).*eth0/i) },
+            { t: 'เปิดใช้งาน interface ให้แน่ใจว่าลิงก์ขึ้น', hint: 'sudo ip link set eth0 up', check: (s, h) => said(h, /ip\s+link\s+set\s+eth0\s+up/i) },
+            { t: 'เพิ่มเส้นทางไปวงสาขา <code>10.20.0.0/16</code> ผ่าน <code>192.168.10.254</code>', hint: 'sudo ip route add 10.20.0.0/16 via 192.168.10.254', check: (s, h) => said(h, /ip\s+route\s+add\s+10\.20\.0\.0\/16\s+via\s+192\.168\.10\.254/i) },
+            { t: 'เพิ่ม default route ผ่าน <code>192.168.10.1</code>', hint: 'sudo ip route add default via 192.168.10.1', check: (s, h) => said(h, /ip\s+route\s+add\s+default\s+via/i) },
+            { t: 'ตรวจตารางเส้นทางที่ได้', hint: 'ip route', check: (s, h) => said(h, /^ip\s+(route|r)\s*$/i) },
+            { t: 'ทดสอบว่าถึง gateway', hint: 'ping -c 2 192.168.10.1', check: (s, h) => said(h, /ping.*192\.168\.10\.1/i) },
+            { t: 'ไล่ดูเส้นทางออกอินเทอร์เน็ต', hint: 'traceroute 8.8.8.8', check: (s, h) => said(h, /^(traceroute|tracepath|mtr)\s/i) },
+          ],
+        },
+        {
+          id: 'net-l3-ipv6',
+          title: 'Lab 3B — ทำความรู้จัก IPv6 บนเครื่องจริง',
+          brief: 'องค์กรกำลังจะเปิดใช้ IPv6 แบบ dual stack คุณต้องสำรวจว่าเครื่องมี address IPv6 อะไรอยู่แล้วบ้าง เพิ่ม global address และตรวจว่าทำงานได้',
+          device: 'linux',
+          tasks: [
+            { t: 'ดู IPv6 address ทั้งหมดของเครื่อง', hint: 'ip -6 addr', check: (s, h) => said(h, /ip\s+-6\s+(addr|a)\b/i) },
+            { t: 'สังเกตว่ามี link-local ขึ้นต้นด้วย <code>fe80::</code> อยู่แล้วทุก interface', hint: 'ip -6 addr show eth0', check: (s, h) => said(h, /ip\s+-6\s+(addr|a).*eth0/i) },
+            { t: 'ทดสอบ loopback ของ IPv6', hint: 'ping6 -c 2 ::1', check: (s, h) => said(h, /ping6?.*::1/i) },
+            { t: 'เพิ่ม global address <code>2001:db8::10/64</code> ให้ <code>eth0</code>', hint: 'sudo ip addr add 2001:db8::10/64 dev eth0', check: (s, h) => said(h, /ip\s+addr\s+add\s+2001:db8::10\/64/i) },
+            { t: 'ยืนยันว่า address ใหม่ถูกเพิ่มแล้ว', hint: 'ip -6 addr show eth0', check: (s, h) => h.filter(c => /ip\s+-6\s+(addr|a)/i.test(String(c))).length >= 2 },
+            { t: 'ดูตารางเส้นทาง IPv6', hint: 'ip -6 route', check: (s, h) => said(h, /ip\s+-6\s+(route|r)\b/i) },
+            { t: 'ถาม DNS หา AAAA record ของโดเมน', hint: 'dig AAAA example.com', check: (s, h) => said(h, /dig.*aaaa|aaaa.*example/i) },
+            { t: 'ดูตาราง neighbor (สิ่งที่ IPv6 ใช้แทน ARP)', hint: 'ip -6 neigh', check: (s, h) => said(h, /ip\s+(-6\s+)?neigh/i) },
+          ],
+        },
+      ],
     },
 
     // =========================================================
@@ -762,7 +857,44 @@ dig @8.8.8.8 example.com     <span style="color:#5b6b8c"># บังคับถ
         { type: 'cmd', q: 'พิมพ์คำสั่งบน Linux เพื่อถาม MX record ของโดเมน <code>example.com</code>', ans: ['dig example.com MX', 'dig MX example.com', 'nslookup -type=mx example.com', 'host -t mx example.com'], why: 'ใช้ตรวจว่าเมลของโดเมนถูกส่งไปที่เซิร์ฟเวอร์ที่ถูกต้อง — เป็นขั้นแรกเสมอเมื่อมีปัญหาส่งเมลเข้าไม่ได้' },
         { type: 'multi', q: 'ข้อใดคือระเบียน DNS ที่ช่วยให้อีเมลองค์กรไม่ถูกมองเป็นสแปม (เลือกทุกข้อที่ถูก)', opts: ['SPF', 'DKIM', 'DMARC', 'CNAME'], a: [0, 1, 2], why: 'SPF บอกว่าใครส่งแทนเราได้ · DKIM ลงลายเซ็นให้เมล · DMARC บอกปลายทางว่าให้ทำอย่างไรเมื่อตรวจไม่ผ่าน — ส่วน CNAME เป็นแค่ชื่อเล่นชี้ไปอีกชื่อ' },
       ],
-      labs: [],
+      labs: [
+        {
+          id: 'net-l4-vlan',
+          title: 'Lab 4A — แบ่ง VLAN ให้ออฟฟิศและตั้ง Trunk',
+          brief: 'ออฟฟิศต้องแยกวงพนักงาน วงโทรศัพท์ และวงกล้องวงจรปิดออกจากกัน คุณต้องสร้าง VLAN ตั้งพอร์ตผู้ใช้ แล้วตั้ง trunk ไปสวิตช์ตัวถัดไปโดยเปลี่ยน native VLAN ให้ปลอดภัย',
+          device: 'cisco',
+          tasks: [
+            { t: 'เข้าสู่ privileged EXEC mode', hint: 'enable', check: s => s.mode !== 'user' },
+            { t: 'สร้าง VLAN 10 ชื่อ <code>OFFICE</code>', hint: 'configure terminal → vlan 10 → name OFFICE', check: s => s.vlans[10] && /OFFICE/i.test(s.vlans[10].name) },
+            { t: 'สร้าง VLAN 20 ชื่อ <code>VOICE</code>', hint: 'vlan 20 → name VOICE', check: s => s.vlans[20] && /VOICE/i.test(s.vlans[20].name) },
+            { t: 'สร้าง VLAN 30 ชื่อ <code>CCTV</code>', hint: 'vlan 30 → name CCTV', check: s => s.vlans[30] && /CCTV/i.test(s.vlans[30].name) },
+            { t: 'สร้าง VLAN 99 ชื่อ <code>NATIVE-UNUSED</code> ไว้ใช้เป็น native VLAN', hint: 'vlan 99 → name NATIVE-UNUSED', check: s => !!s.vlans[99] },
+            { t: 'ตั้ง <code>FastEthernet0/1</code> เป็น access อยู่ VLAN 10', hint: 'interface FastEthernet0/1 → switchport mode access → switchport access vlan 10', check: s => ifc(s, 'FastEthernet0/1').swMode === 'access' && +ifc(s, 'FastEthernet0/1').accessVlan === 10 },
+            { t: 'ตั้ง <code>FastEthernet0/2</code> ให้อยู่ VLAN 30 สำหรับกล้อง', hint: 'interface FastEthernet0/2 → switchport mode access → switchport access vlan 30', check: s => +ifc(s, 'FastEthernet0/2').accessVlan === 30 },
+            { t: 'ตั้ง <code>GigabitEthernet0/1</code> เป็น trunk', hint: 'interface GigabitEthernet0/1 → switchport mode trunk', check: s => ifc(s, 'GigabitEthernet0/1').swMode === 'trunk' },
+            { t: 'เปลี่ยน native VLAN ของ trunk เป็น <code>99</code> เพื่อกัน VLAN hopping', hint: 'switchport trunk native vlan 99', check: s => +ifc(s, 'GigabitEthernet0/1').nativeVlan === 99 },
+            { t: 'อนุญาตเฉพาะ VLAN 10, 20, 30 ผ่าน trunk', hint: 'switchport trunk allowed vlan 10,20,30', check: s => /10.*20.*30/.test(String(ifc(s, 'GigabitEthernet0/1').allowed || '')) },
+            { t: 'ตรวจผลด้วย show vlan brief', hint: 'do show vlan brief', check: (s, h) => said(h, /sh(ow)?\s+vlan/i) },
+          ],
+        },
+        {
+          id: 'net-l4-services',
+          title: 'Lab 4B — ตรวจพอร์ตและบริการชื่อโดเมน',
+          brief: 'ก่อนส่งมอบเซิร์ฟเวอร์ ต้องรู้ว่ามันเปิดพอร์ตอะไรไว้บ้าง และตรวจว่าระบบ DNS ขององค์กรตอบถูกต้องทั้ง A record และ MX record',
+          device: 'linux',
+          tasks: [
+            { t: 'ดูพอร์ตที่เครื่องเราเปิดฟังอยู่พร้อม process เจ้าของ', hint: 'ss -tulpn', check: (s, h) => said(h, /^(sudo\s+)?(ss|netstat)\s+-\w+/i) },
+            { t: 'ดูว่ามีการเชื่อมต่อ TCP ใดค้างอยู่บ้าง', hint: 'ss -tan', check: (s, h) => h.filter(c => /^(sudo\s+)?(ss|netstat)\s/i.test(String(c))).length >= 2 },
+            { t: 'สำรวจว่ามีเครื่องใดออนไลน์ในวง <code>192.168.10.0/24</code>', hint: 'nmap -sn 192.168.10.0/24', check: (s, h) => said(h, /nmap.*-sn/i) },
+            { t: 'สแกนพอร์ตและเวอร์ชันบริการของเครื่องเป้าหมาย', hint: 'nmap -sV 192.168.10.20', check: (s, h) => said(h, /nmap.*-sV/i) },
+            { t: 'ตรวจว่า DNS ที่เครื่องใช้อยู่คือตัวไหน', hint: 'cat /etc/resolv.conf', check: (s, h) => said(h, /resolv\.conf/i) },
+            { t: 'ถาม A record ของโดเมน', hint: 'dig example.com', check: (s, h) => said(h, /^(dig|nslookup|host)\s+example\.com\s*$/i) },
+            { t: 'ถาม MX record เพื่อดูว่าเมลไปที่ไหน', hint: 'dig example.com MX', check: (s, h) => said(h, /dig.*mx|nslookup.*mx|host\s+-t\s+mx/i) },
+            { t: 'ถาม DNS ตัวอื่นเทียบผลว่าตรงกันไหม', hint: 'dig @8.8.8.8 example.com', check: (s, h) => said(h, /dig\s+@/i) },
+            { t: 'ตรวจว่าเว็บปลายทางตอบ HTTPS ปกติ', hint: 'curl -I https://example.com', check: (s, h) => said(h, /curl\s+-I/i) },
+          ],
+        },
+      ],
     },
 
     // =========================================================
@@ -913,7 +1045,45 @@ SMS OTP &lt; TOTP ในแอป &lt; push แบบ number matching &lt; <b>FI
         { type: 'multi', q: 'ข้อใดคือมาตรการ hardening ที่ควรทำกับสวิตช์ทุกตัว (เลือกทุกข้อที่ถูก)', opts: ['เปลี่ยนรหัสผ่านจากค่าโรงงาน', 'ปิดพอร์ตที่ไม่ได้ใช้งาน', 'ปิด Telnet แล้วใช้ SSH แทน', 'เปิดทุกพอร์ตไว้เพื่อความสะดวกในอนาคต'], a: [0, 1, 2], why: 'พอร์ตที่เปิดทิ้งไว้คือจุดที่ใครก็เดินมาเสียบแล้วเข้าเครือข่ายได้ทันที — ถ้าอยากสะดวกให้เปิดตอนที่ต้องใช้จริง ไม่ใช่เปิดทิ้งไว้ล่วงหน้า' },
         { type: 'multi', q: 'ข้อใดช่วยป้องกันการดักฟังแบบ on-path ในวง LAN (เลือกทุกข้อที่ถูก)', opts: ['Dynamic ARP Inspection', 'DHCP snooping', 'เข้ารหัสการสื่อสารด้วย TLS', 'ใช้ hub แทนสวิตช์'], a: [0, 1, 2], why: 'hub ส่งข้อมูลออกทุกพอร์ตอยู่แล้ว จึงทำให้ดักฟังง่ายขึ้นไม่ใช่ยากขึ้น — ส่วน DAI กับ DHCP snooping ตัดฐานของการปลอมตัวเป็น gateway' },
       ],
-      labs: [],
+      labs: [
+        {
+          id: 'net-l5-monitor',
+          title: 'Lab 5A — วางระบบเฝ้าระวังให้รู้ปัญหาก่อนผู้ใช้โทรมา',
+          brief: 'หลังส่งมอบระบบ คุณต้องทำให้อุปกรณ์ส่งข้อมูลเข้าระบบ monitoring ส่วนกลางได้ — เปิด SNMP อย่างปลอดภัย ส่ง log ออกนอกเครื่อง เก็บกราฟ และตั้งเฝ้าลิงก์ขาออก',
+          device: 'mikrotik',
+          tasks: [
+            { t: 'ตั้งชื่ออุปกรณ์เป็น <code>SW-FLOOR3</code> ให้ตรงกับผังเครือข่าย', hint: '/system identity set name=SW-FLOOR3', check: s => s.settings['system identity'].name === 'SW-FLOOR3' },
+            { t: 'ตั้งเวลาให้ตรงกัน — จำเป็นต่อการเรียงลำดับ log', hint: '/system ntp client set enabled=yes servers=203.159.68.1', check: s => s.settings['system ntp client'].enabled === 'yes' },
+            { t: 'เปิด SNMP พร้อมระบุ contact และ location', hint: '/snmp set enabled=yes contact="NOC" location="Floor3-Rack1"', check: s => s.settings.snmp.enabled === 'yes' },
+            { t: 'สร้าง community <code>monitor</code> จำกัดเฉพาะวง <code>10.10.99.0/24</code>', hint: '/snmp community add name=monitor addresses=10.10.99.0/24', check: s => has(s, 'snmp community', r => r.name === 'monitor' && r.addresses === '10.10.99.0/24') },
+            { t: 'ส่ง log ออกไปเก็บที่ syslog server <code>10.10.99.60</code>', hint: '/system logging action add name=remote-log target=remote remote=10.10.99.60', check: s => has(s, 'system logging action', r => r.target === 'remote' && r.remote === '10.10.99.60') },
+            { t: 'เปิดเก็บกราฟปริมาณ traffic ของ <code>ether1</code>', hint: '/tool graphing interface add interface=ether1', check: s => has(s, 'tool graphing interface', r => r.interface === 'ether1') },
+            { t: 'ตั้ง Netwatch เฝ้าลิงก์ขาออกที่ <code>8.8.8.8</code>', hint: '/tool netwatch add host=8.8.8.8 interval=30s', check: s => has(s, 'tool netwatch', r => r.host === '8.8.8.8') },
+            { t: 'ดูปริมาณ traffic บน <code>ether1</code> แบบสด', hint: '/interface monitor-traffic ether1', check: (s, h) => said(h, /monitor-traffic/i) },
+            { t: 'ดูว่าใครกำลังกินแบนด์วิดท์อยู่ตอนนี้', hint: '/tool torch interface=ether1', check: (s, h) => said(h, /tool\s+torch/i) },
+            { t: 'อ่าน log ของเครื่องดูว่ามีอะไรผิดปกติ', hint: '/log print', check: (s, h) => said(h, /^\/?log\s+print/i) },
+          ],
+        },
+        {
+          id: 'net-l5-harden',
+          title: 'Lab 5B — Hardening สวิตช์ก่อนขึ้นใช้งานจริง',
+          brief: 'สวิตช์ตัวใหม่มาจากโรงงานพร้อมค่าเริ่มต้นที่เปิดกว้างทั้งหมด ก่อนเอาขึ้นระบบจริงต้องตั้งรหัสให้ถูกวิธี ปิดช่องทางที่ไม่ปลอดภัย จำกัด MAC ต่อพอร์ต และปิดพอร์ตที่ไม่ได้ใช้',
+          device: 'cisco',
+          tasks: [
+            { t: 'เข้าสู่ privileged EXEC mode', hint: 'enable', check: s => s.mode !== 'user' },
+            { t: 'ตั้งชื่ออุปกรณ์เป็น <code>SW-FLOOR3</code>', hint: 'configure terminal → hostname SW-FLOOR3', check: s => /SW-FLOOR3/i.test(s.hostname) },
+            { t: 'ตั้ง enable secret (เข้ารหัสจริง ไม่ใช่ enable password)', hint: 'enable secret Str0ngPass!', check: s => !!s.enableSecret },
+            { t: 'เปิดการเข้ารหัสรหัสผ่านที่เหลือใน config', hint: 'service password-encryption', check: s => s.pwEncrypt === true },
+            { t: 'บังคับให้เข้าทาง vty ได้เฉพาะ SSH (ปิด Telnet)', hint: 'line vty 0 15 → transport input ssh', check: s => Object.values(s.lines || {}).some(l => /ssh/i.test(String(l.transport || ''))) },
+            { t: 'เปิด port security ที่ <code>FastEthernet0/1</code>', hint: 'interface FastEthernet0/1 → switchport mode access → switchport port-security', check: s => !!ifc(s, 'FastEthernet0/1').psec },
+            { t: 'จำกัดให้พอร์ตนั้นเรียนรู้ MAC ได้ไม่เกิน 2 ตัว', hint: 'switchport port-security maximum 2', check: s => +(ifc(s, 'FastEthernet0/1').psec || {}).max === 2 },
+            { t: 'ปิดพอร์ต <code>FastEthernet0/10</code> ที่ยังไม่ได้ใช้', hint: 'interface FastEthernet0/10 → shutdown', check: s => ifc(s, 'FastEthernet0/10').shutdown === true },
+            { t: 'ปิดพอร์ต <code>FastEthernet0/11</code> ที่ยังไม่ได้ใช้', hint: 'interface FastEthernet0/11 → shutdown', check: s => ifc(s, 'FastEthernet0/11').shutdown === true },
+            { t: 'ใส่ banner เตือนผู้ที่พยายามเข้าระบบ', hint: 'banner motd #Authorized access only#', check: s => !!s.banner },
+            { t: 'บันทึก config ลง NVRAM', hint: 'end → write memory', check: s => !!s.savedConfig },
+          ],
+        },
+      ],
     },
 
     // =========================================================
@@ -1106,7 +1276,44 @@ SMS OTP &lt; TOTP ในแอป &lt; push แบบ number matching &lt; <b>FI
         { type: 'mcq', q: 'สถาปัตยกรรม Spine-Leaf เหมาะกับ traffic แบบใด', opts: ['North-south ที่วิ่งเข้าออกจากภายนอก', 'East-west ระหว่างเซิร์ฟเวอร์ด้วยกันในศูนย์ข้อมูล', 'Traffic ของผู้ใช้ตามสำนักงานสาขา', 'Traffic ไร้สาย'], a: 1, why: 'ในศูนย์ข้อมูลสมัยใหม่ traffic ส่วนใหญ่วิ่งระหว่างเซิร์ฟเวอร์ Spine-Leaf ทำให้ทุกเส้นทางมีจำนวน hop เท่ากันและคาดเดา latency ได้' },
         { type: 'multi', q: 'ข้อใดคือมาตรการที่ควรใช้กับกล้องวงจรปิดรุ่นเก่าที่ผู้ผลิตเลิกออก patch แล้ว (เลือกทุกข้อที่ถูก)', opts: ['แยกไว้ใน VLAN ของตัวเอง', 'ห้ามให้ออกอินเทอร์เน็ตโดยตรง', 'จำกัดว่าเครื่องไหนคุยกับมันได้', 'ต่อรวมในวงเดียวกับเครื่องพนักงานเพื่อความสะดวก'], a: [0, 1, 2], why: 'เมื่อ patch ไม่ได้ต้องใช้มาตรการทดแทนที่ลดพื้นที่โจมตี — การเอาไปไว้วงเดียวกับผู้ใช้ทำให้อุปกรณ์ที่อ่อนแอที่สุดกลายเป็นทางเข้าสู่ทุกอย่าง' },
       ],
-      labs: [],
+      labs: [
+        {
+          id: 'net-l6-wifi',
+          title: 'Lab 6A — สำรวจคลื่นแล้วติดตั้ง Wi-Fi ให้ออฟฟิศ',
+          brief: 'ออฟฟิศชั้น 3 ร้องเรียนว่าไวไฟช้าทั้งที่สัญญาณเต็ม คุณต้องสำรวจว่ารอบตัวใช้ช่องไหนกันอยู่ เลือกช่องที่ว่างที่สุด ตั้งความปลอดภัยให้ถูก แล้วตรวจคุณภาพลิงก์ของเครื่องที่เกาะอยู่',
+          device: 'mikrotik',
+          init: { wlan: true },
+          tasks: [
+            { t: 'ดูรายการการ์ดไร้สายที่มีในเครื่อง', hint: '/interface wireless print', check: (s, h) => said(h, /interface\s+wireless\s+print/i) },
+            { t: 'สำรวจว่ารอบตัวมี AP ใดใช้ช่องไหนอยู่บ้าง', hint: '/interface wireless scan wlan1', check: (s, h) => said(h, /wireless\s+scan/i) },
+            { t: 'ดูภาพรวมว่าช่องไหนแน่นที่สุด', hint: '/interface wireless snooper', check: (s, h) => said(h, /snooper/i) },
+            { t: 'สร้าง security profile ชื่อ <code>office-wifi</code> แบบ WPA2-PSK', hint: '/interface wireless security-profiles add name=office-wifi mode=dynamic-keys authentication-types=wpa2-psk wpa2-pre-shared-key=Str0ngWiFiPass', check: s => has(s, 'interface wireless security-profiles', r => r.name === 'office-wifi' && /wpa2-psk/i.test(r['authentication-types'] || '')) },
+            { t: 'ตั้ง <code>wlan1</code> เป็น AP ชื่อ SSID <code>OFFICE-F3</code> และเปิดใช้งาน', hint: '/interface wireless set 0 mode=ap-bridge band=2ghz-b/g/n ssid=OFFICE-F3 disabled=no', check: s => has(s, 'interface wireless', r => r.name === 'wlan1' && r.ssid === 'OFFICE-F3' && r.mode === 'ap-bridge' && r.disabled !== true) },
+            { t: 'ล็อกความถี่ไว้ที่ช่อง 1 (<code>2412</code>) ตามผลสำรวจ', hint: '/interface wireless set 0 frequency=2412', check: s => has(s, 'interface wireless', r => r.name === 'wlan1' && String(r.frequency) === '2412') },
+            { t: 'ผูก security profile เข้ากับ <code>wlan1</code>', hint: '/interface wireless set 0 security-profile=office-wifi', check: s => has(s, 'interface wireless', r => r.name === 'wlan1' && r['security-profile'] === 'office-wifi') },
+            { t: 'ปิดไม่ให้เครื่องลูกคุยกันเอง (client isolation)', hint: '/interface wireless set 0 default-forward=no', check: s => has(s, 'interface wireless', r => r.name === 'wlan1' && r['default-forward'] === 'no') },
+            { t: 'ตรวจว่ามีเครื่องใดเกาะอยู่ สัญญาณและความเร็วเท่าไหร่', hint: '/interface wireless registration-table print', check: (s, h) => said(h, /registration-table\s+print/i) },
+          ],
+        },
+        {
+          id: 'net-l6-wan',
+          title: 'Lab 6B — วาง WAN สำรองให้สลับเองเมื่อเส้นหลักล่ม',
+          brief: 'สาขามีเน็ตเส้นหลักเป็นไฟเบอร์และเส้นสำรองเป็น 4G ที่คิดเงินตามปริมาณ คุณต้องทำให้ระบบใช้เส้นหลักตลอด แล้วสลับไปเส้นสำรองอัตโนมัติเมื่อเส้นหลักล่ม และสลับกลับเองเมื่อกลับมา',
+          device: 'mikrotik',
+          tasks: [
+            { t: 'ตั้งชื่ออุปกรณ์เป็น <code>RTR-BRANCH</code>', hint: '/system identity set name=RTR-BRANCH', check: s => s.settings['system identity'].name === 'RTR-BRANCH' },
+            { t: 'ใส่ IP ฝั่ง WAN หลัก <code>203.0.113.25/29</code> ที่ <code>ether1</code>', hint: '/ip address add address=203.0.113.25/29 interface=ether1', check: s => has(s, 'ip address', r => r.address === '203.0.113.25/29' && r.interface === 'ether1') },
+            { t: 'ใส่ IP ฝั่ง WAN สำรอง <code>192.168.8.2/24</code> ที่ <code>ether2</code>', hint: '/ip address add address=192.168.8.2/24 interface=ether2', check: s => has(s, 'ip address', r => r.address === '192.168.8.2/24' && r.interface === 'ether2') },
+            { t: 'ใส่ IP ฝั่ง LAN <code>10.30.0.1/24</code> ที่ <code>ether3</code>', hint: '/ip address add address=10.30.0.1/24 interface=ether3', check: s => has(s, 'ip address', r => r.address === '10.30.0.1/24' && r.interface === 'ether3') },
+            { t: 'เพิ่ม default route เส้นหลักผ่าน <code>203.0.113.1</code> พร้อม <code>check-gateway=ping</code>', hint: '/ip route add dst-address=0.0.0.0/0 gateway=203.0.113.1 distance=1 check-gateway=ping', check: s => has(s, 'ip route', r => r['dst-address'] === '0.0.0.0/0' && r.gateway === '203.0.113.1' && /ping/i.test(String(r['check-gateway'] || ''))) },
+            { t: 'เพิ่ม default route เส้นสำรองที่ <code>distance=10</code> ผ่าน <code>192.168.8.1</code>', hint: '/ip route add dst-address=0.0.0.0/0 gateway=192.168.8.1 distance=10', check: s => has(s, 'ip route', r => r['dst-address'] === '0.0.0.0/0' && r.gateway === '192.168.8.1' && String(r.distance) === '10') },
+            { t: 'ทำ NAT ให้ออกได้ทั้งสองเส้น', hint: '/ip firewall nat add chain=srcnat out-interface=ether1 action=masquerade', check: s => has(s, 'ip firewall nat', r => r.chain === 'srcnat' && r.action === 'masquerade') },
+            { t: 'ตั้ง Netwatch เฝ้าปลายทางเพื่อรู้ทันทีที่เส้นหลักล่ม', hint: '/tool netwatch add host=1.1.1.1 interval=30s', check: s => has(s, 'tool netwatch', r => r.host === '1.1.1.1') },
+            { t: 'ตรวจตารางเส้นทางว่าเส้นไหนกำลัง active (มี flag A)', hint: '/ip route print', check: (s, h) => said(h, /ip\s+route\s+print/i) },
+            { t: 'ไล่ดูเส้นทางออกจริงว่าออกทางไหน', hint: '/tool traceroute 1.1.1.1', check: (s, h) => said(h, /traceroute/i) },
+          ],
+        },
+      ],
     },
   },
 };
