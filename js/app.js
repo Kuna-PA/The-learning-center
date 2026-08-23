@@ -37,25 +37,40 @@ function shuffleOptions(q) {
   };
 }
 
-/** จำลำดับข้อของครั้งล่าสุดไว้ เพื่อไม่ให้ทำใหม่แล้วได้ชุดเดิมเป๊ะ */
-const lastQuizOrder = new Map();
+/** รหัสประจำข้อที่คงที่แม้ลำดับในไฟล์จะเปลี่ยน — คิดจากข้อความคำถาม */
+function qid(q) {
+  const s = String(q.q);
+  let hv = 5381;
+  for (let i = 0; i < s.length; i++) hv = ((hv * 33) ^ s.charCodeAt(i)) >>> 0;
+  return hv.toString(36);
+}
+
+/** จำนวนข้อที่ออกในหนึ่งครั้ง — ราว 70% ของคลัง แต่ไม่ต่ำกว่า 8 ข้อ */
+const askCount = (poolSize) => (poolSize <= 8 ? poolSize : Math.max(8, Math.round(poolSize * 0.7)));
 
 /**
- * สร้างชุดข้อสอบสำหรับการทำหนึ่งครั้ง — สลับทั้งลำดับข้อและลำดับตัวเลือก
- * และพยายามไม่ให้ลำดับซ้ำกับครั้งก่อนหน้าของระดับเดียวกัน
+ * เลือกชุดข้อสอบของการทำหนึ่งครั้ง — ไม่ได้ออกครบทุกข้อ แต่หมุนเวียนไปเรื่อย ๆ
+ *   1. ข้อที่เคยตอบผิดและยังไม่ได้แก้ตัว มาก่อนเสมอ (ผิดบ่อยยิ่งมาก่อน)
+ *   2. เติมด้วยข้อที่ "ไม่ได้ออกครั้งที่แล้ว" เพื่อให้เวียนครบคลัง
+ *   3. ที่เหลือค่อยหยิบจากข้อที่เพิ่งออกไป
+ * จากนั้นสลับลำดับข้อและลำดับตัวเลือกอีกชั้น
  */
 function makeQuizSet(trackId, level, pool) {
-  const key = `${trackId}:${level}`;
-  const prev = lastQuizOrder.get(key);
-  let order = shuffled(pool);
-  // สุ่มใหม่ถ้าบังเอิญได้ลำดับเดิม (ข้อสอบน้อยกว่า 2 ข้อก็ไม่มีอะไรให้สลับ)
-  for (let n = 0; n < 8 && pool.length > 1; n++) {
-    const sig = order.map(q => pool.indexOf(q)).join(',');
-    if (sig !== prev) break;
-    order = shuffled(pool);
-  }
-  lastQuizOrder.set(key, order.map(q => pool.indexOf(q)).join(','));
-  return order.map(shuffleOptions);
+  const rec = store.quizOf(trackId, level) || {};
+  const miss = rec.miss || {};
+  const lastAsked = new Set(rec.lastAsked || []);
+  const n = askCount(pool.length);
+
+  // ข้อที่เคยผิดกินโควตาได้ไม่เกิน 60% — สอบตกยกชุดก็ยังต้องมีข้อใหม่ปนมาเสมอ
+  const wrong = shuffled(pool.filter(q => miss[qid(q)] > 0))
+    .sort((a, b) => (miss[qid(b)] || 0) - (miss[qid(a)] || 0))    // ผิดบ่อยมาก่อน
+    .slice(0, Math.ceil(n * 0.6));
+  const wrongIds = new Set(wrong.map(qid));
+  const rest = pool.filter(q => !wrongIds.has(qid(q)));
+  const fresh = shuffled(rest.filter(q => !lastAsked.has(qid(q))));
+  const seen = shuffled(rest.filter(q => lastAsked.has(qid(q))));
+
+  return shuffled([...wrong, ...fresh, ...seen].slice(0, n)).map(shuffleOptions);
 }
 
 function toast(msg, kind = '') {
@@ -590,7 +605,7 @@ function vQuiz(id, level) {
       <div class="row"><span class="pill acc">${t.icon} ${t.name} · L${level}</span>${diffPill(level)}</div>
       <div class="q-prog"><div id="qbar" style="width:0"></div></div>
       <div class="row" style="justify-content:space-between;align-items:center">
-        <span class="muted" style="font-size:11.5px">🎲 สุ่มลำดับข้อและตัวเลือกใหม่ทุกครั้งที่ทำ</span>
+        <span class="muted" style="font-size:11.5px">🎲 สุ่ม ${items.length} ข้อจากคลัง ${d.quiz.length} ข้อ · ข้อที่เคยตอบผิดจะถูกถามซ้ำ</span>
         <span class="muted" style="font-family:var(--mono);font-size:12px" id="qcount"></span>
       </div>
     </div><div id="qbox"></div></div>`;
@@ -676,7 +691,11 @@ function vQuiz(id, level) {
     const right = st.correct.filter(Boolean).length;
     const pct = Math.round(right / items.length * 100);
     const passed = pct >= PASS_SCORE;
-    const gained = store.recordQuiz(id, level, pct, passed);
+    // ส่งผลรายข้อไปด้วย เพื่อให้ครั้งหน้าหยิบข้อที่ยังตอบผิดมาถามซ้ำ
+    const gained = store.recordQuiz(id, level, pct, passed, {
+      asked: items.map(qid),
+      wrong: items.filter((_, i) => !st.correct[i]).map(qid),
+    });
     refreshChrome();
     const C = 2 * Math.PI * 62;
     view().innerHTML = `<div class="q-wrap"><div class="card result">
@@ -687,6 +706,7 @@ function vQuiz(id, level) {
       </svg><div class="val">${pct}%</div></div>
       <h2>${passed ? '🎉 ผ่านแล้ว!' : '📚 ยังไม่ผ่าน ลองอีกครั้ง'}</h2>
       <p class="muted">ตอบถูก ${right}/${items.length} · เกณฑ์ ${PASS_SCORE}%${gained ? ` · <b style="color:var(--ok)">+${gained} XP</b>` : ''}</p>
+      ${right < items.length ? `<p class="dim" style="font-size:12.2px">🎯 ${items.length - right} ข้อที่ตอบผิดจะถูกหยิบมาถามซ้ำในครั้งถัดไป จนกว่าจะตอบถูก</p>` : ''}
       ${passed && +level < maxLevel(id) ? `<p class="dim">ทำ Lab ระดับนี้ให้ครบเพื่อปลดล็อกระดับ ${+level + 1}</p>` : ''}
       ${passed && +level === maxLevel(id) && trackCertified(id) ? `<p style="color:var(--acc-2)"><b>🏅 คุณจบหัวข้อนี้ครบแล้ว — รับใบประกาศได้เลย</b></p>` : ''}
       <div class="row" style="justify-content:center;margin-top:16px">

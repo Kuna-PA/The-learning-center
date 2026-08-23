@@ -136,17 +136,35 @@ export const store = {
   },
   isRead(track, level) { return !!data.read[`${track}:${level}`]; },
 
-  recordQuiz(track, level, pct, passed) {
+  /**
+   * บันทึกผลสอบ
+   * result = { asked:[qid], wrong:[qid] } — ใช้เลือกข้อสอบครั้งถัดไป
+   * ข้อที่เคยตอบผิดจะถูกหยิบมาถามซ้ำก่อน จนกว่าจะตอบถูก
+   */
+  recordQuiz(track, level, pct, passed, result = null) {
     const k = `${track}:${level}`;
     const cur = data.quiz[k] || { best: 0, attempts: 0, passed: false };
     let gained = 0;
     if (pct > cur.best) gained += Math.round((pct - cur.best) / 2);
     if (passed && !cur.passed) gained += 50;
+
+    // miss = จำนวนครั้งที่ตอบผิดและยังไม่ได้แก้ตัว · ตอบถูกแล้วจะลดลงทีละ 1
+    const miss = { ...(cur.miss || {}) };
+    if (result) {
+      const wrong = new Set(result.wrong || []);
+      (result.asked || []).forEach(qid => {
+        if (wrong.has(qid)) miss[qid] = (miss[qid] || 0) + 1;
+        else if (miss[qid]) { miss[qid] -= 1; if (miss[qid] <= 0) delete miss[qid]; }
+      });
+    }
+
     data.quiz[k] = {
       best: Math.max(cur.best, pct),
       attempts: cur.attempts + 1,
       passed: cur.passed || passed,
       at: Date.now(),
+      miss,
+      lastAsked: result ? (result.asked || []) : (cur.lastAsked || []),
     };
     data.xp += gained;
     save();
