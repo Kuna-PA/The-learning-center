@@ -171,12 +171,14 @@ WAN คือการเชื่อมข้ามที่ตั้ง ต้
         { t: '<b>ชั้น 3:</b> ดู IP ของทุก interface', hint: 'show ip interface brief', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+ip\s+int/i) },
         { t: '<b>ชั้น 3:</b> ดูตารางเส้นทางว่าสวิตช์รู้จักวงไหนบ้าง', hint: 'show ip route', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+ip\s+ro/i) },
         { t: 'ตั้ง hostname เป็น <code>SW-LAB-01</code> เพื่อไม่ให้สับสนกับเครื่องอื่น', hint: 'configure terminal → hostname SW-LAB-01', check: s => s.hostname === 'SW-LAB-01' },
-        { t: 'ตั้ง IP ให้ VLAN 1 เป็น <code>192.168.1.10/24</code> เพื่อให้ remote เข้ามาได้', hint: 'interface vlan 1 → ip address 192.168.1.10 255.255.255.0 → no shutdown', check: s => s.svis[1] && s.svis[1].ip === '192.168.1.10' },
+        { t: 'ตั้ง IP ให้ VLAN 1 เป็น <code>192.168.1.10/24</code> <b>แล้วเปิดใช้งานด้วย <code>no shutdown</code></b>', hint: 'interface vlan 1 → ip address 192.168.1.10 255.255.255.0 → no shutdown', check: s => s.svis[1] && s.svis[1].ip === '192.168.1.10' && s.svis[1].shutdown === false },
         { t: 'ตั้ง default gateway เป็น <code>192.168.1.1</code>', hint: 'ip default-gateway 192.168.1.1', check: s => s.defaultGw === '192.168.1.1' },
-        { t: 'ทดสอบว่าถึง gateway ด้วย <code>ping 192.168.1.1</code>', hint: 'ออกมาที่ priv mode แล้ว ping (หรือใช้ do ping)', check: (s, h) => said(h, /^(do\s+)?ping\s+192\.168\.1\.1/i) },
-        { t: 'บันทึก config', hint: 'end → write memory', check: s => !!s.savedConfig },
+        { t: 'ทดสอบว่าถึง gateway ด้วย <code>ping 192.168.1.1</code> — ต้องได้ <code>!!!!!</code> ไม่ใช่ <code>.....</code>', hint: 'end → ping 192.168.1.1', check: s => !!s.lastPing && s.lastPing.target === '192.168.1.1' && s.lastPing.ok },
+        { t: 'บันทึก config', hint: 'write memory', check: s => !!s.savedConfig },
       ],
       debrief: `<b>ลำดับที่ใช้ได้ทุกเคส:</b> ดูชั้นล่างก่อนเสมอ — พอร์ต connected ไหม → MAC เรียนรู้หรือยัง → มี IP ไหม → มีเส้นทางไหม<br>
+        <b>SVI ที่มี IP แต่ยังไม่ <code>no shutdown</code> จะ ping ไม่ผ่าน</b> — ของจริง VLAN 1 ขึ้นมาเป็น
+        administratively down เสมอ เป็นกับดักที่ทำให้เสียเวลาไล่หาสาเหตุกันบ่อยมาก<br>
         <b>SVI ของ VLAN 1 ไม่ได้ทำให้สวิตช์ route ได้</b> — มันมีไว้ให้ remote เข้ามาจัดการเครื่องเท่านั้น
         สวิตช์ L2 ที่มี IP ก็ยังเป็นอุปกรณ์ชั้น 2 อยู่ดี<br>
         <b>สวิตช์ L2 ต้องมี default gateway</b> ถึงจะตอบกลับเครื่องที่อยู่คนละวงได้ — ไม่งั้น ping จากวงอื่นเข้ามาจะเงียบ`,

@@ -673,20 +673,56 @@ export function createCisco(init = {}) {
   }
 
   // ---------- ping ----------
+  const ipToInt = (a) => {
+    const p = String(a).split('.').map(Number);
+    if (p.length !== 4 || p.some(x => !Number.isInteger(x) || x < 0 || x > 255)) return null;
+    return ((p[0] << 24) >>> 0) + (p[1] << 16) + (p[2] << 8) + p[3];
+  };
+  /** อยู่วงเดียวกันไหม — คิดจาก subnet mask จริง ไม่ใช่ตัดเป็นออกเตต */
+  const sameSubnet = (ip, other, mask) => {
+    const m = ipToInt(mask) || ipToInt('255.255.255.0');
+    const a = ipToInt(ip), b = ipToInt(other);
+    if (a === null || b === null) return false;
+    return ((a & m) >>> 0) === ((b & m) >>> 0);
+  };
+
+  /** ทุก interface ที่มี IP และใช้งานอยู่ — ทั้ง SVI และพอร์ตที่ตั้งเป็น routed */
+  function localIps() {
+    const out = [];
+    Object.entries(st.svis).forEach(([vlan, s]) => {
+      if (s.ip && !s.shutdown) out.push({ ip: s.ip, mask: s.mask, where: `Vlan${vlan}` });
+    });
+    Object.values(st.ifaces).forEach(i => {
+      if (i.ip && !i.shutdown) out.push({ ip: i.ip, mask: i.mask, where: i.short || i.name });
+    });
+    return out;
+  }
+
   function doPing(target) {
     if (!target) return [E('% Incomplete command.')];
-    const local = Object.values(st.svis).find(s => s.ip && !s.shutdown);
-    const known = st.hosts[target] !== undefined;
-    let reach = known;
-    if (!reach && local && local.ip) {
-      const p = maskToPrefix(local.mask) || 24;
-      const net = a => a.split('.').slice(0, Math.ceil(p / 8)).join('.');
-      reach = net(local.ip) === net(target) && Object.keys(st.hosts).length === 0 ? false : reach;
-    }
-    const head = [`Type escape sequence to abort.`,
+    const locals = localIps();
+
+    // ปลายทางถึงได้เมื่อ...
+    const known = st.hosts[target] !== undefined;              // lab กำหนดไว้ว่ามีเครื่องนี้จริง
+    const isSelf = locals.some(l => l.ip === target);          // IP ของตัวเอง
+    const onLink = locals.some(l => sameSubnet(l.ip, target, l.mask));   // อยู่วงเดียวกัน
+    // ออกนอกวงได้ ถ้ามี default-gateway ที่ตัวเองต่อถึงจริง (หรือมี route ไปหา)
+    const gwUsable = !!st.defaultGw && locals.some(l => sameSubnet(l.ip, st.defaultGw, l.mask));
+    const routed = st.ipRouting && (st.routes || []).length > 0;
+    const reach = known || isSelf || onLink || gwUsable || routed;
+
+    // บันทึกผลไว้ให้ task ของ Lab ตรวจได้ว่า ping "สำเร็จจริง" ไม่ใช่แค่พิมพ์คำสั่ง
+    st.lastPing = { target, ok: reach, at: Date.now() };
+
+    const head = ['Type escape sequence to abort.',
       `Sending 5, 100-byte ICMP Echos to ${target}, timeout is 2 seconds:`];
     if (reach) return [...head, OK('!!!!!'), 'Success rate is 100 percent (5/5), round-trip min/avg/max = 1/2/8 ms'];
-    return [...head, E('.....'), 'Success rate is 0 percent (0/5)'];
+    // บอกสาเหตุที่น่าจะเป็น เพื่อให้ผู้เรียนรู้ว่าต้องไปแก้ตรงไหน
+    const downSvi = Object.entries(st.svis).find(([, s]) => s.ip && s.shutdown);
+    let why = '  (ไม่ถึงปลายทาง — ปลายทางต้องอยู่วงเดียวกัน หรือมี default-gateway ที่ต่อถึงได้)';
+    if (downSvi) why = `  (Vlan${downSvi[0]} มี IP แล้วแต่ยัง administratively down — สั่ง no shutdown ที่ interface นั้นก่อน)`;
+    else if (!locals.length) why = '  (ยังไม่มี interface ไหนมี IP ที่ใช้งานได้ — ตั้ง IP แล้ว no shutdown ก่อน)';
+    return [...head, E('.....'), 'Success rate is 0 percent (0/5)', D(why)];
   }
 
   // ---------- config mode ----------

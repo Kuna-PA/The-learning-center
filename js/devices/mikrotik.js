@@ -577,6 +577,18 @@ export function createMikrotik(init = {}) {
       const rec = { _id: newId(), ...(spec.defaults || {}), ...kv, disabled: kv.disabled === 'yes' };
       if (p === 'ip address') rec.network = netFromCidr(kv.address);
       table.push(rec);
+
+      // DHCP client ที่ bound แล้วจะได้ default route มาด้วยเหมือนของจริง
+      // (ไม่งั้น ping ออกเน็ตจะไม่ผ่าน ทั้งที่ตั้งค่าครบตามโจทย์แล้ว)
+      if (p === 'ip dhcp-client' && !rec.disabled && rec['add-default-route'] !== 'no') {
+        const gw = (rec.address || '203.0.113.25/24').split('/')[0].split('.').slice(0, 3).join('.') + '.1';
+        if (!st.tables['ip route'].some(r => r['dst-address'] === '0.0.0.0/0' && r.gateway === gw)) {
+          st.tables['ip route'].push({
+            _id: newId(), 'dst-address': '0.0.0.0/0', gateway: gw,
+            distance: '1', dynamic: true, disabled: false,
+          });
+        }
+      }
       return [];
     }
 
