@@ -94,6 +94,15 @@ export const SURVIVAL_LABS_2 = [
     story: 'ตี 4 ระบบแจ้งเตือนว่า / เหลือ 1% แอปเริ่มเขียน log ไม่ได้และตอบสนองช้ามาก มีคนเปิด debug logging ไว้เมื่อสัปดาห์ก่อนแล้วลืมปิด',
     impact: 'แอปพลิเคชันใกล้หยุดทำงาน และ log ที่ใช้สอบสวนย้อนหลังจะหายไป',
     device: 'linux',
+    init: {
+      apply: st => {
+        // / เหลือ 1% แต่ inode ยังว่างเหลือเฟือ — เป็นเคส "ไฟล์ใหญ่ไม่กี่ไฟล์" ไม่ใช่ inode หมด
+        const root = st.filesystems.find(f => f.mp === '/');
+        root.used = 41300000; root.avail = 643040; root.iused = 348122;
+        st.dirSizes['/var/log'] = '38G';
+        st.dirSizes['/var'] = '39G';
+      },
+    },
     tasks: [
       { t: 'ตรวจพื้นที่ดิสก์ทั้งหมด', hint: 'df -h', check: (s, h) => said(h, /^(sudo\s+)?df\s+-h/i) },
       { t: 'ตรวจว่า inode หมดด้วยหรือไม่', hint: 'df -i', check: (s, h) => said(h, /df\s+-i/i) },

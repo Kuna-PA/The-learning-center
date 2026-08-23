@@ -3,6 +3,26 @@
 // ============================================================
 import { words, pad, lpad, E, D, H, OK } from './util.js';
 
+// ---- ขนาดพื้นที่: เก็บเป็น KiB เหมือนที่ df ใช้จริง แล้วค่อยจัดรูปตอนแสดง ----
+const UNIT = { K: 1, M: 1024, G: 1024 ** 2, T: 1024 ** 3 };
+
+/** '30G' → จำนวน KiB */
+export function toKiB(v) {
+  const m = String(v ?? '').trim().match(/^\+?([\d.]+)\s*([KMGT])?i?B?$/i);
+  if (!m) return 0;
+  return Math.round(parseFloat(m[1]) * (UNIT[(m[2] || 'K').toUpperCase()] || 1));
+}
+
+/** จำนวน KiB → '40G' / '8.4G' / '974M' แบบเดียวกับ df -h */
+export function humanKiB(kib) {
+  if (!kib) return '0';
+  for (const u of ['T', 'G', 'M']) {
+    const v = kib / UNIT[u];
+    if (v >= 1) return (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10) + u;
+  }
+  return Math.round(kib) + 'K';
+}
+
 const dir = (children = {}, mode = '755', owner = 'root') => ({ t: 'd', mode, owner, group: owner, children });
 const file = (content = '', mode = '644', owner = 'root') => ({ t: 'f', mode, owner, group: owner, content });
 
@@ -50,7 +70,7 @@ function baseFs() {
     backup: dir({}),
     usr: dir({ bin: dir({}), local: dir({ bin: dir({}) }), share: dir({}) }),
     proc: dir({}),
-    mnt: dir({}),
+    mnt: dir({ app: dir({ uploads: dir({}), tmp: dir({}) }, '755', 'www-data') }),
   });
 }
 
@@ -102,7 +122,22 @@ export function createLinux(init = {}) {
     // --- สำหรับ lab ระดับสูง ---
     sysctl: { 'net.ipv4.ip_forward': '0', 'net.ipv4.tcp_syncookies': '1', 'kernel.randomize_va_space': '0' },
     mounts: [{ dev: '/dev/sda1', mp: '/', fs: 'ext4', opts: 'defaults' }],
-    lvm: { pvs: ['/dev/sda2'], vgs: { vg_data: { size: '40G', free: '10G', pvs: ['/dev/sda2'] } }, lvs: { lv_app: { vg: 'vg_data', size: '30G', mp: '/mnt/app' } } },
+    // สิ่งที่ df รายงาน — หน่วยเป็น KiB · lab ตั้งค่าเริ่มต้นทับได้ผ่าน init.apply
+    // มีทั้งพื้นที่และจำนวน inode เพราะ "ดิสก์ว่างแต่เขียนไฟล์ไม่ได้" คือเคสที่ inode หมด
+    filesystems: [
+      { dev: '/dev/sda1', mp: '/', type: 'ext4', size: 41943040, used: 12582912, avail: 27262976, inodes: 2621440, iused: 315234 },
+      { dev: 'tmpfs', mp: '/dev/shm', type: 'tmpfs', size: 1992294, used: 0, avail: 1992294, inodes: 489283, iused: 1 },
+      { dev: '/dev/sda2', mp: '/boot', type: 'ext4', size: 997376, used: 131072, avail: 797696, inodes: 65536, iused: 316 },
+      { dev: '/dev/mapper/vg_data-lv_app', mp: '/mnt/app', type: 'ext4', size: 31457280, used: 8808038, avail: 21012480, inodes: 1966080, iused: 74213 },
+    ],
+    // ขนาดที่ du รายงานรายโฟลเดอร์ — lab ที่เล่าเรื่องดิสก์เต็มตั้งค่าทับได้
+    dirSizes: { '/var/log': '148K', '/var': '1.2G', '/home': '820M', '/mnt/app': '8.4G' },
+    disks: [
+      { name: 'sda', size: '40G', parts: [{ name: 'sda1', size: '39G', mp: '/' }, { name: 'sda2', size: '1G', mp: '/boot' }] },
+      { name: 'sdb', size: '30G', parts: [] },     // ดิสก์ก้อนใหม่ ยังไม่ได้ใช้
+      { name: 'sdc', size: '40G', parts: [] },     // physical volume ของ vg_data
+    ],
+    lvm: { pvs: ['/dev/sdc'], vgs: { vg_data: { size: '40G', free: '10G', pvs: ['/dev/sdc'] } }, lvs: { lv_app: { vg: 'vg_data', size: '30G', mp: '/mnt/app' } } },
     containers: [],
     images: ['nginx:1.25-alpine', 'postgres:16-alpine', 'ubuntu:22.04'],
     timezone: 'Etc/UTC',
@@ -369,6 +404,83 @@ export function createLinux(init = {}) {
       return out;
     }
     return [E('Object "' + a[0] + '" is unknown')];
+  }
+
+  /**
+   * df — อ่านจากสถานะจริงของเครื่อง ไม่ใช่ข้อความตายตัว
+   * รองรับ -h (หน่วยที่คนอ่านออก) · -i (จำนวน inode) · -T (ชนิด filesystem) และระบุ path ได้
+   * เคยเป็นข้อความตายตัวชุดเดียว ทำให้ df -i ได้ผลเหมือน df -h เป๊ะ ๆ
+   * และพื้นที่ไม่เคยเปลี่ยนแม้จะขยาย logical volume ไปแล้ว
+   */
+  function dfCmd(args) {
+    const flags = args.filter(a => /^-/.test(a)).join('');
+    const human = /h/.test(flags);
+    const inode = /i/.test(flags);
+    const withType = /T/.test(flags);
+
+    let rows = st.filesystems;
+    const target = args.find(a => !a.startsWith('-'));
+    if (target) {
+      const path = norm(target);
+      const isMount = rows.some(f => f.mp === path);
+      if (!isMount && !node(path)) return [E(`df: ${target}: No such file or directory`)];
+      const hit = rows
+        .filter(f => path === f.mp || path.startsWith(f.mp === '/' ? '/' : f.mp + '/'))
+        .sort((a, b) => b.mp.length - a.mp.length)[0];
+      rows = hit ? [hit] : rows.filter(f => f.mp === '/');
+    }
+
+    const pct = (used, total) => (total > 0 ? Math.ceil((used / total) * 100) : 0) + '%';
+    const num = v => (human ? humanKiB(v) : String(v));
+    const cnt = v => (human ? humanKiB(v) : String(v));
+
+    const head = inode
+      ? ['Filesystem', 'Inodes', 'IUsed', 'IFree', 'IUse%', 'Mounted on']
+      : ['Filesystem', human ? 'Size' : '1K-blocks', 'Used', 'Avail', 'Use%', 'Mounted on'];
+    if (withType) head.splice(1, 0, 'Type');
+
+    const body = rows.map(f => {
+      const cells = inode
+        ? [f.dev, cnt(f.inodes), cnt(f.iused), cnt(f.inodes - f.iused), pct(f.iused, f.inodes), f.mp]
+        : [f.dev, num(f.size), num(f.used), num(f.avail), pct(f.used, f.used + f.avail), f.mp];
+      if (withType) cells.splice(1, 0, f.type);
+      return cells;
+    });
+
+    // จัดคอลัมน์ตามค่าที่กว้างที่สุดจริง ๆ เหมือน df ของจริง
+    const width = head.map((h, i) =>
+      Math.max(h.length, ...body.map(r => r[i].length)));
+    const line = (cells) => cells
+      .map((c, i) => (i === 0 ? pad(c, width[0]) : i === cells.length - 1 ? ' ' + c : ' ' + lpad(c, width[i])))
+      .join('').replace(/\s+$/, '');
+    return [line(head), ...body.map(line)];
+  }
+
+  /** lsblk — สร้างจากรายการดิสก์จริงในสถานะ จะได้เห็นดิสก์ก้อนใหม่ที่เพิ่งเสียบเข้าเครื่อง */
+  function lsblkCmd() {
+    const rows = [['NAME', 'MAJ:MIN', 'RM', 'SIZE', 'RO', 'TYPE', 'MOUNTPOINTS']];
+    const lvsOf = (dev, indent) => Object.entries(st.lvm.lvs)
+      .filter(([, lv]) => st.lvm.vgs[lv.vg] && st.lvm.vgs[lv.vg].pvs.includes(dev))
+      .map(([name, lv], i, arr) =>
+        [`${indent}${i === arr.length - 1 ? '└─' : '├─'}${lv.vg}-${name}`, '253:' + i, '0', lv.size, '0', 'lvm', lv.mp || '']);
+    let major = 0;
+    st.disks.forEach((d) => {
+      rows.push([d.name, `8:${major}`, '0', d.size, '0', 'disk', '']);
+      rows.push(...lvsOf('/dev/' + d.name, ''));
+      d.parts.forEach((part, i) => {
+        const last = i === d.parts.length - 1;
+        rows.push([`${last ? '└─' : '├─'}${part.name}`, `8:${major + i + 1}`, '0', part.size, '0', 'part', part.mp]);
+        rows.push(...lvsOf('/dev/' + part.name, last ? '  ' : '│ '));
+      });
+      major += 16;
+    });
+    // NAME / MAJ:MIN / TYPE ชิดซ้าย · RM / SIZE / RO ชิดขวา — ตามหน้าตาของ lsblk จริง
+    const alignLeft = [true, true, false, false, false, true, true];
+    const width = rows[0].map((_, i) => Math.max(...rows.map(r => (r[i] || '').length)));
+    return rows.map(r => r
+      .map((c, i) => (i === 0 ? pad(c, width[0])
+        : ' ' + (alignLeft[i] ? pad(c || '', width[i]) : lpad(c || '', width[i]))))
+      .join('').replace(/\s+$/, ''));
   }
 
   function ps() {
@@ -757,15 +869,17 @@ export function createLinux(init = {}) {
         break;
       }
       case 'find': out = findCmd(args); break;
-      case 'df': out = ['Filesystem      Size  Used Avail Use% Mounted on',
-        '/dev/sda1        40G   12G   26G  32% /', 'tmpfs           1.9G     0  1.9G   0% /dev/shm',
-        '/dev/sda2       974M  128M  779M  15% /boot']; break;
-      case 'du': out = [`${lpad('148K', 6)}\t${norm(args.filter(a => !a.startsWith('-'))[0] || '.')}`]; break;
+      case 'df': out = dfCmd(args); break;
+      case 'du': {
+        const target = norm(args.filter(a => !a.startsWith('-'))[0] || '.');
+        if (!node(target)) { out = [E(`du: cannot access '${target}': No such file or directory`)]; break; }
+        out = [`${lpad(st.dirSizes[target] || '148K', 6)}\t${target}`];
+        break;
+      }
       case 'free': out = ['               total        used        free      shared  buff/cache   available',
         'Mem:            3.8Gi       812Mi       1.9Gi        12Mi       1.1Gi       2.8Gi',
         'Swap:           2.0Gi          0B       2.0Gi']; break;
-      case 'lsblk': out = ['NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS', 'sda      8:0    0   40G  0 disk',
-        '├─sda1   8:1    0   39G  0 part /', '└─sda2   8:2    0    1G  0 part /boot']; break;
+      case 'lsblk': out = lsblkCmd(); break;
       case 'uptime': out = [' 09:41:33 up 3 days,  4:12,  1 user,  load average: 0.08, 0.12, 0.09']; break;
       case 'date': out = ['Fri Aug 21 09:41:33 +07 2026']; break;
       case 'ps': out = ps(); break;
@@ -954,21 +1068,84 @@ export function createLinux(init = {}) {
         out = [];
         break;
       }
-      case 'blkid': out = ['/dev/sda1: UUID="8f3a21bc-4d55-4c1e-9f2a-1b7c8d9e0f11" TYPE="ext4"',
-        '/dev/sda2: UUID="1a2b33cd-77ee-4a2b-8c3d-9e0f1a2b3c4d" TYPE="LVM2_member"',
-        '/dev/sdb: UUID="c4d5e6f7-8a9b-4c0d-1e2f-3a4b5c6d7e8f" TYPE="ext4"']; break;
+      case 'blkid': {
+        // ดิสก์ที่ยังไม่ถูกใช้จะไม่มีบรรทัดของตัวเอง เหมือน blkid จริง ๆ
+        const uuid = (name) => {
+          let h = 0x9e37;
+          for (let i = 0; i < name.length; i++) h = ((h * 33) ^ name.charCodeAt(i)) >>> 0;
+          const hex = (k) => ((h * (k + 7)) >>> 0).toString(16).padStart(8, '0').slice(0, k);
+          return `${hex(8)}-${hex(4)}-4${hex(3)}-a${hex(3)}-${hex(8)}${hex(4)}`;
+        };
+        const lines = [];
+        st.disks.forEach((d) => {
+          d.parts.forEach((part) => {
+            const dev = '/dev/' + part.name;
+            const type = st.lvm.pvs.includes(dev) ? 'LVM2_member'
+              : (st.formatted.find(f => f.dev === dev) || {}).type || 'ext4';
+            lines.push(`${dev}: UUID="${uuid(part.name)}" TYPE="${type}"`);
+          });
+          const dev = '/dev/' + d.name;
+          if (!d.parts.length) {
+            const fmt = st.formatted.find(f => f.dev === dev);
+            if (st.lvm.pvs.includes(dev)) lines.push(`${dev}: UUID="${uuid(d.name)}" TYPE="LVM2_member"`);
+            else if (fmt) lines.push(`${dev}: UUID="${uuid(d.name)}" TYPE="${fmt.type}"`);
+          }
+        });
+        Object.entries(st.lvm.lvs).forEach(([name, lv]) => {
+          lines.push(`/dev/mapper/${lv.vg}-${name}: UUID="${uuid(name)}" TYPE="ext4"`);
+        });
+        out = lines;
+        break;
+      }
       case 'pvcreate': st.lvm.pvs.push(args[0]); out = [OK(`Physical volume "${args[0]}" successfully created.`)]; break;
       case 'vgextend': {
         const vg = st.lvm.vgs[args[0]];
         if (!vg) { out = [E(`Volume group "${args[0]}" not found`)]; break; }
-        vg.pvs.push(args[1]); vg.free = '30G';
+        const pv = args[1];
+        if (!st.lvm.pvs.includes(pv)) {
+          out = [E(`  Physical volume "${pv}" not found.`), D('สร้างเป็น physical volume ก่อนด้วย pvcreate')];
+          break;
+        }
+        if (vg.pvs.includes(pv)) { out = [E(`  Physical volume "${pv}" อยู่ใน ${args[0]} อยู่แล้ว`)]; break; }
+        vg.pvs.push(pv);
+        const disk = st.disks.find(d => '/dev/' + d.name === pv);
+        const add = toKiB(disk ? disk.size : '20G');
+        vg.size = humanKiB(toKiB(vg.size) + add);
+        vg.free = humanKiB(toKiB(vg.free) + add);
         out = [OK(`Volume group "${args[0]}" successfully extended`)];
         break;
       }
       case 'vgs': out = ['  VG       #PV #LV #SN Attr   VSize  VFree',
       ...Object.entries(st.lvm.vgs).map(([k, v]) => `  ${pad(k, 8)} ${lpad(v.pvs.length, 3)}   1   0 wz--n- ${pad(v.size, 6)} ${v.free}`)]; break;
-      case 'pvs': out = ['  PV         VG      Fmt  Attr PSize  PFree',
-      ...st.lvm.pvs.map(p => `  ${pad(p, 10)} vg_data lvm2 a--  40.00g 10.00g`)]; break;
+      case 'pvs': {
+        // ขนาดของแต่ละ PV มาจากดิสก์จริง ส่วนพื้นที่ว่างของ VG จะเหลืออยู่ที่ PV ตัวท้ายที่เพิ่มเข้ามา
+        // (LVM จัดสรรเรียงไปข้างหน้า) — ผลรวมจึงตรงกับที่ vgs รายงาน
+        const sizeOf = (pv) => {
+          for (const d of st.disks) {
+            if ('/dev/' + d.name === pv) return toKiB(d.size);
+            const part = d.parts.find(x => '/dev/' + x.name === pv);
+            if (part) return toKiB(part.size);
+          }
+          return toKiB('40G');
+        };
+        const vgOf = (pv) => Object.keys(st.lvm.vgs).find(k => st.lvm.vgs[k].pvs.includes(pv)) || '';
+        const freeLeft = {};
+        Object.entries(st.lvm.vgs).forEach(([k, v]) => { freeLeft[k] = toKiB(v.free); });
+        const freeOf = {};
+        [...st.lvm.pvs].reverse().forEach((pv) => {
+          const vg = vgOf(pv);
+          if (!vg) { freeOf[pv] = sizeOf(pv); return; }        // ยังไม่ได้เข้า VG ก็ว่างทั้งก้อน
+          const take = Math.min(freeLeft[vg] || 0, sizeOf(pv));
+          freeOf[pv] = take;
+          freeLeft[vg] -= take;
+        });
+        out = ['  PV         VG      Fmt  Attr PSize   PFree',
+        ...st.lvm.pvs.map((pv) => {
+          const vg = vgOf(pv);
+          return `  ${pad(pv, 10)} ${pad(vg || '', 7)} lvm2 ${vg ? 'a--' : '---'}  ${pad(humanKiB(sizeOf(pv)), 7)} ${humanKiB(freeOf[pv])}`;
+        })];
+        break;
+      }
       case 'lvs': out = ['  LV     VG      Attr       LSize  Pool Origin',
       ...Object.entries(st.lvm.lvs).map(([k, v]) => `  ${pad(k, 6)} ${pad(v.vg, 7)} -wi-ao---- ${v.size}`)]; break;
       case 'lvextend': {
@@ -976,16 +1153,48 @@ export function createLinux(init = {}) {
         const name = String(target).split('/').pop();
         const lv = st.lvm.lvs[name];
         if (!lv) { out = [E(`Logical volume "${target}" not found.`)]; break; }
-        lv.size = '60G'; lv.pendingResize = true;
-        out = [OK(`Size of logical volume ${lv.vg}/${name} changed to 60.00 GiB.`),
+        const vg = st.lvm.vgs[lv.vg];
+        const free = toKiB(vg ? vg.free : 0);
+        // -l +100%FREE = เอาที่ว่างทั้งหมดของ VG · -L +20G = ระบุขนาดเอง
+        const sized = args.find(a => /^\+?[\d.]+[KMGT]i?B?$/i.test(a));
+        const add = /%FREE/i.test(args.join(' ')) || !sized ? free : toKiB(sized);
+        if (add <= 0) { out = [E('  Insufficient free space: 0 extents needed, but only 0 available')]; break; }
+        if (add > free) {
+          out = [E(`  Insufficient free space: ต้องการ ${humanKiB(add)} แต่ ${lv.vg} เหลือ ${humanKiB(free)}`),
+            D('เพิ่มดิสก์เข้า volume group ด้วย pvcreate + vgextend ก่อน')];
+          break;
+        }
+        lv.size = humanKiB(toKiB(lv.size) + add);
+        if (vg) vg.free = humanKiB(free - add);
+        lv.pendingResize = true;
+        lv.pendingGrow = (lv.pendingGrow || 0) + add;
+        out = [OK(`Size of logical volume ${lv.vg}/${name} changed to ${lv.size}.`),
         OK('Logical volume successfully resized.'),
-        D('อย่าลืมขยาย filesystem ด้วย resize2fs หรือ xfs_growfs')];
+        D('อย่าลืมขยาย filesystem ด้วย resize2fs หรือ xfs_growfs — ไม่งั้น df ยังเห็นขนาดเท่าเดิม')];
         break;
       }
       case 'resize2fs': case 'xfs_growfs': {
-        const lv = Object.values(st.lvm.lvs).find(l => l.pendingResize);
-        if (lv) lv.pendingResize = false;
-        out = [OK(`The filesystem is now ${lv ? '15728640' : '7864320'} (4k) blocks long.`)];
+        const arg = args.find(a => !a.startsWith('-'));
+        const byPath = arg ? Object.entries(st.lvm.lvs)
+          .find(([nm, l]) => String(arg).endsWith(nm) || arg === l.path) : null;
+        const entry = byPath || Object.entries(st.lvm.lvs).find(([, l]) => l.pendingResize);
+        const lv = entry ? entry[1] : null;
+        if (!lv) { out = [E(`${cmd}: ไม่พบ logical volume ตามที่ระบุ`)]; break; }
+        if (!lv.pendingResize) {
+          out = [D('The filesystem is already the requested size. Nothing to do!')];
+          break;
+        }
+        // ตรงนี้คือหัวใจของ lab: พื้นที่ใหม่จะโผล่ใน df ก็ต่อเมื่อขยาย filesystem แล้วเท่านั้น
+        const target = st.filesystems.find(f => f.mp === lv.mp
+          || f.dev === `/dev/mapper/${lv.vg}-${entry[0]}`);
+        if (target) {
+          target.size += lv.pendingGrow || 0;
+          target.avail += lv.pendingGrow || 0;
+          target.inodes += Math.round((lv.pendingGrow || 0) / 16);
+        }
+        lv.pendingResize = false;
+        lv.pendingGrow = 0;
+        out = [OK(`The filesystem on /dev/mapper/${lv.vg}-${entry[0]} is now ${Math.round((target ? target.size : 0) / 4)} (4k) blocks long.`)];
         break;
       }
       case 'timedatectl': {

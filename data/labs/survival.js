@@ -218,6 +218,17 @@ const BASE_LABS = [
     story: 'ระบบแจ้งเตือนว่า /mnt/app เหลือพื้นที่ 2% แอปพลิเคชันเริ่มเขียนไฟล์ไม่ได้และ error พุ่ง ทีมเพิ่งเพิ่มดิสก์ก้อนใหม่ /dev/sdb เข้าเครื่องแล้วแต่ยังไม่ได้ใช้',
     impact: 'แอปพลิเคชันเขียนข้อมูลไม่ได้ ถ้าปล่อยไว้ระบบจะหยุดทำงาน',
     device: 'linux',
+    init: {
+      apply: st => {
+        // /mnt/app เหลือ 2% ตามที่ monitoring แจ้ง — ส่วน inode ยังเหลือเยอะ
+        // (df -i จึงเป็นตัวตัดออกว่าไม่ใช่เคส inode หมด)
+        const app = st.filesystems.find(f => f.mp === '/mnt/app');
+        app.used = 30013440; app.avail = 628736; app.iused = 402117;
+        st.dirSizes['/mnt/app'] = '29G';
+        st.dirSizes['/mnt/app/uploads'] = '24G';
+        st.dirSizes['/var/log'] = '2.1G';
+      },
+    },
     tasks: [
       { t: 'ตรวจพื้นที่ดิสก์ทั้งหมด', hint: 'df -h', check: (s, h) => said(h, /^(sudo\s+)?df/i) },
       { t: 'ตรวจว่า inode หมดด้วยหรือไม่ (ดิสก์ว่างแต่เขียนไม่ได้)', hint: 'df -i', check: (s, h) => said(h, /df\s+-i/i) },
@@ -226,8 +237,8 @@ const BASE_LABS = [
       { t: 'ตรวจสถานะ volume group ปัจจุบัน', hint: 'sudo vgs', check: (s, h) => said(h, /^(sudo\s+)?vgs/i) },
       { t: 'เตรียมดิสก์ใหม่ให้เป็น physical volume', hint: 'sudo pvcreate /dev/sdb', check: s => s.lvm.pvs.includes('/dev/sdb') },
       { t: 'เพิ่มดิสก์ใหม่เข้า volume group <code>vg_data</code>', hint: 'sudo vgextend vg_data /dev/sdb', check: s => s.lvm.vgs.vg_data.pvs.includes('/dev/sdb') },
-      { t: 'ขยาย logical volume ให้ใช้พื้นที่ว่างทั้งหมด', hint: 'sudo lvextend -l +100%FREE /dev/vg_data/lv_app', check: s => s.lvm.lvs.lv_app.size === '60G' },
-      { t: '<b>อย่าลืมขั้นนี้</b> — ขยาย filesystem ให้เห็นพื้นที่ใหม่', hint: 'sudo resize2fs /dev/vg_data/lv_app', check: s => s.lvm.lvs.lv_app.pendingResize === false },
+      { t: 'ขยาย logical volume ให้ใช้พื้นที่ว่างทั้งหมด', hint: 'sudo lvextend -l +100%FREE /dev/vg_data/lv_app', check: s => s.lvm.lvs.lv_app.pendingResize === true },
+      { t: '<b>อย่าลืมขั้นนี้</b> — ขยาย filesystem ให้เห็นพื้นที่ใหม่', hint: 'sudo resize2fs /dev/vg_data/lv_app', check: s => s.lvm.lvs.lv_app.pendingResize === false && s.filesystems.find(f => f.mp === '/mnt/app').size > 31457280 },
       { t: 'ยืนยันว่าพื้นที่เพิ่มขึ้นจริง', hint: 'df -h', check: (s, h) => h.filter(c => /^(sudo\s+)?df\s+-h/i.test(c.trim())).length >= 2 },
       { t: 'ป้องกันระยะยาว: ตรวจว่ามี log rotate อยู่ไหม', hint: 'ls -la /etc/logrotate.d', check: (s, h) => said(h, /logrotate/i) },
     ],
