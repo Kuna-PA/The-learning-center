@@ -170,3 +170,41 @@ test('บังคับคุกกี้ Secure ได้เมื่ออย
   const r = await c.req('POST', '/api/auth/register', { username: 'secured', password: 'pass12345' });
   assert.match(r.setCookie.join(';'), /Secure/i);
 });
+
+test('เนื้อหาที่ผู้ดูแลเพิ่มเอง — เก็บรูปที่ฝังมาไว้ และตัดรูปที่ที่มาไม่ถูกต้องทิ้ง', async (t) => {
+  const srv = await startServer();
+  t.after(() => srv.stop());
+
+  const admin = client(srv.base);
+  await admin.req('POST', '/api/auth/login', { username: 'admin', password: srv.adminPass });
+  await admin.req('POST', '/api/auth/password', { oldPass: srv.adminPass, newPass: 'admin-new-98765' });
+
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+  const payload = {
+    version: 1,
+    sections: [{ id: 's1', track: 'linux', level: 1, t: 'มีรูป', h: '<p>[[รูป 1]]</p>', imgs: [png, 'javascript:alert(1)'] }],
+    quiz: [{ id: 'q1', track: 'linux', level: 1, type: 'mcq', q: 'ถาม', why: 'เพราะ', opts: ['ก', 'ข'], a: 0, img: png }],
+    labs: [{
+      id: 'l1', track: 'linux', level: 1, title: 'Lab', device: 'linux', img: 'http://evil/x.png',
+      tasks: [{ t: 'ทำ', hint: 'ls', rules: [{ kind: 'ran', pattern: 'ls' }] }],
+    }],
+  };
+  assert.equal((await admin.req('PUT', '/api/content', { data: payload })).status, 200);
+
+  const got = (await admin.req('GET', '/api/content')).data.data;
+  assert.deepEqual(got.sections[0].imgs, [png], 'รูปที่ที่มาไม่ถูกต้องต้องถูกตัดทิ้ง');
+  assert.equal(got.quiz[0].img, png);
+  assert.equal(got.labs[0].img, '', 'ลิงก์ http ธรรมดาต้องไม่ถูกเก็บ');
+
+  await t.test('ผู้เรียนอ่านเนื้อหาได้ แต่เขียนไม่ได้', async () => {
+    const u = client(srv.base);
+    await u.req('POST', '/api/auth/register', { username: 'learner', password: 'pass12345' });
+    assert.equal((await u.req('GET', '/api/content')).status, 200);
+    assert.equal((await u.req('PUT', '/api/content', { data: payload })).status, 403);
+  });
+
+  await t.test('คนที่ยังไม่ล็อกอิน อ่านเนื้อหาไม่ได้', async () => {
+    const anon = client(srv.base);
+    assert.equal((await anon.req('GET', '/api/content')).status, 401);
+  });
+});

@@ -38,15 +38,16 @@ const json = (res, code, body, headers = {}) => {
   res.end(txt);
 };
 
-const MAX_BODY = 1 << 20;   // 1 MB — ความคืบหน้าก้อนเดียวไม่ควรใหญ่กว่านี้
+const MAX_BODY = 1 << 20;        // 1 MB — ความคืบหน้าก้อนเดียวไม่ควรใหญ่กว่านี้
+const MAX_CONTENT_BODY = 6 << 20; // 6 MB — เนื้อหาที่ผู้ดูแลเพิ่มเองมีรูปฝังมาด้วย
 
-function readBody(req) {
+function readBody(req, limit = MAX_BODY) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
     req.on('data', (c) => {
       size += c.length;
-      if (size > MAX_BODY) { reject(new Error('payload ใหญ่เกินไป')); req.destroy(); return; }
+      if (size > limit) { reject(new Error('payload ใหญ่เกินไป')); req.destroy(); return; }
       chunks.push(c);
     });
     req.on('end', () => {
@@ -65,23 +66,30 @@ function readBody(req) {
  */
 function sanitiseContent(c) {
   const arr = (v) => (Array.isArray(v) ? v : []);
+  // รูปต้องเป็นรูปที่ฝังมากับเนื้อหา ไฟล์ใน repo หรือลิงก์ https เท่านั้น
+  const safeImage = (v) => /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,/i.test(String(v || ''))
+    || /^https:\/\//i.test(String(v || ''))
+    || /^(\.\/|\/)?assets\//i.test(String(v || ''));
   const out = {
     version: 1,
     updatedAt: Number(c?.updatedAt) || Date.now(),
     sections: arr(c?.sections).map(s => ({
       id: String(s.id || ''), track: String(s.track || ''), level: Number(s.level) || 1,
       t: String(s.t || ''), h: String(s.h || ''),
+      imgs: arr(s.imgs).map(String).filter(safeImage),
     })),
     quiz: arr(c?.quiz).map(q => ({
       id: String(q.id || ''), track: String(q.track || ''), level: Number(q.level) || 1,
       type: String(q.type || 'mcq'), q: String(q.q || ''), why: String(q.why || ''),
       opts: arr(q.opts).map(String), a: Array.isArray(q.a) ? q.a.map(Number) : Number(q.a) || 0,
       ans: arr(q.ans).map(String),
+      img: safeImage(q.img) ? String(q.img) : '',
     })),
     labs: arr(c?.labs).map(l => ({
       id: String(l.id || ''), track: String(l.track || ''), level: Number(l.level) || 1,
       title: String(l.title || ''), brief: String(l.brief || ''), device: String(l.device || ''),
       debrief: String(l.debrief || ''),
+      img: safeImage(l.img) ? String(l.img) : '',
       tasks: arr(l.tasks).map(t => ({
         t: String(t.t || ''), hint: String(t.hint || ''),
         rules: arr(t.rules).map(r => ({
@@ -125,7 +133,8 @@ export default async function api(req, res, pathname) {
 
   let body = {};
   if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
-    try { body = await readBody(req); }
+    const limit = parts[0] === 'content' ? MAX_CONTENT_BODY : MAX_BODY;
+    try { body = await readBody(req, limit); }
     catch (e) { return json(res, 400, { error: e.message }); }
   }
 

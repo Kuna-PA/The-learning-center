@@ -49,7 +49,7 @@ const securityHeaders = (secure) => ({
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data:",
+    "img-src 'self' data: https:",   // รูปในบทเรียนฝังมาเป็น data: · เผื่อผู้ดูแลวางลิงก์รูปจากวิกิภายในด้วย
     "connect-src 'self'",
     "base-uri 'none'",
     "form-action 'self'",

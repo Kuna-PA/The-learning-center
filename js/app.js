@@ -6,12 +6,12 @@ import { auth } from './auth.js';
 import { createTerminal } from './terminal.js';
 import { createWindowsGui } from './gui/windows-gui.js';
 import { normCmd } from './devices/util.js';
-import { DEVICE_LABELS, DEVICE_SHORT } from './devices/index.js';
+import { DEVICE_LABELS, DEVICE_SHORT, DEVICE_ICONS } from './devices/index.js';
 import { createJulong } from './julong.js';
 import { registerServiceWorker } from './pwa.js';
 import { overview, summarise, toCsv } from './admin-stats.js';
 import { customContent, loadCustomContent, saveCustomContent } from './content.js';
-import { blankCustom, RULE_KINDS } from '../data/custom.js';
+import { blankCustom, RULE_KINDS, MAX_IMAGE_BYTES, imageBytes } from '../data/custom.js';
 
 const $ = s => document.querySelector(s);
 const view = () => $('#view');
@@ -647,6 +647,7 @@ function vQuiz(id, level) {
 
     $('#qbox').innerHTML = `<div class="q-card">
       <div class="q-type">${typeLabel}</div><div class="q-text">${q.q}</div>
+      ${q.img ? `<img class="q-img" src="${esc(q.img)}" alt="ภาพประกอบคำถาม" loading="lazy">` : ''}
       <div id="opts"></div><div id="expl"></div>
       <div class="q-foot"><button class="btn ghost" id="skip">ข้าม</button>
       <button class="btn primary" id="act">ตรวจคำตอบ</button></div></div>`;
@@ -960,13 +961,16 @@ function vLab(trackId, labId) {
   runLabView({
     lab, trackId,
     hero: `<div class="room-hero" style="--hero:${l.color}1f">
-      <div class="room-ico">🧪</div>
+      <div class="room-ico">${DEVICE_ICONS[lab.device]
+        ? `<img class="dev-ico" src="${DEVICE_ICONS[lab.device]}" alt="${esc(DEVICE_SHORT[lab.device] || '')}">`
+        : '🧪'}</div>
       <div class="room-meta">
         <div class="row" style="gap:7px">
           <span class="pill">${t.icon} ${t.name}</span>${diffPill(lab.level)}
           <span class="pill">${DEVICE_LABELS[lab.device] || lab.device}</span>
         </div>
         <h1>${lab.title}</h1><p>${lab.brief}</p>
+        ${lab.img ? `<img class="lab-img" src="${esc(lab.img)}" alt="ภาพประกอบของ Lab" loading="lazy">` : ''}
       </div></div>`,
   });
 }
@@ -1722,6 +1726,82 @@ function bindPicker(prefix) {
 
 const newId = (kind) => `${kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
+/**
+ * ย่อรูปในเบราว์เซอร์ก่อนฝังลงเนื้อหา
+ * รูปจากมือถือหรือ screenshot ขนาดจริงมักหลายเมกะไบต์ ถ้าฝังดิบ ๆ
+ * เนื้อหาจะบวมจนเกินโควตา localStorage และทำให้เว็บโหลดช้าสำหรับผู้เรียนทุกคน
+ */
+async function shrinkImage(file, maxW = 1280, quality = 0.82) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxW / bitmap.width);
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+  bitmap.close?.();
+  // webp เล็กกว่าทั้งภาพถ่ายและไดอะแกรม — เบราว์เซอร์ที่ไม่รองรับจะคืน png มาให้เอง
+  let out = canvas.toDataURL('image/webp', quality);
+  if (!out.startsWith('data:image/webp')) out = canvas.toDataURL('image/jpeg', quality);
+  return out;
+}
+
+const kb = (src) => Math.round(imageBytes(src) / 1024) + ' KB';
+
+/**
+ * ช่องแนบรูป — คืน HTML และตัวอ่านค่ากลับ
+ * เก็บรูปเป็น data URI ในตัวแปร ไม่ต้องมีที่เก็บไฟล์แยก จึงใช้ได้ทั้งบนเซิร์ฟเวอร์และ static hosting
+ */
+function imagePicker(id, { multiple = false, note = '' } = {}) {
+  return `<div class="fld img-pick" id="${id}-wrap">
+    <label>ภาพประกอบ ${multiple ? '(ใส่ได้หลายรูป)' : '(ไม่ใส่ก็ได้)'}</label>
+    <div class="row" style="gap:8px;align-items:center">
+      <button type="button" class="btn sm ghost" id="${id}-pick">🖼️ เลือกรูป</button>
+      <input type="file" id="${id}-file" accept="image/*" ${multiple ? 'multiple' : ''} hidden>
+      <span class="muted" style="font-size:11.5px">${note || 'ระบบย่อรูปให้อัตโนมัติก่อนบันทึก'}</span>
+    </div>
+    <div class="img-list" id="${id}-list"></div>
+  </div>`;
+}
+
+/** ผูก event ให้ช่องแนบรูป — onInsert ใช้ตอนอยากแทรกโค้ดอ้างรูปลงในเนื้อหา */
+function bindImagePicker(id, { multiple = false, onInsert = null } = {}) {
+  const picked = [];
+  const list = $(`#${id}-list`);
+
+  const render = () => {
+    list.innerHTML = picked.map((src, i) => `<div class="img-item">
+      <img src="${src}" alt="">
+      <div class="img-meta">
+        <span>รูปที่ ${i + 1} · ${kb(src)}</span>
+        ${onInsert ? `<button type="button" class="btn sm ghost" data-insert="${i}">แทรกในเนื้อหา</button>` : ''}
+        <button type="button" class="btn sm danger" data-drop="${i}">ลบ</button>
+      </div></div>`).join('');
+    list.querySelectorAll('[data-drop]').forEach(b => b.addEventListener('click', () => {
+      picked.splice(+b.dataset.drop, 1); render();
+    }));
+    list.querySelectorAll('[data-insert]').forEach(b => b.addEventListener('click', () => {
+      onInsert(`[[รูป ${+b.dataset.insert + 1}]]`);
+    }));
+  };
+
+  $(`#${id}-pick`).addEventListener('click', () => $(`#${id}-file`).click());
+  $(`#${id}-file`).addEventListener('change', async (e) => {
+    for (const file of [...e.target.files]) {
+      try {
+        const src = await shrinkImage(file);
+        if (imageBytes(src) > MAX_IMAGE_BYTES) { toast(`รูป "${file.name}" ใหญ่เกินไป (${kb(src)}) ลองย่อก่อนอัปโหลด`, 'bad'); continue; }
+        if (!multiple) picked.length = 0;
+        picked.push(src);
+      } catch { toast(`เปิดไฟล์ "${file.name}" ไม่ได้ — รองรับเฉพาะไฟล์รูป`, 'bad'); }
+    }
+    e.target.value = '';
+    render();
+  });
+
+  return { get all() { return [...picked]; }, get one() { return picked[0] || ''; } };
+}
+
 function vAdminContent() {
   if (!auth.isAdmin) { location.hash = '#/'; return; }
   crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: 'ผู้ดูแลระบบ', href: '#/admin' }, { t: 'จัดการเนื้อหา' }]);
@@ -1760,7 +1840,8 @@ function vAdminContent() {
       ${trackLevelPicker('sec')}
       <div class="fld"><label>หัวข้อย่อย</label><input id="sec-title" placeholder="เช่น VLAN คืออะไร"></div>
       <div class="fld"><label>เนื้อหา (ใส่ HTML ได้ เช่น &lt;p&gt; &lt;ul&gt; &lt;code&gt;)</label>
-        <textarea id="sec-html" rows="7" placeholder="<p>อธิบายเนื้อหาตรงนี้</p>"></textarea></div>
+        <textarea id="sec-html" rows="7" placeholder="<p>อธิบายเนื้อหาตรงนี้</p>&#10;วางรูปตรงไหนก็ได้ด้วยโค้ด [[รูป 1]]"></textarea></div>
+      ${imagePicker('sec-img', { multiple: true, note: 'กด "แทรกในเนื้อหา" เพื่อวางรูปตรงตำแหน่งที่ต้องการ — ไม่แทรกก็จะไปต่อท้ายบทเรียนให้เอง' })}
       <button class="btn primary" id="sec-add">เพิ่มบทเรียน</button>
     </div>
 
@@ -1785,6 +1866,7 @@ function vAdminContent() {
       <div class="fld" id="quiz-ans-wrap" hidden><label>คำตอบที่ยอมรับ (บรรทัดละ 1 แบบ)</label>
         <textarea id="quiz-ans" rows="3" placeholder="conf t&#10;configure terminal"></textarea></div>
       <div class="fld"><label>คำอธิบายเฉลย</label><textarea id="quiz-why" rows="3"></textarea></div>
+      ${imagePicker('quiz-img', { note: 'เช่นภาพ topology หรือ output ที่ต้องอ่านเพื่อตอบคำถาม' })}
       <button class="btn primary" id="quiz-add">เพิ่มข้อสอบ</button>
     </div>
 
@@ -1798,6 +1880,7 @@ function vAdminContent() {
           <select id="lab-device">${Object.entries(DEVICE_LABELS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></div>
       </div>
       <div class="fld"><label>สถานการณ์ (brief)</label><textarea id="lab-brief" rows="2"></textarea></div>
+      ${imagePicker('lab-img', { note: 'เช่นผังเครือข่ายของ Lab นี้' })}
 
       <h4 style="margin:14px 0 8px;font-size:13px;font-family:var(--mono);color:var(--txt-dim)">ขั้นตอนที่ผู้เรียนต้องทำ</h4>
       <div id="lab-tasks"></div>
@@ -1811,13 +1894,13 @@ function vAdminContent() {
     <div class="card" style="padding:0;overflow:hidden">
       <table class="adm">
         <tr><th>ชนิด</th><th>อยู่ที่</th><th>รายละเอียด</th><th></th></tr>
-        ${[...c.sections.map(x => ({ kind: 'บทเรียน', id: x.id, at: `${x.track} · ระดับ ${x.level}`, what: x.t, go: `#/learn/${x.track}/${x.level}` })),
-      ...c.quiz.map(x => ({ kind: 'ข้อสอบ', id: x.id, at: `${x.track} · ระดับ ${x.level}`, what: x.q, go: `#/learn/${x.track}/${x.level}` })),
-      ...c.labs.map(x => ({ kind: 'Lab', id: x.id, at: `${x.track} · ระดับ ${x.level}`, what: `${x.title} (${(x.tasks || []).length} ขั้นตอน)`, go: `#/lab/${x.track}/${x.id}` }))]
+        ${[...c.sections.map(x => ({ kind: 'บทเรียน', id: x.id, at: `${x.track} · ระดับ ${x.level}`, what: x.t, imgs: (x.imgs || []).length, go: `#/learn/${x.track}/${x.level}` })),
+      ...c.quiz.map(x => ({ kind: 'ข้อสอบ', id: x.id, at: `${x.track} · ระดับ ${x.level}`, what: x.q, imgs: x.img ? 1 : 0, go: `#/learn/${x.track}/${x.level}` })),
+      ...c.labs.map(x => ({ kind: 'Lab', id: x.id, at: `${x.track} · ระดับ ${x.level}`, what: `${x.title} (${(x.tasks || []).length} ขั้นตอน)`, imgs: x.img ? 1 : 0, go: `#/lab/${x.track}/${x.id}` }))]
       .map(row => `<tr>
         <td><span class="pill">${row.kind}</span></td>
         <td style="font-family:var(--mono);font-size:11.5px">${esc(row.at)}</td>
-        <td>${esc(String(row.what).replace(/<[^>]+>/g, '').slice(0, 90))}</td>
+        <td>${esc(String(row.what).replace(/<[^>]+>/g, '').slice(0, 90))}${row.imgs ? ` <span class="pill">🖼️ ${row.imgs}</span>` : ''}</td>
         <td><div class="row" style="gap:6px;flex-wrap:nowrap">
           <button class="btn sm ghost" data-go="${row.go}">เปิดดู</button>
           <button class="btn sm danger" data-del="${row.id}">ลบ</button></div></td>
@@ -1832,6 +1915,18 @@ function vAdminContent() {
     </div>`;
 
   bindPicker('sec'); bindPicker('quiz'); bindPicker('lab');
+  const secImgs = bindImagePicker('sec-img', {
+    multiple: true,
+    onInsert: (token) => {
+      const box = $('#sec-html');
+      const at = box.selectionStart ?? box.value.length;
+      box.value = box.value.slice(0, at) + token + box.value.slice(at);
+      box.focus();
+      box.selectionStart = box.selectionEnd = at + token.length;
+    },
+  });
+  const quizImg = bindImagePicker('quiz-img');
+  const labImg = bindImagePicker('lab-img');
   goHooks();
 
   // สลับฟอร์ม
@@ -1906,6 +2001,7 @@ function vAdminContent() {
     const item = {
       id: newId('sec'), track: $('#sec-track').value, level: +$('#sec-level').value,
       t: $('#sec-title').value.trim(), h: $('#sec-html').value.trim(),
+      imgs: secImgs.all,
     };
     if (!item.t || !item.h) return toast('ใส่หัวข้อและเนื้อหาให้ครบก่อน', 'bad');
     persist({ ...c, sections: [...c.sections, item] }, 'เพิ่มบทเรียนแล้ว');
@@ -1916,6 +2012,7 @@ function vAdminContent() {
     const item = {
       id: newId('q'), track: $('#quiz-track').value, level: +$('#quiz-level').value,
       type, q: $('#quiz-q').value.trim(), why: $('#quiz-why').value.trim(),
+      img: quizImg.one,
     };
     if (type === 'cmd') {
       item.ans = $('#quiz-ans').value.split('\n').map(x => x.trim()).filter(Boolean);
@@ -1945,6 +2042,7 @@ function vAdminContent() {
       id: newId('lab'), track: $('#lab-track').value, level: +$('#lab-level').value,
       title: $('#lab-title').value.trim(), brief: $('#lab-brief').value.trim(),
       device: $('#lab-device').value, debrief: $('#lab-debrief').value.trim(), tasks,
+      img: labImg.one,
     };
     persist({ ...c, labs: [...c.labs, item] }, 'เพิ่ม Lab แล้ว');
   });

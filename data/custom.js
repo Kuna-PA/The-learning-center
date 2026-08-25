@@ -22,6 +22,42 @@ export const blankCustom = () => ({
   labs: [],
 });
 
+// ---------------- รูปภาพ ----------------
+// รูปเก็บเป็น data URI ฝังไปกับเนื้อหาเลย ไม่ต้องมีที่เก็บไฟล์แยก
+// จึงทำงานได้ทั้งบนเซิร์ฟเวอร์และบน static hosting และยังเห็นรูปตอนออฟไลน์
+export const MAX_IMAGE_BYTES = 900 * 1024;      // ต่อรูป (หลังย่อแล้ว)
+export const MAX_CONTENT_BYTES = 4 * 1024 * 1024;  // ทั้งก้อน — เผื่อ localStorage ที่มีโควตา ~5MB
+
+/** ที่มาของรูปที่ยอมให้ใช้: ฝังมากับเนื้อหา · ไฟล์ใน repo · หรือ https ภายนอก */
+export const isSafeImageSrc = (src) => {
+  const v = String(src || '').trim();
+  return /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,/i.test(v)
+    || /^https:\/\//i.test(v)
+    || /^(\.\/|\/)?assets\//i.test(v);
+};
+
+export const imageBytes = (src) => {
+  const v = String(src || '');
+  const i = v.indexOf('base64,');
+  return i < 0 ? v.length : Math.round((v.length - i - 7) * 3 / 4);
+};
+
+/** แทนที่ [[รูป 1]] / [[img1]] ในเนื้อหาด้วยรูปที่แนบมา — รูปที่ไม่ได้ถูกอ้างถึงจะต่อท้ายให้ */
+export function embedImages(html, imgs = []) {
+  const list = (imgs || []).filter(isSafeImageSrc);
+  if (!list.length) return html;
+  const used = new Set();
+  const tag = (src, i) => `<figure class="lesson-img"><img src="${src}" alt="ภาพประกอบที่ ${i + 1}" loading="lazy"></figure>`;
+  const out = String(html || '').replace(/\[\[\s*(?:รูป|img|image)\s*(\d+)\s*\]\]/gi, (m, num) => {
+    const i = Number(num) - 1;
+    if (!list[i]) return '';
+    used.add(i);
+    return tag(list[i], i);
+  });
+  const rest = list.map((src, i) => (used.has(i) ? '' : tag(src, i))).join('');
+  return out + rest;
+}
+
 // ---------------- ทำความสะอาด HTML ----------------
 const BAD_TAGS = /<\s*\/?\s*(script|iframe|object|embed|link|meta|form|base|style)\b[^>]*>/gi;
 const EVENT_ATTR = /\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
@@ -32,7 +68,13 @@ export function sanitizeHtml(html) {
   return String(html || '')
     .replace(BAD_TAGS, '')
     .replace(EVENT_ATTR, '')
-    .replace(JS_URL, '$1="#"');
+    .replace(JS_URL, '$1="#"')
+    // <img> ใช้ได้ แต่ต้องเป็นรูปที่ฝังมา ไฟล์ใน repo หรือ https เท่านั้น
+    .replace(/<img\b[^>]*>/gi, (tag) => {
+      const src = (tag.match(/src\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i) || [])
+        .slice(2).find(v => v !== undefined) || '';
+      return isSafeImageSrc(src) ? tag : '';
+    });
 }
 
 // ---------------- กติกาตรวจ Lab ----------------
@@ -214,6 +256,21 @@ export function validateCustom(data, { tracks = [] } = {}) {
   const ids = [...(data.labs || []).map(l => l.id), ...(data.sections || []).map(s => s.id), ...(data.quiz || []).map(q => q.id)];
   if (new Set(ids).size !== ids.length) problems.push('มี id ซ้ำกันในเนื้อหาที่เพิ่มเอง');
 
+  // ---- รูปภาพ ----
+  const checkImg = (src, what) => {
+    if (!src) return;
+    if (!isSafeImageSrc(src)) { problems.push(`${what}: ที่มาของรูปไม่ถูกต้อง (ต้องเป็นรูปที่อัปโหลด ไฟล์ใน assets/ หรือลิงก์ https)`); return; }
+    if (imageBytes(src) > MAX_IMAGE_BYTES) problems.push(`${what}: รูปใหญ่เกิน ${Math.round(MAX_IMAGE_BYTES / 1024)} KB`);
+  };
+  (data.sections || []).forEach((sec, i) => (sec.imgs || []).forEach((src, j) => checkImg(src, `บทเรียน #${i + 1} รูปที่ ${j + 1}`)));
+  (data.quiz || []).forEach((q, i) => checkImg(q.img, `ข้อสอบ #${i + 1} รูปประกอบ`));
+  (data.labs || []).forEach((l, i) => checkImg(l.img, `Lab #${i + 1} รูปประกอบ`));
+
+  const size = JSON.stringify(data).length;
+  if (size > MAX_CONTENT_BYTES) {
+    problems.push(`เนื้อหาทั้งหมดรวมกัน ${Math.round(size / 1024 / 1024 * 10) / 10} MB เกินเพดาน ${MAX_CONTENT_BYTES / 1024 / 1024} MB — ลองลดขนาดรูปหรือลบของที่ไม่ใช้แล้ว`);
+  }
+
   return problems;
 }
 
@@ -232,13 +289,18 @@ export function mergeCustom(tracks, data) {
   c.sections.forEach((sec) => {
     const lv = at(sec.track, sec.level);
     if (!lv) return;
-    lv.sections = [...(lv.sections || []), { t: sec.t, h: sanitizeHtml(sec.h), custom: true, customId: sec.id }];
+    lv.sections = [...(lv.sections || []), {
+      t: sec.t,
+      h: sanitizeHtml(embedImages(sec.h, sec.imgs)),
+      custom: true, customId: sec.id,
+    }];
   });
 
   c.quiz.forEach((q) => {
     const lv = at(q.track, q.level);
     if (!lv) return;
     const item = { type: q.type, q: q.q, why: q.why, custom: true, customId: q.id };
+    if (isSafeImageSrc(q.img)) item.img = q.img;
     if (q.type === 'cmd') item.ans = (q.ans || []).filter(a => String(a).trim());
     else { item.opts = q.opts; item.a = q.a; }
     lv.quiz = [...(lv.quiz || []), item];
@@ -251,6 +313,7 @@ export function mergeCustom(tracks, data) {
       id: lab.id,
       title: lab.title,
       brief: lab.brief || '',
+      img: isSafeImageSrc(lab.img) ? lab.img : '',
       device: lab.device,
       custom: true,
       init: lab.init || {},

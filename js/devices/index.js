@@ -13,6 +13,20 @@ export const DEVICE_LABELS = {
   'windows-gui': 'Windows Server 2022 — หน้าจอ GUI',
 };
 
+/**
+ * รูปของอุปกรณ์แต่ละแบบ — ใช้ในหัวหน้า Lab เพื่อให้เห็นว่ากำลังจะจับอะไรอยู่
+ * ไฟล์ถูกตัดออกมาจากแผ่นรวมไอคอนด้วย scripts/split-device-icons.mjs
+ */
+export const DEVICE_ICONS = {
+  cisco: 'assets/devices/switch.png',
+  mikrotik: 'assets/devices/router.png',
+  'mikrotik-sw': 'assets/devices/switch.png',
+  linux: 'assets/devices/server.png',
+  'linux-sec': 'assets/devices/server.png',
+  windows: 'assets/devices/server.png',
+  'windows-gui': 'assets/devices/computer.png',
+};
+
 // ชื่อสั้นสำหรับใช้ในตัวกรอง — ต้องแยกกันได้ทุกตัว
 export const DEVICE_SHORT = {
   cisco: 'Cisco',

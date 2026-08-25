@@ -7,7 +7,10 @@ import assert from 'node:assert/strict';
 import { TRACKS, ALL_LABS, rebuildAllLabs } from '../data/tracks/index.js';
 import { SURVIVAL_LABS } from '../data/labs/survival.js';
 import { summarise, overview, toCsv, levelPct } from '../js/admin-stats.js';
-import { compileCheck, mergeCustom, validateCustom, sanitizeHtml, blankCustom } from '../data/custom.js';
+import {
+  compileCheck, mergeCustom, validateCustom, sanitizeHtml, blankCustom,
+  isSafeImageSrc, embedImages, MAX_IMAGE_BYTES,
+} from '../data/custom.js';
 import { createDevice } from '../js/devices/index.js';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -182,4 +185,64 @@ test('ทุกหน้าที่มีแท็บผู้ดูแล ต�
     .filter(b => b.includes('adminTabs(') && !b.startsWith('adminTabs') && !b.includes('goHooks('))
     .map(b => b.slice(0, b.indexOf('(')));
   assert.deepEqual(missing, [], 'หน้าเหล่านี้เรนเดอร์แท็บแต่ไม่ได้เรียก goHooks()');
+});
+
+// ---------------- ภาพประกอบ ----------------
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+test('รับเฉพาะรูปที่ปลอดภัย — ฝังมากับเนื้อหา ไฟล์ใน repo หรือ https', () => {
+  assert.equal(isSafeImageSrc(PNG), true);
+  assert.equal(isSafeImageSrc('https://wiki.corp.local/topology.png'), true);
+  assert.equal(isSafeImageSrc('assets/logo-mark.png'), true);
+  assert.equal(isSafeImageSrc('javascript:alert(1)'), false);
+  assert.equal(isSafeImageSrc('http://insecure/x.png'), false, 'http ธรรมดาจะโดน mixed content บล็อกอยู่ดี');
+  assert.equal(isSafeImageSrc(''), false);
+});
+
+test('sanitizeHtml เก็บรูปที่ปลอดภัยไว้ และตัดรูปที่ที่มาไม่น่าไว้ใจทิ้ง', () => {
+  assert.match(sanitizeHtml(`<p>ดู</p><img src="${PNG}">`), /<img/);
+  assert.doesNotMatch(sanitizeHtml('<img src="http://evil/x.png">'), /<img/);
+  assert.doesNotMatch(sanitizeHtml('<img src="javascript:alert(1)">'), /<img/);
+});
+
+test('วางรูปด้วยโค้ด [[รูป N]] ได้ และรูปที่ไม่ได้อ้างถึงจะไปต่อท้าย', () => {
+  const one = embedImages('<p>ก่อน [[รูป 1]] หลัง</p>', [PNG]);
+  assert.match(one, /ก่อน <figure class="lesson-img"><img src="data:image\/png/);
+  assert.match(one, /หลัง<\/p>$/);
+
+  const two = embedImages('<p>มีรูปเดียว [[รูป 1]]</p>', [PNG, PNG]);
+  assert.equal((two.match(/<img /g) || []).length, 2, 'รูปที่ 2 ต้องถูกต่อท้ายให้เอง');
+  assert.match(two, /<\/p><figure/, 'รูปที่ไม่ได้อ้างถึงอยู่ท้ายสุด');
+});
+
+test('ตัวตรวจเนื้อหาจับรูปที่ใหญ่เกินและที่มาที่ไม่ถูกต้อง', () => {
+  const huge = 'data:image/png;base64,' + 'A'.repeat(Math.ceil(MAX_IMAGE_BYTES * 4 / 3) + 100);
+  const problems = validateCustom({
+    ...blankCustom(),
+    quiz: [{ id: 'q1', track: TRACKS[0].id, level: 1, type: 'mcq', q: 'ถาม', why: 'เพราะ', opts: ['ก', 'ข'], a: 0, img: huge }],
+    labs: [{
+      id: 'l1', track: TRACKS[0].id, level: 1, title: 'ชื่อ', device: 'linux', img: 'javascript:alert(1)',
+      tasks: [{ t: 'ทำ', hint: 'ทำ', rules: [{ kind: 'ran', pattern: 'ls' }] }],
+    }],
+  }, { tracks: TRACKS });
+
+  assert.ok(problems.some(p => /ใหญ่เกิน/.test(p)), 'ต้องเตือนรูปที่ใหญ่เกิน: ' + JSON.stringify(problems));
+  assert.ok(problems.some(p => /ที่มาของรูปไม่ถูกต้อง/.test(p)), 'ต้องเตือนที่มาของรูป: ' + JSON.stringify(problems));
+});
+
+test('รูปของข้อสอบและ Lab ถูกส่งต่อไปถึงเนื้อหาที่ผู้เรียนเห็น', () => {
+  const target = TRACKS.find(t => t.id === 'windows-server');
+  mergeCustom(TRACKS, {
+    ...blankCustom(),
+    quiz: [{ id: 'qi', track: 'windows-server', level: 1, type: 'mcq', q: 'จากภาพ', opts: ['ก', 'ข'], a: 0, why: 'ตามภาพ', img: PNG }],
+    labs: [{
+      id: 'labi', track: 'windows-server', level: 1, title: 'Lab มีรูป', device: 'windows', img: PNG,
+      tasks: [{ t: 'ทำ', hint: 'ipconfig', rules: [{ kind: 'ran', pattern: 'ipconfig' }] }],
+    }],
+  });
+
+  const q = (target.levels[1].quiz || []).find(x => x.customId === 'qi');
+  const lab = (target.levels[1].labs || []).find(x => x.id === 'labi');
+  assert.equal(q.img, PNG);
+  assert.equal(lab.img, PNG);
 });
