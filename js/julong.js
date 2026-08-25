@@ -287,6 +287,44 @@ export function createJulong({ getCtx }) {
     say(`<b>${esc(title || 'ทำ Lab จบแล้ว')}</b><br>“${esc(CHEER)}”`);
   }
 
+  // ---------- ป๊อปอัพตอนหมดเวลาในโหมดเอาชีวิตรอด ----------
+  const DEFEAT = 'เจ้าช่างอ่อนหัดยิ่งนัก กลับไปฝึกฝามาใหม่ซะ';
+
+  /**
+   * จูล่งกระโดดเข้ามาฟันหนึ่งที แล้วค่อยขึ้นการ์ดคำพูด
+   * ไม่ล้างความคืบหน้าให้ — ปิดแล้วทำต่อได้ เพราะจุดประสงค์คือกดดันเรื่องเวลา ไม่ใช่ลงโทษ
+   */
+  function defeat({ title = 'หมดเวลา', sub = '', onRetry = null } = {}) {
+    el.querySelector('.jl-defeat')?.remove();
+    const box = document.createElement('div');
+    box.className = 'jl-defeat';
+    box.innerHTML = `
+      <div class="jl-slash" aria-hidden="true"></div>
+      <img class="jl-strike" src="assets/julong-full.png" alt="">
+      <div class="jl-defeat-card" role="dialog" aria-label="หมดเวลา">
+        <div class="jl-cheer-name">จูล่ง</div>
+        <div class="jl-defeat-title">${esc(title)}</div>
+        <div class="jl-defeat-say">“${esc(DEFEAT)}”</div>
+        ${sub ? `<div class="jl-cheer-sub">${esc(sub)}</div>` : ''}
+        <div class="row" style="gap:8px;justify-content:center">
+          ${onRetry ? '<button class="btn sm primary" data-retry>↺ เริ่มใหม่</button>' : ''}
+          <button class="btn sm" data-close>ขอสู้ต่อ</button>
+        </div>
+      </div>`;
+
+    const bye = () => box.remove();
+    box.addEventListener('click', (e) => {
+      if (e.target.hasAttribute('data-retry')) { bye(); onRetry && onRetry(); return; }
+      if (e.target === box || e.target.hasAttribute('data-close')) bye();
+    });
+    document.addEventListener('keydown', function onEsc(e) {
+      if (e.key === 'Escape') { bye(); document.removeEventListener('keydown', onEsc); }
+    });
+    el.appendChild(box);
+    setTimeout(() => box.querySelector('[data-close]')?.focus(), 900);
+    say(`<b>${esc(title)}</b><br>“${esc(DEFEAT)}”`);
+  }
+
   // ---------- เปิด/ปิด ----------
   /** อัปเดตหัวแผงและปุ่มลัดให้ตรงกับหน้าที่กำลังเปิดอยู่ */
   function syncCtx() {
@@ -312,7 +350,7 @@ export function createJulong({ getCtx }) {
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 
   return {
-    el, open, close, toggle, syncCtx, celebrate,
+    el, open, close, toggle, syncCtx, celebrate, defeat,
     reset: () => { hintStep = {}; body().innerHTML = ''; el.querySelector('.jl-cheer')?.remove(); },
   };
 }

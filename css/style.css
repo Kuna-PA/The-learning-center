@@ -676,3 +676,60 @@ table.adm tr:hover td{background:var(--panel-2)}
   .winos-icons{position:static;width:auto;flex-direction:row;flex-wrap:wrap;gap:6px}
   .winos-ico{width:74px}
 }
+
+/* ---------- นาฬิกาจับเวลาของ Lab ---------- */
+.lab-timer{display:flex;align-items:center;gap:9px;margin-bottom:10px;padding:10px 13px;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.lt-face{font-size:17px;line-height:1}
+.lt-label{font-size:11px;color:var(--txt-mute);font-family:var(--mono);text-transform:uppercase;letter-spacing:1px}
+.lt-value{margin-left:auto;font-family:var(--mono);font-size:19px;font-weight:700;color:var(--txt);
+  font-variant-numeric:tabular-nums}
+.lab-timer.down[data-state="warn"]{border-color:var(--warn)}
+.lab-timer.down[data-state="warn"] .lt-value{color:var(--warn)}
+.lab-timer.down[data-state="danger"]{border-color:var(--acc);animation:ltPulse 1s ease-in-out infinite}
+.lab-timer.down[data-state="danger"] .lt-value{color:var(--acc-hi)}
+.lab-timer[data-state="over"]{border-color:var(--acc);background:rgba(230,57,74,.1)}
+.lab-timer[data-state="over"] .lt-value{color:var(--acc-hi)}
+.lab-timer[data-state="done"]{border-color:var(--ok)}
+.lab-timer[data-state="done"] .lt-value{color:var(--ok)}
+.lab-best{margin:-4px 0 10px;padding:6px 13px;font-size:11.5px;font-family:var(--mono);
+  color:var(--txt-mute);background:var(--bg-2);border:1px solid var(--line-soft);border-radius:9px}
+@keyframes ltPulse{0%,100%{box-shadow:0 0 0 0 rgba(230,57,74,0)}50%{box-shadow:0 0 0 4px rgba(230,57,74,.18)}}
+
+/* ---------- จูล่งกระโดดมาฟันคอตอนหมดเวลา ---------- */
+.jl-defeat{position:fixed;inset:0;z-index:330;display:grid;place-items:center;padding:20px;
+  background:rgba(20,2,4,.78);backdrop-filter:blur(3px);animation:jlFade .18s;overflow:hidden}
+/* ตัวจูล่งพุ่งเข้ามาจากขวาแล้วหายไปทางซ้าย */
+.jl-defeat .jl-strike{position:absolute;top:50%;width:300px;height:auto;pointer-events:none;
+  filter:drop-shadow(0 0 24px rgba(230,57,74,.65));animation:jlStrike .75s cubic-bezier(.2,.7,.3,1) both}
+/* รอยฟันที่ลากผ่านจอ */
+.jl-defeat .jl-slash{position:absolute;inset:-20%;pointer-events:none;
+  background:linear-gradient(115deg,transparent 44%,rgba(255,255,255,.95) 49%,rgba(230,57,74,.9) 51%,transparent 56%);
+  opacity:0;animation:jlSlash .55s ease-out .28s both}
+.jl-defeat-card{position:relative;width:100%;max-width:430px;text-align:center;padding:24px 24px 20px;
+  background:var(--panel);border:1px solid var(--acc);border-radius:16px;
+  box-shadow:0 24px 70px rgba(0,0,0,.7);animation:jlDefeatIn .35s .62s both}
+.jl-defeat-title{font-size:17px;font-weight:700;color:var(--acc-hi);margin-bottom:10px;letter-spacing:.3px}
+.jl-defeat-say{font-size:15px;line-height:1.85;color:var(--txt);margin-bottom:14px}
+@keyframes jlStrike{
+  0%{right:-340px;transform:translateY(-50%) rotate(16deg) scale(.85);opacity:0}
+  22%{opacity:1}
+  55%{right:38%;transform:translateY(-50%) rotate(-6deg) scale(1.06);opacity:1}
+  100%{right:118%;transform:translateY(-60%) rotate(-20deg) scale(.9);opacity:0}
+}
+@keyframes jlSlash{0%{opacity:0;transform:translateX(38%)}35%{opacity:1}100%{opacity:0;transform:translateX(-38%)}}
+@keyframes jlDefeatIn{from{opacity:0;transform:translateY(16px) scale(.94)}}
+/* จอสั่นตอนโดนฟัน */
+.jl-defeat{animation:jlFade .18s, jlShake .4s .3s}
+@keyframes jlShake{
+  0%,100%{transform:translate(0,0)}
+  20%{transform:translate(-7px,3px)}
+  40%{transform:translate(6px,-4px)}
+  60%{transform:translate(-4px,-2px)}
+  80%{transform:translate(3px,3px)}
+}
+@media (prefers-reduced-motion:reduce){
+  .jl-defeat,.jl-defeat .jl-strike,.jl-defeat .jl-slash,.jl-defeat-card,.lab-timer{animation:none}
+  .jl-defeat .jl-strike{right:auto;left:50%;transform:translate(-50%,-115%);opacity:1}
+}
+@media (max-width:640px){ .jl-defeat .jl-strike{width:200px} }

@@ -176,16 +176,22 @@ export const store = {
    * บันทึกความคืบหน้าของ Lab
    * history = คำสั่งที่รันสำเร็จไปแล้ว เก็บไว้เพื่อกลับมาทำต่อได้โดยไม่ต้องเริ่มใหม่
    */
-  recordLab(track, labId, tasksDone, total, history = null) {
+  recordLab(track, labId, tasksDone, total, history = null, seconds = 0) {
     const k = `${track}:${labId}`;
     const cur = data.labs[k] || { done: false, best: 0 };
     const done = tasksDone >= total && total > 0;
     let gained = 0;
     if (done && !cur.done) gained += 80;
     else if (tasksDone > (cur.best || 0)) gained += (tasksDone - (cur.best || 0)) * 5;
+    // เวลาที่ทำได้ดีที่สุด — เก็บเฉพาะรอบที่ทำจบจริง จะได้เอาไว้เทียบกับตัวเองรอบก่อน
+    const bestSeconds = done && seconds > 0
+      ? Math.min(cur.bestSeconds || Infinity, seconds)
+      : cur.bestSeconds;
+
     data.labs[k] = {
       done: cur.done || done,
       best: Math.max(cur.best || 0, tasksDone),
+      ...(Number.isFinite(bestSeconds) ? { bestSeconds } : {}),
       total, at: Date.now(),
       // เก็บไม่เกิน 300 คำสั่ง กัน localStorage บวม
       history: history ? history.slice(-300) : (cur.history || []),

@@ -8,6 +8,7 @@ import { createWindowsGui } from './gui/windows-gui.js';
 import { normCmd } from './devices/util.js';
 import { DEVICE_LABELS, DEVICE_SHORT, DEVICE_ICONS } from './devices/index.js';
 import { createJulong } from './julong.js';
+import { createLabTimer, parseDuration, formatClock } from './timer.js';
 import { registerServiceWorker } from './pwa.js';
 import { overview, summarise, toCsv } from './admin-stats.js';
 import { customContent, loadCustomContent, saveCustomContent } from './content.js';
@@ -783,15 +784,21 @@ function labNav(lab, trackId) {
   };
 }
 
-function runLabView({ lab, trackId, backHref, hero }) {
+// นาฬิกาของหน้า Lab ที่เปิดอยู่ตอนนี้ — เก็บไว้เพื่อหยุดตอนออกจากหน้า
+let activeTimer = null;
+const stopLabTimer = () => { if (activeTimer) { activeTimer.destroy(); activeTimer = null; } };
+
+function runLabView({ lab, trackId, backHref, hero, timeLimit = 0 }) {
   const done = new Array(lab.tasks.length).fill(false);
   let recorded = (store.labOf(trackId, lab.id) || {}).done;
+  const prevBest = (store.labOf(trackId, lab.id) || {}).bestSeconds || 0;
 
   view().innerHTML = `
     ${hero}
     <div class="lab">
       <div id="term-mount"></div>
       <div class="lab-side">
+        <div id="timer-slot"></div>
         <!-- ปุ่มจบ Lab อยู่เหนือรายการสิ่งที่ต้องทำ จะได้ไม่ต้องเลื่อนหาตอนทำเสร็จ -->
         <div id="nav-slot"></div>
         <div class="tasks">
@@ -838,11 +845,18 @@ function runLabView({ lab, trackId, backHref, hero }) {
   // ปุ่มท้าย Lab: ไป Lab ถัดไป · กลับบทเรียนที่มา · กลับหน้าหลัก
   const nav = labNav(lab, trackId);
   let finished = false;
-  function showFinish() {
+  function showFinish(usedSeconds = 0) {
     if (finished) return;
     finished = true;
+    const timeLine = usedSeconds
+      ? `<div style="font-size:11.8px;margin-bottom:8px;font-family:var(--mono);color:var(--txt-dim)">
+          ใช้เวลา <b style="color:var(--ok)">${formatClock(usedSeconds)}</b>${timeLimit
+        ? (usedSeconds <= timeLimit ? ' · ทันเวลาเป้าหมาย 🎯' : ' · ช้ากว่าเป้าหมาย')
+        : ''}${prevBest && usedSeconds < prevBest ? ' · ทำลายสถิติเดิม!' : ''}</div>`
+      : '';
     $('#nav-slot').innerHTML = `<div class="card" id="lab-finish" style="margin-bottom:12px;border-color:var(--ok)">
       <h4 style="margin:0 0 4px;font-size:13px;font-family:var(--mono);color:var(--ok)">✓ ทำครบทุกข้อแล้ว</h4>
+      ${timeLine}
       ${nav.next ? `<div class="muted" style="font-size:11.8px;line-height:1.5;margin-bottom:10px">
         ถัดไป: ${esc(nav.next.title)}</div>`
       : `<div class="muted" style="font-size:11.8px;line-height:1.5;margin-bottom:10px">
@@ -857,6 +871,26 @@ function runLabView({ lab, trackId, backHref, hero }) {
     const go = { next: nav.next && nav.next.href, back: backHref || nav.back, home: '#/' };
     $('#nav-slot').querySelectorAll('[data-nav]').forEach(b =>
       b.addEventListener('click', () => { location.hash = go[b.dataset.nav]; }));
+  }
+
+  // ---------- จับเวลา ----------
+  // Lab ปกตินับขึ้นเฉย ๆ · เอาชีวิตรอดนับถอยหลังจากเวลาเป้าหมายของเหตุการณ์
+  const timer = createLabTimer({
+    limit: timeLimit,
+    onExpire: () => {
+      if (!julong) return;
+      julong.defeat({
+        title: 'หมดเวลาแล้ว',
+        sub: `เป้าหมายคือ ${formatClock(timeLimit)} — ทำได้ ${done.filter(Boolean).length}/${lab.tasks.length} ข้อ`,
+        onRetry: () => { term.reset(); location.reload(); },
+      });
+    },
+  });
+  activeTimer = timer;
+  $('#timer-slot').appendChild(timer.el);
+  if (prevBest) {
+    const badge = h(`<div class="lab-best">สถิติของคุณ <b>${formatClock(prevBest)}</b></div>`);
+    $('#timer-slot').appendChild(badge);
   }
 
   // บอกจูล่งว่ากำลังทำ Lab ไหน ค้างข้อไหน จะได้ใบ้ได้ตรงจุด
@@ -882,10 +916,13 @@ function runLabView({ lab, trackId, backHref, hero }) {
       renderTasks();
       const n = done.filter(Boolean).length;
       // เก็บคำสั่งที่รันสำเร็จไว้ด้วย จะได้กลับมาทำต่อจากตรงนี้ได้
-      store.recordLab(trackId, lab.id, n, lab.tasks.length, isGui ? null : history);
+      const finished = n === lab.tasks.length;
+      // เวลาที่ใช้นับเฉพาะรอบที่ลงมือทำจริง — ตอนเล่นคำสั่งเก่าซ้ำไม่นับ
+      const usedSeconds = finished && !replaying ? timer.stop({ finished: true }) : 0;
+      store.recordLab(trackId, lab.id, n, lab.tasks.length, isGui ? null : history, usedSeconds);
       refreshChrome();
-      if (n === lab.tasks.length) {
-        showFinish();
+      if (finished) {
+        showFinish(usedSeconds);
         // จูล่งโผล่มาแสดงความยินดีทุกครั้งที่ทำจบในรอบนี้ (แม้เคยผ่านมาแล้วก็ยินดีด้วยอีก)
         // แต่ไม่โผล่ตอนเล่นคำสั่งเก่าซ้ำตอนกลับมาทำต่อ เพราะผู้ใช้ยังไม่ได้ลงมือทำอะไร
         if (!cheered && !replaying && julong) {
@@ -1087,6 +1124,7 @@ function vSurvive(id) {
 
   runLabView({
     lab, trackId: 'survival',
+    timeLimit: parseDuration(lab.time),
     hero: `
       <div class="alarm">
         <div class="hdr"><span class="blink">🚨</span> INCIDENT · ${sev.th} · แจ้งโดย ${esc(lab.caller)} · เป้าหมาย ${lab.time}</div>
@@ -2124,7 +2162,8 @@ function route() {
   }
 }
 
-window.addEventListener('hashchange', route);
+// หน้า Lab สร้างนาฬิกาไว้ ถ้าเปลี่ยนหน้าแล้วไม่หยุด มันจะเดินต่อและเด้งจูล่งมาฟันคอทั้งที่ออกไปแล้ว
+window.addEventListener('hashchange', () => { stopLabTimer(); route(); });
 window.addEventListener('progress-changed', () => { if (auth.current) { renderSide(); topStats(); } });
 $('#menu-toggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
 $('#rank-badge').addEventListener('click', () => { location.hash = '#/progress'; });
