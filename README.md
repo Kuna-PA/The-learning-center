@@ -61,13 +61,14 @@ npm test
 | | จำนวน |
 |---|---|
 | Learning Path (หัวข้อ) | **7** |
-| ระดับต่อหัวข้อ | **5** (Novice → Expert) · **Cisco CCNA** และ **Linux** มี **6** ระดับ |
-| ข้อสอบ | **1,017 ข้อ** (38 ชุด) |
+| ระดับต่อหัวข้อ | **5** (Novice → Expert) · **Network**, **Cisco CCNA** และ **Linux** มี **6** ระดับ |
+| ข้อสอบ | **1,025 ข้อ** (38 ชุด) |
 | Lab ปกติ | **149 ชุด / 1,409 ขั้นตอน** (ในนั้นเป็น Lab หน้าจอ GUI 15 ชุด) |
 | Lab หมวดเอาชีวิตรอด | **29 เหตุการณ์ / 303 ขั้นตอน** (4 ระดับความยาก) |
 | อุปกรณ์จำลอง | **7 แบบ** (รวมหน้าจอ GUI ของ Windows) |
 
-> ตัวเลขในตารางนี้ดึงของจริงมาตรวจได้ด้วย `npm run validate` — ถ้าเนื้อหาเปลี่ยนแล้วลืมแก้ README จะเห็นทันที
+> ตัวเลขในตารางนี้ **ถูกชุดทดสอบตรวจกับเนื้อหาจริง** (`test/content.test.js`) — เพิ่มข้อสอบหรือ Lab
+> แล้วลืมแก้ README เมื่อไร `npm test` จะฟ้องทันทีว่าเลขไหนไม่ตรงและของจริงคือเท่าไร
 
 ### 7 Learning Paths
 
@@ -345,7 +346,7 @@ Lab ตรวจจาก **สถานะของอุปกรณ์หล�
 ## 🧪 ชุดทดสอบ
 
 ```bash
-npm test              # ทั้งหมด (~200 เคส ไม่ถึง 3 วินาที)
+npm test              # ทั้งหมด (239 เคส ไม่ถึง 5 วินาที)
 npm run validate      # ตรวจเฉพาะเนื้อหา — ใช้ตอนเพิ่มบทเรียน/ข้อสอบ/Lab
 npm run test:watch    # รันซ้ำอัตโนมัติระหว่างแก้โค้ด
 ```
@@ -504,8 +505,15 @@ server.js             เสิร์ฟไฟล์ + mount API + security head
 sw.js                 service worker — ทำให้เปิดเว็บได้ตอนเน็ตหลุด
 manifest.webmanifest  ข้อมูลแอปสำหรับติดตั้งลงเครื่อง (PWA)
 icon-192.png icon-512.png   ไอคอนแอป
-assets/               รูปที่ใช้ในหน้าเว็บ (โลโก้ · จูล่ง) — สร้างด้วย scripts/make-assets.mjs
+INSTALL.md            คู่มือติดตั้ง (Windows · Ubuntu · Docker · สำรองข้อมูล · แก้ปัญหา)
+Dockerfile  docker-compose.yml  .dockerignore   รันเป็น container
+vercel.json  .vercelignore      deploy เป็น static site (โหมดออฟไลน์)
+assets/               รูปที่ใช้ในหน้าเว็บ
+  logo-full.png logo-mark.png favicon.png   โลโก้ — สร้างด้วย scripts/make-logo.mjs
+  julong.png julong-full.png                ตัวจูล่ง — สร้างด้วย scripts/make-assets.mjs
+  login-bg.jpg                              พื้นหลังหน้าเข้าสู่ระบบ
   devices/            ไอคอนอุปกรณ์รายตัว — ตัดจากแผ่นรวมด้วย scripts/split-device-icons.mjs
+  src/                ไฟล์ต้นฉบับของโลโก้และพื้นหลัง (ใช้แค่ตอนสร้าง asset ใหม่)
 server/
   db.js               schema และ query ทั้งหมด (node:sqlite)
   auth.js             scrypt, เซสชัน, cookie, กันเดารหัส
@@ -516,9 +524,11 @@ js/
   timer.js            นาฬิกาจับเวลาของ Lab (นับขึ้น / นับถอยหลัง)
   api.js              ตัวเรียก REST API
   auth.js             ผู้ใช้/บทบาท/session (แคชฝั่งเบราว์เซอร์)
+  local-mode.js       บัญชีและความคืบหน้าแบบไม่มีเซิร์ฟเวอร์ (static hosting)
   store.js            ความคืบหน้า/XP — sync กับเซิร์ฟเวอร์ + แคชออฟไลน์
   admin-stats.js      คิดตัวเลขให้แดชบอร์ดผู้ดูแล (ฟังก์ชันบริสุทธิ์ ทดสอบได้)
   content.js          โหลด/บันทึกเนื้อหาที่ผู้ดูแลเพิ่มเอง
+  julong.js           ผู้ช่วยมุมขวาล่าง
   pwa.js              ลงทะเบียน service worker
   terminal.js         คอมโพเนนต์ command prompt
   gui/
@@ -526,17 +536,20 @@ js/
   devices/
     cisco.js  mikrotik.js  linux.js  windows.js  util.js  index.js
 data/
-  levels.js           นิยาม 5 ระดับ
+  levels.js           นิยาม 6 ระดับ (5 ระดับตาม Dreyfus + Mastery)
   custom.js           โครงเนื้อหาที่ผู้ดูแลเพิ่มเอง + ตัวแปลงกติกาตรวจ Lab เป็นฟังก์ชัน
-  tracks/             บทเรียน + ข้อสอบ + lab หลัก
-    cisco-switch.js  mikrotik-router.js  mikrotik-switch.js
-    windows-server.js  linux.js  cyber-security.js  index.js
+  tracks/             บทเรียน + lab หลัก ของแต่ละหัวข้อ
+    network.js  cisco-switch.js  mikrotik-router.js  mikrotik-switch.js
+    windows-server.js  linux.js  cyber-security.js  icons.js  index.js
+    cisco/  mikrotik/  linux/  cyber/      บทเรียนที่แยกไฟล์ย่อยเพราะยาวมาก
+  quiz/               คลังข้อสอบแยกตามหัวข้อ
   labs/               lab เพิ่มเติม + หมวดเอาชีวิตรอด
     cisco-extra.js  mikrotik-router-extra.js  mikrotik-switch-extra.js
     windows-extra.js  windows-gui.js  linux-extra.js
+    network-linux-extra.js   เวอร์ชัน Linux ของ lab หัวข้อ Network (ของเสริม)
     survival.js  survival2.js  index.js
 test/                 ชุดทดสอบ (node --test)
-  labs.test.js  content.test.js  api.test.js  emulator.test.js  admin.test.js
+  labs.test.js  content.test.js  api.test.js  emulator.test.js  admin.test.js  timer.test.js
   helpers/
     lab-runner.js       เล่น Lab แบบ CLI ให้จบด้วยคำใบ้ของมันเอง
     gui-runner.js       เล่น Lab แบบ GUI ผ่าน GUI_ACTIONS
@@ -545,9 +558,15 @@ test/                 ชุดทดสอบ (node --test)
     server.js           เปิดเซิร์ฟเวอร์จริงบนฐานข้อมูล temp
 scripts/
   validate-content.mjs  npm run validate
-  make-assets.mjs       ตัดพื้นหลังรูปต้นฉบับเป็น asset ของเว็บ
+  backup-db.mjs         npm run backup — สำรองได้ขณะเซิร์ฟเวอร์ทำงาน
+  reset-password.mjs    npm run reset-password -- <ผู้ใช้>
+  make-logo.mjs         สร้างโลโก้และไอคอนจากไฟล์ต้นฉบับ
+  make-assets.mjs       ตัดพื้นหลังรูปตัวจูล่ง
+  split-device-icons.mjs  ตัดไอคอนอุปกรณ์จากแผ่นรวม
   lib/img.mjs           อ่าน BMP / เขียน PNG / ลบพื้นหลัง (เขียนเอง ไม่มี dependency)
 .github/workflows/ci.yml   รันเทสต์ทุก push / PR
+data-db/              ฐานข้อมูลจริง — ถูก .gitignore ไว้
+backup/               ไฟล์สำรอง — ถูก .gitignore ไว้
 ```
 
 ---

@@ -74,3 +74,42 @@ test('ไฟล์รูปที่หน้าเว็บอ้างถึ�
   }
   assert.deepEqual(missing, []);
 });
+
+/**
+ * README โฆษณาตัวเลขเนื้อหาไว้ในตาราง "ภาพรวมเนื้อหา"
+ * ถ้าเพิ่มข้อสอบหรือ Lab แล้วลืมแก้ README ตัวเลขจะเพี้ยนเงียบ ๆ จนไม่มีใครรู้
+ * — เคยเพี้ยนมาแล้วจริง (เขียน 1,017 ข้อ ทั้งที่มี 1,025)
+ * เทสต์นี้อ่านเลขจาก README มาเทียบกับของจริง แล้วบอกเลยว่าควรเป็นเท่าไร
+ */
+test('ตัวเลขในตาราง "ภาพรวมเนื้อหา" ของ README ตรงกับเนื้อหาจริง', () => {
+  const md = readFileSync(join(ROOT, 'README.md'), 'utf8');
+  const s = contentStats();
+  const num = (label, re) => {
+    const m = md.match(re);
+    assert.ok(m, `หาบรรทัด "${label}" ใน README ไม่เจอ — ถ้าแก้หัวตารางแล้ว ต้องแก้ regex ในเทสต์นี้ด้วย`);
+    return Number(m[1].replace(/,/g, ''));
+  };
+  const checks = [
+    ['หัวข้อ', /\| Learning Path \(หัวข้อ\) \| \*\*([\d,]+)\*\*/, s.tracks],
+    ['ข้อสอบ', /\| ข้อสอบ \| \*\*([\d,]+) ข้อ\*\*/, s.quiz],
+    ['จำนวนชุดข้อสอบ', /\| ข้อสอบ \| \*\*[\d,]+ ข้อ\*\* \(([\d,]+) ชุด\)/, s.levels],
+    ['Lab', /\| Lab ปกติ \| \*\*([\d,]+) ชุด/, s.labs],
+    ['ขั้นตอนของ Lab', /\| Lab ปกติ \| \*\*[\d,]+ ชุด \/ ([\d,]+) ขั้นตอน/, s.labTasks],
+    ['เหตุการณ์เอาชีวิตรอด', /\| Lab หมวดเอาชีวิตรอด \| \*\*([\d,]+) เหตุการณ์/, s.survival],
+    ['ขั้นตอนเอาชีวิตรอด', /\| Lab หมวดเอาชีวิตรอด \| \*\*[\d,]+ เหตุการณ์ \/ ([\d,]+) ขั้นตอน/, s.survivalTasks],
+  ];
+  const wrong = checks
+    .map(([label, re, real]) => ({ label, inReadme: num(label, re), real }))
+    .filter(c => c.inReadme !== c.real);
+  assert.deepEqual(wrong, [],
+    'README ไม่ตรงกับเนื้อหาจริง — แก้ตัวเลขในตาราง "ภาพรวมเนื้อหา" ให้ตรงกับคอลัมน์ real');
+});
+
+/** จำนวน Lab ที่เป็นหน้าจอ GUI ก็โฆษณาไว้ใน README เหมือนกัน */
+test('จำนวน Lab แบบหน้าจอ GUI ใน README ตรงกับของจริง', () => {
+  const md = readFileSync(join(ROOT, 'README.md'), 'utf8');
+  const m = md.match(/ในนั้นเป็น Lab หน้าจอ GUI ([\d,]+) ชุด/);
+  assert.ok(m, 'หาจำนวน Lab GUI ใน README ไม่เจอ');
+  const real = ALL_LABS.filter(l => l.device === 'windows-gui').length;
+  assert.equal(Number(m[1].replace(/,/g, '')), real, `ของจริงมี Lab GUI ${real} ชุด`);
+});
