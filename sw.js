@@ -11,8 +11,11 @@
 //
 //  /api/ ไม่แตะเลย — บัญชีและความคืบหน้าต้องเป็นของสดจากเซิร์ฟเวอร์เสมอ
 // ============================================================
-const VERSION = 'lc-v2';
-const CACHE = 'learning-center-' + VERSION;
+const VERSION = 'asd-v2';
+const CACHE = 'asd-academy-' + VERSION;
+
+// ชื่อแคชที่เคยใช้ — ต้องตามไปลบด้วยตอนเปลี่ยนชื่อเว็บ ไม่งั้นค้างกินที่ในเครื่องผู้เรียนตลอดไป
+const OLD_PREFIXES = ['learning-center-'];
 
 // โครงหลักที่ต้องมีตั้งแต่ยังไม่เคยเปิดหน้าไหนเลย ที่เหลือเก็บเองตอนใช้งานจริง
 const PRECACHE = [
@@ -22,6 +25,7 @@ const PRECACHE = [
   './js/app.js',
   './assets/logo-mark.png',
   './assets/logo-full.png',
+  './assets/login-bg.jpg',
   './assets/julong.png',
   './assets/julong-full.png',
   './assets/favicon.png',
@@ -44,7 +48,8 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k.startsWith('learning-center-') && k !== CACHE)
+    const mine = (k) => k.startsWith('asd-academy-') || OLD_PREFIXES.some((p) => k.startsWith(p));
+    await Promise.all(keys.filter((k) => mine(k) && k !== CACHE)
       .map((k) => caches.delete(k)));
     await self.clients.claim();
   })());

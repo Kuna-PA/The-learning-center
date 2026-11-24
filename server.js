@@ -1,5 +1,5 @@
 // ============================================================
-//  IT / SysEng Learning Center — เซิร์ฟเวอร์
+//  ASD ACADEMY — เซิร์ฟเวอร์
 //  เสิร์ฟไฟล์หน้าเว็บ + REST API สำหรับบัญชีผู้ใช้และความคืบหน้า
 //  ใช้เฉพาะของที่ติดมากับ Node เอง ไม่มี dependency ภายนอก
 //
@@ -106,7 +106,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   const first = ensureFirstAdmin();
-  console.log(`Learning Center พร้อมใช้งานที่  http://localhost:${PORT}`);
+  console.log(`ASD ACADEMY พร้อมใช้งานที่  http://localhost:${PORT}`);
   console.log(`ฐานข้อมูล: ${DB_PATH}`);
   if (first) {
     console.log('');

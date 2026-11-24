@@ -209,7 +209,7 @@ function renderLogin(err = '') {
   lw.innerHTML = `
     <div class="login-card">
       <div class="brand">
-        <img class="brand-logo" src="assets/logo-full.png" alt="The Learning Center">
+        <img class="brand-logo" src="assets/logo-full.png" alt="ASD ACADEMY">
       </div>
       <h1>${loginMode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครบัญชีผู้เรียน'}</h1>
       <div class="sub">${loginMode === 'login' ? 'ความคืบหน้าจะถูกเก็บแยกตามบัญชีของคุณ' : 'สร้างบัญชีใหม่เพื่อเริ่มเก็บความคืบหน้า'}</div>
@@ -387,7 +387,7 @@ function vDashboard() {
     <div class="room-hero" style="--hero:rgba(230,57,74,.22)">
       <div class="room-ico"><img class="hero-logo" src="assets/logo-mark.png" alt=""></div>
       <div class="room-meta">
-        <span class="pill acc">THE LEARNING CENTER</span>
+        <span class="pill acc">ASD ACADEMY</span>
         <h1>สวัสดี ${esc(u.display || u.username)} 👋</h1>
         <p>เส้นทางเรียนรู้สำหรับ IT / System / Network Engineer — ${TRACKS.length} หัวข้อ 5–6 ระดับ
            พร้อม Lab ที่มี command prompt จำลอง และหมวด "เอาชีวิตรอด" ที่จำลองเหตุการณ์จริง</p>
@@ -1336,7 +1336,7 @@ function vProgress() {
     const blob = new Blob([store.export()], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `learning-center-${auth.username}.json`;
+    a.download = `asd-academy-${auth.username}.json`;
     a.click(); URL.revokeObjectURL(a.href);
   });
   $('#imp').addEventListener('click', () => $('#impf').click());
@@ -1571,7 +1571,7 @@ function vAdmin() {
     const blob = new Blob(['\uFEFF' + toCsv(o.rows, CONTENT)], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `learning-center-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `asd-academy-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   });
@@ -2101,7 +2101,7 @@ function vAdminContent() {
     const blob = new Blob([JSON.stringify(c, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `learning-center-content-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `asd-academy-content-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   });

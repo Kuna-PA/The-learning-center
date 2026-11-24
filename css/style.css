@@ -1,5 +1,5 @@
 /* ============================================================
-   IT / SysEng Learning Center — ธีมแบบ TryHackMe
+   ASD ACADEMY — ธีมแบบ TryHackMe
    ============================================================ */
 :root{
   --bg:#0b0e14;
@@ -55,14 +55,31 @@ button{font-family:inherit}
 /* ---------- LOGIN ---------- */
 #login-wrap{
   position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:20px;
-  background:radial-gradient(1000px 600px at 50% -20%, rgba(230,57,74,.16), transparent 60%), var(--bg);
+  background:var(--bg);
   overflow:auto;
 }
-.login-card{
-  width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);
-  border-radius:16px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.55);
+/* รูปพื้นหลัง — เบลอนิดเดียวเพื่อไม่ให้ลายเส้นในภาพแย่งสายตากับฟอร์ม
+   scale เกินนิดหน่อยกันขอบจาง ๆ ที่เกิดจากการเบลอถึงขอบจอ */
+#login-wrap::before{
+  content:'';position:fixed;inset:0;z-index:0;
+  background:url('../assets/login-bg.jpg') center/cover no-repeat;
+  filter:blur(2px);transform:scale(1.04);
 }
-.login-card .brand{border:0;padding:0 0 18px;justify-content:center}
+/* ฝ้ามืดคลุมทับ — ตรงกลางเข้มกว่าขอบ ให้การ์ดล็อกอินลอยเด่นและตัวหนังสืออ่านง่าย */
+#login-wrap::after{
+  content:'';position:fixed;inset:0;z-index:0;
+  background:
+    radial-gradient(760px 520px at 50% 50%, rgba(11,14,20,.80), rgba(11,14,20,.62) 60%, rgba(11,14,20,.72)),
+    radial-gradient(1000px 600px at 50% -20%, rgba(230,57,74,.18), transparent 60%);
+}
+.login-card{
+  position:relative;z-index:1;
+  width:100%;max-width:420px;background:rgba(22,27,38,.86);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1px solid var(--line);
+  border-radius:16px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.6);
+}
+.login-card .brand{border:0;padding:0 0 18px;justify-content:center;flex-direction:column;gap:12px}
 .login-card h1{font-size:20px;margin:0 0 4px;text-align:center}
 .login-card .sub{font-size:13px;color:var(--txt-mute);text-align:center;margin-bottom:20px}
 .fld{margin-bottom:13px}
@@ -115,14 +132,14 @@ button{font-family:inherit}
 }
 .brand{display:flex;gap:11px;align-items:center;padding:2px 4px 12px;border-bottom:1px solid var(--line-soft)}
 /* โลโก้จริงของศูนย์เรียนรู้ — ไฟล์ PNG พื้นโปร่งใสที่ตัดมาจากไฟล์ต้นฉบับ */
-.brand-mark{width:40px;height:40px;object-fit:contain;flex:none;
+.brand-mark{width:46px;height:34px;object-fit:contain;flex:none;
   filter:drop-shadow(0 4px 14px rgba(56,189,248,.28))}
-.login-card .brand-logo{width:min(300px,86%);height:auto;display:block;margin:0 auto;
+.login-card .brand-logo{width:min(310px,88%);height:auto;display:block;margin:0 auto;
   filter:drop-shadow(0 6px 20px rgba(56,189,248,.22))}
 
 /* ไอคอน SVG ของ Learning Path — ทำตัวเหมือน emoji คือโตตาม font-size ของที่ที่วาง */
 .ic{width:1em;height:1em;display:inline-block;vertical-align:-.14em;flex:none}
-.brand-title{font-weight:700;font-size:14.5px;letter-spacing:.2px}
+.brand-title{font-weight:700;font-size:14px;letter-spacing:1.2px}
 .brand-sub{font-size:11px;color:var(--txt-mute);font-family:var(--mono)}
 #nav{display:flex;flex-direction:column;gap:2px;flex:1}
 .nav-h{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt-mute);margin:14px 8px 5px;font-weight:700}

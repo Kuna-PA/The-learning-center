@@ -1,16 +1,18 @@
 {
-  "name": "learning-center",
+  "name": "asd-academy",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "IT / SysEng Learning Center — เว็บเรียนรู้พร้อม Lab จำลองอุปกรณ์จริง",
+  "description": "ASD ACADEMY — เว็บเรียนรู้ IT / SysEng พร้อม Lab จำลองอุปกรณ์จริง",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node --test \"test/*.test.js\"",
     "test:watch": "node --test --watch \"test/*.test.js\"",
-    "validate": "node scripts/validate-content.mjs"
+    "validate": "node scripts/validate-content.mjs",
+    "backup": "node scripts/backup-db.mjs",
+    "reset-password": "node scripts/reset-password.mjs"
   },
   "engines": {
     "node": ">=22.5.0"
