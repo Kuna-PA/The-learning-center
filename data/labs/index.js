@@ -5,6 +5,7 @@ import mtSwitch from './mikrotik-switch-extra.js';
 import win from './windows-extra.js';
 import winGui from './windows-gui.js';
 import linux from './linux-extra.js';
+import networkLinux from './network-linux-extra.js';
 
 // รวมชุด lab หลายชุดที่แยกไฟล์กันไว้ ให้อยู่ในระดับเดียวกัน
 const mergeByLevel = (...sets) => {
@@ -21,6 +22,8 @@ export const EXTRA_LABS = {
   'mikrotik-switch': mtSwitch,
   'windows-server': mergeByLevel(win, winGui),
   'linux': linux,
+  // Lab หลักของ Network เป็น Windows (อยู่ใน data/tracks/network.js) ชุดนี้คือเวอร์ชัน Linux ที่เป็นของเสริม
+  'network': networkLinux,
 };
 
 export function mergeExtraLabs(tracks) {

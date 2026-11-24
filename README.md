@@ -1,4 +1,4 @@
-# IT / SysEng Learning Center
+# ASD ACADEMY — IT / SysEng Learning Center
 
 เว็บแอปฝึกและทดสอบความรู้สำหรับ **IT Support / System Engineer / Network Engineer / Security**
 ธีมและรูปแบบการใช้งานได้แรงบันดาลใจจาก TryHackMe — มี Learning Path, Room, ระดับความยาก,
@@ -10,6 +10,9 @@ XP/Rank, Lab ที่มี **command prompt จำลอง** และใบ�
 
 ไม่ต้องติดตั้งอะไรเลย (ไม่มี dependency, ไม่ต้อง build) ต้องใช้ **Node 22.5 ขึ้นไป**
 เพราะใช้ `node:sqlite` ที่ติดมากับ Node เอง
+
+> 📘 ติดตั้งครั้งแรก ตั้งให้รันเป็น service สำรองข้อมูล และแก้ปัญหาที่พบบ่อย
+> ดูคู่มือเต็ม → **[INSTALL.md](INSTALL.md)**
 
 ```bash
 npm start
@@ -24,6 +27,12 @@ npm start
 
 ```bash
 LC_ADMIN_PASSWORD='รหัสที่ต้องการ' npm start
+```
+
+บน Windows PowerShell ใช้ไวยากรณ์นี้แทน (แบบข้างบนเป็นของ bash ใช้กับ PowerShell ไม่ได้):
+
+```powershell
+$env:LC_ADMIN_PASSWORD = 'รหัสที่ต้องการ'; npm start
 ```
 
 | ตัวแปร | ค่าเริ่มต้น | ใช้ทำอะไร |
@@ -54,7 +63,7 @@ npm test
 | Learning Path (หัวข้อ) | **7** |
 | ระดับต่อหัวข้อ | **5** (Novice → Expert) · **Cisco CCNA** และ **Linux** มี **6** ระดับ |
 | ข้อสอบ | **1,017 ข้อ** (38 ชุด) |
-| Lab ปกติ | **143 ชุด / 1,360 ขั้นตอน** (ในนั้นเป็น Lab หน้าจอ GUI 14 ชุด) |
+| Lab ปกติ | **149 ชุด / 1,409 ขั้นตอน** (ในนั้นเป็น Lab หน้าจอ GUI 15 ชุด) |
 | Lab หมวดเอาชีวิตรอด | **29 เหตุการณ์ / 303 ขั้นตอน** (4 ระดับความยาก) |
 | อุปกรณ์จำลอง | **7 แบบ** (รวมหน้าจอ GUI ของ Windows) |
 
@@ -211,14 +220,16 @@ data/tracks/linux/
 
 ## 🖱️ Lab แบบหน้าจอ GUI ของ Windows
 
-นอกจาก PowerShell แล้ว หัวข้อ Windows Server ยังมี **Lab ที่เป็นหน้าจอ GUI จำลอง** —
+นอกจาก PowerShell แล้ว หัวข้อ Windows Server และ Network ยังมี **Lab ที่เป็นหน้าจอ GUI จำลอง** —
 เดสก์ท็อป Windows Server ที่มีไอคอน แถบงาน ปุ่ม Start และหน้าต่างที่ลาก ย่อ ปิดได้จริง
+
+Lab แบบนี้ออกแบบมาสำหรับผู้อบรมที่**ยังไม่เคยใช้ command line** — ทำได้ด้วยการคลิกล้วน ๆ
 
 **โปรแกรมที่จำลองไว้ 15 ตัว:**
 
 | โปรแกรม | ทำอะไรได้ |
 |---|---|
-| Network Connections (`ncpa.cpl`) | ตั้ง IP/Subnet/Gateway/DNS ผ่านหน้าต่าง TCP/IPv4 Properties · Enable/Disable การ์ด |
+| Network Connections (`ncpa.cpl`) | ตั้ง IP/Subnet/Gateway/DNS ผ่านหน้าต่าง TCP/IPv4 Properties · Enable/Disable การ์ด · **Status** (speed, duplex, bytes, ตัวนับ error) · **Details** (MAC, DHCP, IPv4, IPv6 link-local) · **Configure → Advanced** (Speed & Duplex, Jumbo Packet) |
 | Services (`services.msc`) | Start / Stop / Restart · เปลี่ยน Startup Type |
 | Task Manager | ดู process พร้อม CPU/RAM · End task |
 | Local Users and Groups | สร้าง user · เพิ่มสมาชิกเข้ากลุ่ม |
@@ -434,7 +445,10 @@ LC_ADMIN_PASSWORD='รหัสที่ต้องการ' PORT=8080 npm sta
 ```
 
 ให้ reverse proxy (nginx / Caddy) ครอบด้วย HTTPS แล้วชี้มาที่พอร์ตนั้น
-สำรองข้อมูลคือคัดลอกไฟล์ `data-db/learning-center.db` ไฟล์เดียว
+
+สำรองข้อมูลด้วย `npm run backup` — ทำได้ขณะเซิร์ฟเวอร์ยังทำงาน เพราะใช้ backup API ของ SQLite เอง
+(ฐานข้อมูลเปิดโหมด WAL อยู่ การ copy แค่ไฟล์ `.db` ตอนเซิร์ฟเวอร์ยังรันจะได้ข้อมูลไม่ครบ)
+รายละเอียดการตั้ง service, สำรองอัตโนมัติ และกู้คืน อยู่ใน [INSTALL.md](INSTALL.md)
 
 ---
 
@@ -628,12 +642,59 @@ scripts/
 
 | ที่ | ใช้ไฟล์ | อยู่ตรงไหน |
 |---|---|---|
-| โลโก้ (เฉพาะสัญลักษณ์) | `assets/logo-mark.png` | แถบข้างซ้าย · การ์ดบนหน้าหลัก |
-| โลโก้เต็ม (มีตัวหนังสือ) | `assets/logo-full.png` | หน้าเข้าสู่ระบบ |
+| โลโก้ (เฉพาะโล่) | `assets/logo-mark.png` | แถบข้างซ้าย · การ์ดบนหน้าหลัก |
+| โลโก้เต็ม (โล่ + ตัวหนังสือ) | `assets/logo-full.png` | หน้าเข้าสู่ระบบ · ใช้ได้ทั้งพื้นมืดและพื้นขาว ไม่ต้องมีสองเวอร์ชัน |
+| พื้นหลังหน้าเข้าสู่ระบบ | `assets/login-bg.jpg` | ย่อเหลือ 1920px · 288 KB · เบลอ 2px และคลุมฝ้ามืดด้วย CSS ให้ฟอร์มอ่านง่าย |
+| ต้นฉบับ | `assets/src/asd-logo.png` · `assets/src/login-bg.jpeg` | ไฟล์ตั้งต้น เก็บไว้ให้สร้างใหม่ได้ |
 | ไอคอนแอป | `icon-192.png` · `icon-512.png` · `assets/favicon.png` | แท็บเบราว์เซอร์ · ตอนติดตั้งเป็นแอป |
 | จูล่ง (ครึ่งตัว) | `assets/julong.png` | ปุ่มลอยมุมขวาล่าง · หัวแผงสนทนา |
 | จูล่ง (เต็มตัว) | `assets/julong-full.png` | ป๊อปอัพแสดงความยินดีตอนทำ Lab จบ |
 | ไอคอนอุปกรณ์ | `assets/devices/*.png` | หัวหน้า Lab · ตารางอุปกรณ์ในบทเรียน · ข้อสอบแบบดูภาพ |
+
+### สร้างไฟล์โลโก้ใหม่
+
+โลโก้เป็นแบบวางซ้อน: ตัว A พร้อมหมวกบัณฑิตและหนังสืออยู่บน · ตัวหนังสือ ASD-ACADEMY.COM
+และบรรทัดรองอยู่ล่าง ทั้งหมดเป็นโทนน้ำเงินบนพื้นขาว
+
+ไฟล์ต้นฉบับไม่มีความโปร่งใส (ตรวจแล้วเป็น RGB ไม่มีช่อง alpha เลย) `make-logo.mjs` จึงตัดพื้นหลังเอง
+โดยใช้ **ความอิ่มสี** เป็นค่า alpha — พื้นขาวมีความอิ่มสีสูงสุดแค่ 2 ส่วนงานโลโก้เป็นน้ำเงินล้วน
+(ในกรอบเนื้อหามีพิกเซลที่มีสี 270,155 จุด เทาแค่ 2,519 จุด) จึงแยกกันได้หมดจด
+วิธีนี้ลบ**ช่องว่างที่ถูกตัวอักษรล้อมปิดไว้** (ใจกลาง A · D · O) ได้ด้วย ซึ่งการเทสีจากขอบเข้ามาทำไม่ได้
+
+จากนั้น**ยกความสว่างของน้ำเงินเข้ม**ให้อ่านออกบนธีมมืด — สีเข้มสุดในโลโก้คือ `rgb(0,1,54)`
+ซึ่งบนพื้น `#0b0e14` ได้ contrast **1.00:1 คือมองไม่เห็นเลย** หลังปรับได้เฉลี่ย **6.98:1**
+ใช้วิธีขยับค่า L ใน HSL ไม่ใช่ผสมสีขาว เพราะการผสมขาวจะทำให้น้ำเงินกลายเป็นเทา
+
+```powershell
+Add-Type -AssemblyName System.Drawing
+$i=[System.Drawing.Image]::FromFile('assets\src\asd-logo.png'); $b=New-Object System.Drawing.Bitmap($i.Width,$i.Height,'Format32bppArgb'); $g=[System.Drawing.Graphics]::FromImage($b); $g.DrawImage($i,0,0,$i.Width,$i.Height); $g.Dispose(); $b.Save("$pwd\asd-logo.bmp",'Bmp')
+```
+
+```powershell
+node scripts/make-logo.mjs asd-logo.bmp
+```
+
+ได้ `logo-full.png` · `logo-mark.png` · `favicon.png` · `icon-192.png` · `icon-512.png`
+ถ้าเปลี่ยนโลโก้เป็นรูปอื่น ต้องแก้ค่า `LOGO_FULL` / `LOGO_MARK` ในสคริปต์ให้ตรงกับพิกัดของรูปใหม่
+
+### เปลี่ยนชื่อเว็บ
+
+ชื่อ **ASD ACADEMY** ที่เป็น*ข้อความ* (ไม่ใช่ตัวที่อยู่ในรูปโลโก้) อยู่ใน 6 ไฟล์นี้:
+
+| ไฟล์ | จุดที่แก้ |
+|---|---|
+| `index.html` | `<title>` และ `.brand-title` ในแถบข้างซ้าย |
+| `js/app.js` | ป้ายบนการ์ดหน้าหลัก · ชื่อไฟล์ตอนกดดาวน์โหลด (3 จุด) |
+| `manifest.webmanifest` | `name` · `short_name` ที่ขึ้นตอนติดตั้งเป็นแอป |
+| `server.js` | ข้อความที่พิมพ์ออก console ตอนสตาร์ต |
+| `sw.js` | `CACHE` — เปลี่ยนแล้วต้องใส่ชื่อเดิมลง `OLD_PREFIXES` ด้วย ไม่งั้นแคชเก่าค้างในเครื่องผู้เรียน |
+| `package.json` | `name` · `description` |
+
+> คำว่า **ASD ACADEMY** บนหน้าเข้าสู่ระบบมาจากรูปโลโก้ ไม่ใช่ข้อความ — เปลี่ยนชื่อแบรนด์
+> ต้องทำไฟล์โลโก้ใหม่ด้วย ดู [สร้างไฟล์โลโก้ใหม่](#สร้างไฟล์โลโก้ใหม่)
+>
+> **ห้ามเปลี่ยน** ชื่อไฟล์ `data-db/learning-center.db` ตามไปด้วย — ระบบจะมองไม่เห็นข้อมูลเดิม
+> แล้วสร้างฐานข้อมูลเปล่าขึ้นใหม่ทันที
 
 ### ไอคอนอุปกรณ์ (15 ตัว)
 

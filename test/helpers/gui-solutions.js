@@ -14,6 +14,18 @@
 //  ชุดทดสอบจะข้ามไป แต่รายงานชื่อ lab ที่ยังขาดออกมาให้เห็น
 // ============================================================
 export const GUI_SOLUTIONS = {
+  // ---------------- หัวข้อ Network ----------------
+  // ไล่ดูสถานะลิงก์ → เจอว่าวิ่ง 100 Mbps Half → แก้ที่แท็บ Advanced ของไดรเวอร์ → ดูผลอีกรอบ
+  'net-l1-phy-gui': [
+    ['open', { app: 'ncpa.cpl' }],
+    ['nic-status', { nic: 'Ethernet0' }],
+    ['nic-details', { nic: 'Ethernet0' }],
+    ['nic-advanced', { nic: 'Ethernet0' }],
+    ['nic-linkspeed', { nic: 'Ethernet0', mode: 'Auto Negotiation' }],
+    ['nic-mtu', { nic: 'Ethernet0', mtu: 9014 }],
+    ['nic-status', { nic: 'Ethernet0' }],
+  ],
+
   // ---------------- LEVEL 1 ----------------
   'wg1-netconfig': [
     ['open', { app: 'ncpa.cpl' }],

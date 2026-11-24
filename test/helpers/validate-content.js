@@ -29,6 +29,36 @@ function checkLab(lab, where, problems) {
 }
 
 /** ตรวจข้อสอบหนึ่งข้อ */
+/**
+ * ตัวเลือกที่เป็น "ตระกูลเดียวกัน" ทั้งชุด บอกเป็นนัยว่าคำถามต้องถามเรื่องนั้น
+ * ถ้าไม่ตรงกันแปลว่าข้อความคำถามถูกเขียนทับด้วยคำถามอื่น — เคยหลุดมาแล้วหนึ่งข้อ
+ * (ตัวเลือกเป็นชั้น OSI ครบสี่ข้อ แต่คำถามกลับถามว่าควรใช้สายแบบไหน)
+ * เพิ่มตระกูลใหม่ได้ แต่ต้องรันกับคลังข้อสอบทั้งหมดก่อนว่าไม่ฟ้องผิด
+ */
+const OPT_FAMILIES = [
+  {
+    name: 'ชั้นของ OSI',
+    every: o => /^ชั้น\s*\d/.test(o),
+    asks: /ชั้น|osi|layer/i,
+  },
+  {
+    name: 'IP / CIDR',
+    every: o => /^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(o),
+    asks: /ip|subnet|mask|gateway|host|network|เครือข่าย|วง|ปลายทาง|route|เส้นทาง|broadcast|prefix|address|เลข/i,
+  },
+];
+
+function checkOptionFamily(q, at) {
+  const opts = (q.opts || []).map(o => String(o).replace(/<[^>]*>/g, '').trim());
+  if (opts.length < 2) return;
+  for (const f of OPT_FAMILIES) {
+    if (!opts.every(f.every)) continue;
+    if (f.asks.test(String(q.q))) return;
+    at(`ตัวเลือกทุกข้อเป็น${f.name} แต่คำถามไม่ได้ถามเรื่องนั้น — คำถามกับตัวเลือกน่าจะคนละเรื่อง`);
+    return;
+  }
+}
+
 function checkQuestion(q, where, problems) {
   const at = m => problems.push(`${where} · ${m}`);
   if (!QUIZ_TYPES.includes(q.type)) return at(`type "${q.type}" ไม่รองรับ (ต้องเป็น ${QUIZ_TYPES.join(' / ')})`);

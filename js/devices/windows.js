@@ -25,6 +25,22 @@ function parseParams(tokens) {
   return { p, pos };
 }
 
+/** 255.255.255.192 -> 26 · รองรับทุก mask ไม่ใช่แค่ /24 /16 ที่เคยฮาร์ดโค้ดไว้ */
+const maskToPrefix = (mask) => {
+  const parts = String(mask || '').split('.').map(Number);
+  if (parts.length !== 4 || parts.some(n => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+  const bits = parts.map(n => n.toString(2).padStart(8, '0')).join('');
+  if (!/^1*0*$/.test(bits)) return null;          // mask ต้องเป็น 1 เรียงติดกันแล้วตามด้วย 0
+  return bits.indexOf('0') === -1 ? 32 : bits.indexOf('0');
+};
+/** 26 -> 255.255.255.192 */
+const prefixToMask = (p) => {
+  const n = Number(p);
+  if (!Number.isInteger(n) || n < 0 || n > 32) return '255.255.255.0';
+  const bits = '1'.repeat(n).padEnd(32, '0');
+  return [0, 8, 16, 24].map(i => parseInt(bits.slice(i, i + 8), 2)).join('.');
+};
+
 const FEATURES = {
   'AD-Domain-Services': 'Active Directory Domain Services',
   'DNS': 'DNS Server',
@@ -60,7 +76,16 @@ export function createWindows(init = {}) {
       LanmanServer: { display: 'Server', status: 'Running', start: 'Automatic' },
     },
     nics: {
-      Ethernet0: { ip: init.ip || '192.168.10.5', prefix: 24, gw: init.gw || '192.168.10.1', dns: init.dns || ['8.8.8.8'], dhcp: false, mac: '00-15-5D-01-0A-01', status: 'Up' },
+      Ethernet0: {
+        ip: init.ip || '192.168.10.5', prefix: 24, gw: init.gw || '192.168.10.1',
+        dns: init.dns || ['8.8.8.8'], dhcp: false, mac: '00-15-5D-01-0A-01', status: 'Up',
+        // ค่าชั้นกายภาพ/ดาต้าลิงก์ — หน้า Status ของ Windows และ Lab ชั้น 1-2 ใช้ชุดนี้
+        speed: 1000, duplex: 'Full', autoneg: true, mtu: 1500,
+        rxBytes: 48213904, txBytes: 9765412, rxErrors: 0, txErrors: 0, discards: 0,
+        upSince: Date.now() - 3 * 3600 * 1000,
+        // IPv6 — link-local มีเสมอบน Windows ส่วน global มีเมื่อได้ prefix จาก router
+        ipv6ll: 'fe80::a9c4:3f21:7b05:11de%12', ipv6: '', ipv6prefix: 64, ipv6gw: '',
+      },
     },
     localUsers: {
       Administrator: { enabled: true, desc: 'Built-in account for administering the computer/domain', groups: ['Administrators'] },
@@ -769,10 +794,13 @@ export function createWindows(init = {}) {
           out.push(`Ethernet adapter ${k}:`, '');
           out.push(`   Connection-specific DNS Suffix  . : ${st.domain || ''}`);
           if (all) out.push(`   Physical Address. . . . . . . . . : ${n.mac}`,
-            `   DHCP Enabled. . . . . . . . . . . : ${n.dhcp ? 'Yes' : 'No'}`);
+            `   DHCP Enabled. . . . . . . . . . . : ${n.dhcp ? 'Yes' : 'No'}`,
+            `   Autoconfiguration Enabled . . . . : Yes`);
+          if (n.ipv6) out.push(`   IPv6 Address. . . . . . . . . . . : ${n.ipv6}`);
+          if (n.ipv6ll) out.push(`   Link-local IPv6 Address . . . . . : ${n.ipv6ll}`);
           out.push(`   IPv4 Address. . . . . . . . . . . : ${n.ip}`,
-            `   Subnet Mask . . . . . . . . . . . : ${['0.0.0.0', '128.0.0.0', '255.0.0.0'][0] && n.prefix === 24 ? '255.255.255.0' : '255.255.0.0'}`,
-            `   Default Gateway . . . . . . . . . : ${n.gw || ''}`);
+            `   Subnet Mask . . . . . . . . . . . : ${prefixToMask(n.prefix)}`,
+            `   Default Gateway . . . . . . . . . : ${n.ipv6gw ? n.ipv6gw + '\n                                       ' + (n.gw || '') : (n.gw || '')}`);
           if (all) out.push(`   DNS Servers . . . . . . . . . . . : ${n.dns.join('\n                                       ')}`);
           out.push('');
         });
@@ -784,7 +812,21 @@ export function createWindows(init = {}) {
       case 'ping': {
         const host = args.find(a => !a.startsWith('-') && !a.startsWith('/'));
         if (!host) return [E('Usage: ping target_name')];
-        const ok = st.hosts[host] !== undefined || host === st.nics.Ethernet0.gw || /^127\./.test(host);
+        const n0 = st.nics.Ethernet0;
+        // IPv6 — loopback ::1 ตอบเสมอ · link-local และ global ตอบเมื่อตั้งไว้บนการ์ด
+        const v6 = host.includes(':');
+        if (v6) {
+          const bare = host.split('%')[0].toLowerCase();
+          const mine = [n0.ipv6ll, n0.ipv6, n0.ipv6gw].filter(Boolean).map(a => a.split('%')[0].toLowerCase());
+          const ok6 = bare === '::1' || mine.includes(bare) || st.hosts[host] !== undefined;
+          const out6 = ['', `Pinging ${host} with 32 bytes of data:`];
+          for (let i = 0; i < 4; i++) out6.push(ok6 ? `Reply from ${host}: time<1ms` : E('Destination host unreachable.'));
+          out6.push('', `Ping statistics for ${host}:`,
+            ok6 ? OK('    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),') : E('    Packets: Sent = 4, Received = 0, Lost = 4 (100% loss),'));
+          return out6;
+        }
+        if (args.some(a => /^-6$/.test(a))) return [E('Ping request could not find host. (ใส่ที่อยู่ IPv6 ด้วย เช่น ping -6 ::1)')];
+        const ok = st.hosts[host] !== undefined || host === n0.gw || /^127\./.test(host);
         const out = ['', `Pinging ${host} with 32 bytes of data:`];
         for (let i = 0; i < 4; i++) out.push(ok ? `Reply from ${host}: bytes=32 time=1ms TTL=128` : E('Request timed out.'));
         out.push('', `Ping statistics for ${host}:`,
@@ -870,6 +912,40 @@ export function createWindows(init = {}) {
         const a = args.map(x => x.toLowerCase());
         // netsh interface ip show config / address
         if (a[0] && 'interface'.startsWith(a[0])) {
+          // netsh interface ipv6 show address — Windows โชว์ link-local เสมอแม้ยังไม่ได้ตั้ง global
+          if (a[1] === 'ipv6') {
+            if (a[2] === 'show' && /address|addresses/.test(a[3] || 'address')) {
+              const out = [];
+              Object.entries(st.nics).forEach(([k, n]) => {
+                out.push('', `Interface ${k} Parameters`, '',
+                  'Addr Type  DAD State   Valid Life Pref. Life Address',
+                  '---------  ----------- ---------- ---------- ------------------------');
+                if (n.ipv6) out.push(`Manual     Preferred   infinite   infinite   ${n.ipv6.split('%')[0]}`);
+                if (n.ipv6ll) out.push(`Other      Preferred   infinite   infinite   ${n.ipv6ll.split('%')[0]}`);
+                out.push('');
+              });
+              return out;
+            }
+            if (a[2] === 'show' && /route/.test(a[3] || '')) {
+              const g = st.nics.Ethernet0.ipv6gw;
+              return ['', 'Publish  Type      Met  Prefix                    Idx  Gateway/Interface Name',
+                '-------  --------  ---  ------------------------  ---  ------------------------',
+                g ? `No       Manual    256  ::/0                       12  ${g}` : D('(ยังไม่มี default route ของ IPv6)'), ''];
+            }
+            // netsh interface ipv6 add address "Ethernet0" 2001:db8::10/64
+            if (a[2] === 'add' || a[2] === 'set') {
+              const raw = args.slice(3).map(x => x.replace(/^"|"$/g, ''));
+              const key = Object.keys(st.nics).find(k => raw.some(v => v.toLowerCase() === k.toLowerCase())) || 'Ethernet0';
+              const addr = raw.find(v => v.includes(':'));
+              if (!addr) return [E('ต้องระบุที่อยู่ IPv6 เช่น netsh interface ipv6 add address "Ethernet0" 2001:db8::10/64')];
+              const [ip6, pfx] = addr.split('/');
+              if (/^fe80:/i.test(ip6)) return [E('link-local ตั้งเองไม่ได้ — Windows สร้างให้อัตโนมัติอยู่แล้ว')];
+              st.nics[key].ipv6 = ip6;
+              st.nics[key].ipv6prefix = +(pfx || 64);
+              return [OK('Ok.')];
+            }
+            return [D('netsh interface ipv6: lab นี้รองรับ show address / show route / add address')];
+          }
           if (a[1] && 'ip'.startsWith(a[1]) || a[1] === 'ipv4') {
             if (a[2] === 'show' && /config|address/.test(a[3] || 'config')) {
               const out = [];
@@ -893,7 +969,7 @@ export function createWindows(init = {}) {
               if (a.includes('dhcp')) { st.nics[key].dhcp = true; return [OK('เปลี่ยนเป็นรับ IP อัตโนมัติแล้ว')]; }
               if (!ips.length) return [E('ต้องระบุ IP เช่น netsh interface ip set address "Ethernet0" static 192.168.10.10 255.255.255.0 192.168.10.1')];
               st.nics[key].ip = ips[0];
-              if (ips[1]) st.nics[key].prefix = ips[1] === '255.255.255.0' ? 24 : ips[1] === '255.255.0.0' ? 16 : 24;
+              if (ips[1]) st.nics[key].prefix = maskToPrefix(ips[1]) ?? 24;
               if (ips[2]) st.nics[key].gw = ips[2];
               st.nics[key].dhcp = false;
               return [];
@@ -1120,8 +1196,17 @@ export function createWindows(init = {}) {
       case 'gpupdate': return ['Updating policy...', '', OK('Computer Policy update has completed successfully.'), OK('User Policy update has completed successfully.')];
       case 'gpresult': return ['', `RSOP data for ${st.domain || st.workgroup}\\${st.user} on ${st.hostname} : Logging Mode`, '',
         'Applied Group Policy Objects', ...st.gpos.map(g => '    ' + g)];
-      case 'nslookup': return ['', `Server:  ${st.nics.Ethernet0.dns[0]}`, `Address:  ${st.nics.Ethernet0.dns[0]}`, '',
-        `Name:    ${args[0] || 'example.com'}`, `Address:  93.184.216.34`, ''];
+      case 'nslookup': {
+        // -type=AAAA / -q=mx ไม่ใช่ชื่อโดเมน ต้องคัดออกก่อนไม่งั้นจะเอาไปตอบเป็น Name
+        const type = (args.find(a => /^-(type|q|querytype)=/i.test(a)) || '').split('=')[1] || 'A';
+        const name = args.find(a => !a.startsWith('-')) || 'example.com';
+        const head = ['', `Server:  ${st.nics.Ethernet0.dns[0]}`, `Address:  ${st.nics.Ethernet0.dns[0]}`, ''];
+        const t = type.toUpperCase();
+        if (t === 'AAAA') return [...head, `Name:    ${name}`, `Address:  2606:2800:220:1:248:1893:25c8:1946`, ''];
+        if (t === 'MX') return [...head, `${name}\tMX preference = 10, mail exchanger = mail.${name}`, ''];
+        if (t === 'NS') return [...head, `${name}\tnameserver = ns1.${name}`, `${name}\tnameserver = ns2.${name}`, ''];
+        return [...head, `Name:    ${name}`, `Address:  93.184.216.34`, ''];
+      }
       case 'route': {
         const sub = (args[0] || 'print').toLowerCase();
         const nic = st.nics.Ethernet0;

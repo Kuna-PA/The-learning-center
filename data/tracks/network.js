@@ -10,9 +10,16 @@
 //  ไม่ได้คัดลอกมาจากคลังข้อสอบของเว็บไหน
 //
 //  หัวข้อนี้ไม่ผูกกับยี่ห้อ Lab จึงยืม emulator ของหัวข้ออื่นมาใช้ตามความเหมาะสม
-//    Linux    — IP, subnet, DNS และการไล่ปัญหา
+//    Windows  — IP, subnet, IPv6, DNS และการไล่ปัญหา (Lab หลัก)
 //    Cisco    — สวิตช์, STP, VLAN และ port security
 //    MikroTik — monitoring, WAN สำรอง และไร้สาย
+//
+//  ทำไม Lab หลักเป็น Windows ไม่ใช่ Linux:
+//  Network เป็นหัวข้อแรกของเว็บ ส่วน Linux อยู่ลำดับที่ 6 — ถ้า Lab แรกเป็น Linux
+//  ผู้อบรมที่ยังไม่เคยแตะ command line จะไปต่อไม่ได้ตั้งแต่ก้าวแรก
+//  ระดับ 1 จึงมี Lab แบบคลิกบนหน้าจอ Windows ล้วน (ไม่ต้องพิมพ์อะไรเลย) มาก่อน
+//  แล้วค่อยเข้าสู่ cmd ซึ่งเป็นสิ่งที่ IT support คุ้นมืออยู่แล้ว
+//  ของเดิมที่เป็น Linux ย้ายไปเป็นตัวเสริมใน data/labs/network-linux-extra.js
 // ============================================================
 const said = (h, re) => h.some(c => re.test(String(c).trim()));
 const T = (s, p) => s.tables[p] || [];                 // MikroTik
@@ -235,7 +242,7 @@ export default {
           a: 0,
           why: 'media converter แปลงสัญญาณไฟฟ้าบนทองแดง ↔ สัญญาณแสงบนไฟเบอร์ — จำเป็นเมื่ออุปกรณ์ปลายทางไม่มีช่อง SFP ให้เสียบโมดูลไฟเบอร์โดยตรง',
         },
-        { type: 'mcq', q: 'ต้องการเดินสายระหว่างอาคารสองหลังห่างกัน 300 เมตร ควรใช้สายแบบใด', opts: ['ชั้น 1 Physical', 'ชั้น 2 Data Link', 'ชั้น 3 Network', 'ชั้น 4 Transport'], a: 1, why: 'สวิตช์ตัดสินใจส่งต่อโดยดู MAC address ซึ่งอยู่ในเฟรมของชั้น 2 — ส่วน router ดู IP จึงเป็นชั้น 3 และ hub เป็นชั้น 1 เพราะแค่ทวนสัญญาณต่อโดยไม่ดูอะไรเลย' },
+        { type: 'mcq', q: 'สวิตช์ตัดสินใจส่งต่อเฟรมโดยดูข้อมูลของชั้นไหนในแบบจำลอง OSI', opts: ['ชั้น 1 Physical', 'ชั้น 2 Data Link', 'ชั้น 3 Network', 'ชั้น 4 Transport'], a: 1, why: 'สวิตช์ตัดสินใจส่งต่อโดยดู MAC address ซึ่งอยู่ในเฟรมของชั้น 2 — ส่วน router ดู IP จึงเป็นชั้น 3 และ hub เป็นชั้น 1 เพราะแค่ทวนสัญญาณต่อโดยไม่ดูอะไรเลย' },
         { type: 'mcq', q: 'หน่วยข้อมูล (PDU) ของชั้น Network เรียกว่าอะไร', opts: ['Frame', 'Packet', 'Segment', 'Bit'], a: 1, why: 'ไล่จากล่างขึ้นบน: Bit (L1) → Frame (L2) → Packet (L3) → Segment (L4) — ข้อสอบชอบถามสลับกันระหว่าง frame กับ packet' },
         { type: 'mcq', q: 'ผู้ใช้ ping IP ปลายทางได้ แต่เปิดหน้าเว็บของเครื่องนั้นไม่ได้ ควรสงสัยชั้นใดก่อน', opts: ['ชั้น 1 สายสัญญาณ', 'ชั้น 2 สวิตช์', 'ชั้น 4 ขึ้นไป เช่น firewall กรองพอร์ต หรือ service ไม่ทำงาน', 'ชั้น 3 routing'], a: 2, why: 'ping ผ่านแปลว่าชั้น 1–3 ทำงานดีอยู่แล้ว ปัญหาจึงอยู่สูงกว่านั้น — พอร์ตถูกบล็อกที่ชั้น 4 หรือ service ที่ชั้น 7 ไม่ได้รัน' },
         { type: 'mcq', q: 'สาย Cat6 รองรับ 10 Gbps ได้ที่ระยะเท่าใด', opts: ['100 เมตรเต็ม', '55 เมตร', '30 เมตร', 'ไม่รองรับ 10 Gbps'], a: 1, why: 'Cat6 ทำ 10G ได้แค่ 55 เมตร ถ้าต้องการ 10G เต็ม 100 เมตรต้องใช้ Cat6a — เป็นเหตุผลหลักที่งานเดินสายใหม่ควรใช้ Cat6a ไปเลย' },
@@ -250,22 +257,51 @@ export default {
         { type: 'multi', q: 'ข้อใดคือสิ่งที่ควรทำเมื่อติดตั้ง router SOHO ตัวใหม่ (เลือกทุกข้อที่ถูก)', opts: ['เปลี่ยนรหัสผ่านผู้ดูแลจากค่าโรงงาน', 'ปิดการจัดการจากฝั่ง WAN', 'ตั้ง WPA2/WPA3 ให้ไวไฟ', 'เปิด WEP ไว้เพื่อรองรับอุปกรณ์เก่า'], a: [0, 1, 2], why: 'WEP ถูกเจาะได้ในเวลาไม่กี่นาทีและไม่ควรใช้ในทุกกรณี ถ้ามีอุปกรณ์เก่าที่รองรับแค่ WEP ให้แยกวงและจำกัดสิทธิ์แทน' },
         { type: 'multi', q: 'ข้อใดคือเหตุผลที่ต้องใช้สายแบบ plenum-rated (เลือกทุกข้อที่ถูก)', opts: ['เดินในช่องลมแอร์เหนือฝ้า', 'ปลอกไม่ลามไฟ', 'ไม่ปล่อยควันพิษเมื่อถูกความร้อน', 'ส่งข้อมูลได้เร็วกว่าสายปกติ'], a: [0, 1, 2], why: 'plenum เป็นเรื่องความปลอดภัยจากอัคคีภัยล้วน ๆ ไม่เกี่ยวกับความเร็วในการส่งข้อมูล — แต่เป็นข้อบังคับตามกฎหมายอาคารในหลายพื้นที่' },
       ],
-      labs: [{
-        id: 'net-l1-phy',
-        title: 'Lab 1 — สำรวจชั้น Physical และ Data Link ของเครื่อง',
-        brief: 'ผู้ใช้แจ้งว่าเครื่องช้าเวลาโอนไฟล์ใหญ่ ก่อนจะไปโทษเซิร์ฟเวอร์ ให้ตรวจชั้นล่างสุดก่อนตามหลัก OSI — ลิงก์ขึ้นที่ความเร็วเท่าไหร่ duplex ตรงไหม และมี error สะสมหรือเปล่า',
-        device: 'linux',
-        tasks: [
-          { t: 'ดูรายการ interface ทั้งหมดและสถานะลิงก์', hint: 'ip link', check: (s, h) => said(h, /^ip\s+(-\w+\s+)?link/i) },
-          { t: 'ดู IP และ prefix ที่ตั้งอยู่ตอนนี้', hint: 'ip addr', check: (s, h) => said(h, /^ip\s+(addr|a)\b/i) },
-          { t: 'ตรวจ speed, duplex และ autonegotiation ของ <code>ens33</code>', hint: 'ethtool ens33', check: (s, h) => said(h, /^ethtool/i) },
-          { t: 'ดูสถิติ error และ drop ที่สะสมบน <code>ens33</code>', hint: 'ip -s link show ens33', check: (s, h) => said(h, /ip\s+-s\s+link/i) },
-          { t: 'ดูตาราง ARP ว่า IP ไหนคู่กับ MAC ไหนในวงนี้', hint: 'ip neigh', check: (s, h) => said(h, /ip\s+neigh|arp\s+-a/i) },
-          { t: 'ตั้ง MTU ของ <code>ens33</code> เป็น 9000 เพื่อรองรับ jumbo frame', hint: 'sudo ip link set ens33 mtu 9000', check: (s, h) => said(h, /ip\s+link\s+set.*mtu\s*9000/i) },
-          { t: 'ทดสอบว่า TCP/IP stack ของเครื่องเองยังดีอยู่', hint: 'ping -c 2 127.0.0.1', check: (s, h) => said(h, /ping.*127\.0\.0\.1/i) },
-          { t: 'ดูตารางเส้นทางเพื่อยืนยันว่ามี default gateway', hint: 'ip route', check: (s, h) => said(h, /^ip\s+(route|r)\b/i) },
-        ],
-      }],
+      labs: [
+        {
+          id: 'net-l1-phy-gui',
+          title: 'Lab 1A — ตรวจชั้น Physical และ Data Link บนหน้าจอ Windows',
+          brief: 'ผู้ใช้แจ้งว่าโอนไฟล์ใหญ่ช้ามาก ก่อนจะไปโทษเซิร์ฟเวอร์ ให้ตรวจชั้นล่างสุดก่อนตามหลัก OSI — Lab นี้<b>ไม่ต้องพิมพ์คำสั่งเลย</b> ใช้การคลิกบนหน้าจอ Windows ล้วน ๆ แบบที่ทำหน้างานจริง',
+          device: 'windows-gui',
+          init: {
+            hostname: 'PC-SALES-07',
+            openApps: ['ncpa.cpl'],
+            // ลิงก์ตกลงกันได้แค่ 100 Mbps Half Duplex และมี error วิ่งสะสม — อาการคลาสสิกของ duplex mismatch
+            apply: st => {
+              Object.assign(st.nics.Ethernet0, {
+                speed: 100, duplex: 'Half', autoneg: false,
+                rxErrors: 18432, txErrors: 9611, discards: 2207,
+              });
+            },
+          },
+          tasks: [
+            { t: 'เปิด <b>Network Connections</b> (ดับเบิลคลิกไอคอนบนเดสก์ท็อป)', hint: 'ดับเบิลคลิกไอคอน Network Connections', check: (s, h) => said(h, /gui:open:ncpa\.cpl/) },
+            { t: 'กดปุ่ม <b>Status</b> ของการ์ด <code>Ethernet0</code> เพื่อดูว่าลิงก์ขึ้นที่ความเร็วเท่าไหร่', hint: 'กดปุ่ม Status ที่การ์ด Ethernet0', check: (s, h) => said(h, /gui:nic-status:Ethernet0/) },
+            { t: 'สังเกตช่อง <b>Speed</b> และตัวนับ <b>Errors</b> — ลิงก์กิกะบิตที่วิ่งแค่ 100 Mbps Half Duplex พร้อม error สะสมหลักหมื่น คืออาการของ duplex mismatch', hint: 'อ่านค่าในตาราง Connection และ Activity แล้วกด Details…', check: (s, h) => said(h, /gui:nic-details:Ethernet0/) },
+            { t: 'ในหน้า <b>Details</b> จดไว้ว่า MAC address (Physical Address) ของเครื่องนี้คืออะไร — ชั้น 2 ใช้เลขนี้ในการส่งเฟรม', hint: 'ดูบรรทัด Physical Address แล้วกด Close', check: (s, h) => said(h, /gui:nic-details:Ethernet0/) },
+            { t: 'กลับไปหน้า Status แล้วกด <b>Configure…</b> เพื่อเข้าแท็บ Advanced ของไดรเวอร์การ์ด', hint: 'กดปุ่ม Configure… ในหน้า Status', check: (s, h) => said(h, /gui:nic-advanced:Ethernet0/) },
+            { t: 'เปลี่ยน <b>Speed &amp; Duplex</b> กลับเป็น <code>Auto Negotiation</code> แล้วกด OK', hint: 'เลือก Auto Negotiation ในช่อง Speed & Duplex แล้วกด OK', check: s => s.nics.Ethernet0.autoneg === true && s.nics.Ethernet0.speed === 1000 && s.nics.Ethernet0.duplex === 'Full' },
+            { t: 'เปิด <b>Jumbo Packet</b> เป็น <code>9014 Bytes</code> เพื่อรองรับการโอนไฟล์ใหญ่ไป NAS', hint: 'ในแท็บ Advanced เลือก 9014 Bytes ในช่อง Jumbo Packet แล้วกด OK', check: s => s.nics.Ethernet0.mtu === 9014 },
+            { t: 'ดู <b>Status</b> อีกครั้งเพื่อยืนยันว่าตอนนี้ลิงก์ขึ้นที่ 1.0 Gbps Full Duplex และตัวนับ error กลับเป็นศูนย์', hint: 'กด Status ที่การ์ด Ethernet0 อีกรอบ', check: s => s.nics.Ethernet0.speed === 1000 && s.nics.Ethernet0.rxErrors === 0 && s.nics.Ethernet0.txErrors === 0 },
+          ],
+        },
+        {
+          id: 'net-l1-phy-cmd',
+          title: 'Lab 1B — คำสั่งพื้นฐานบน Windows ที่ต้องดูเป็นก่อนโทษเซิร์ฟเวอร์',
+          brief: 'ก้าวแรกเข้าสู่ Command Prompt — ทุกคำสั่งใน Lab นี้มีติดมากับ Windows ทุกเครื่องอยู่แล้ว ไม่ต้องลงอะไรเพิ่ม และเป็นชุดที่ IT support ใช้จริงทุกวัน',
+          device: 'windows',
+          tasks: [
+            { t: 'ดูชื่อเครื่องตัวเองก่อน', hint: 'hostname', check: (s, h) => said(h, /^hostname\s*$/i) },
+            { t: 'ดูค่าเครือข่ายทั้งหมด — IP, subnet mask, gateway, DNS และ MAC address', hint: 'ipconfig /all', check: (s, h) => said(h, /^ipconfig\s+\/all/i) },
+            { t: 'ดูเฉพาะ MAC address ของทุกการ์ด', hint: 'getmac', check: (s, h) => said(h, /^getmac/i) },
+            { t: 'ดูตาราง ARP ว่า IP ไหนคู่กับ MAC ไหนในวงนี้ (นี่คือชั้น 2 คุยกับชั้น 3)', hint: 'arp -a', check: (s, h) => said(h, /^arp\s+-a/i) },
+            { t: 'ทดสอบว่า TCP/IP stack ของเครื่องเองยังดีอยู่', hint: 'ping 127.0.0.1', check: (s, h) => said(h, /^ping\s+127\.0\.0\.1/i) },
+            { t: 'ทดสอบว่าออกไปถึง gateway <code>192.168.10.1</code> ได้ไหม', hint: 'ping 192.168.10.1', check: (s, h) => said(h, /^ping\s+192\.168\.10\.1/i) },
+            { t: 'ดูตารางเส้นทางเพื่อยืนยันว่ามี default gateway อยู่จริง', hint: 'route print', check: (s, h) => said(h, /^route\s+print/i) },
+            { t: 'ดูรายการการ์ดเครือข่ายและสถานะเปิด/ปิด', hint: 'netsh interface show interface', check: (s, h) => said(h, /^netsh\s+int(erface)?\s+show\s+interface/i) },
+          ],
+        },
+      ],
     },
 
     // =========================================================
@@ -519,20 +555,20 @@ ethtool ens33                <span style="color:#5b6b8c"># ดู speed / duplex
           ],
         },
         {
-          id: 'net-l2-tshoot',
-          title: 'Lab 2B — ไล่ปัญหา "เน็ตใช้ไม่ได้" ตามลำดับ OSI',
-          brief: 'ผู้ใช้โทรมาบอกสั้น ๆ ว่า "เน็ตใช้ไม่ได้" คุณต้องไล่จากชั้นล่างขึ้นบนทีละขั้นเพื่อระบุว่าปัญหาอยู่ตรงไหนจริง ๆ แทนการเดาสุ่ม',
-          device: 'linux',
+          id: 'net-l2-tshoot-win',
+          title: 'Lab 2B — ไล่ปัญหา "เน็ตใช้ไม่ได้" ตามลำดับ OSI (Windows)',
+          brief: 'ผู้ใช้โทรมาบอกสั้น ๆ ว่า "เน็ตใช้ไม่ได้" คุณต้องไล่จากชั้นล่างขึ้นบนทีละขั้นเพื่อระบุว่าปัญหาอยู่ตรงไหนจริง ๆ แทนการเดาสุ่ม — ลำดับนี้ใช้ได้กับทุกเคสที่ผู้ใช้โทรมา จำให้ขึ้นใจ',
+          device: 'windows',
           tasks: [
-            { t: 'ขั้น 1 — ทดสอบ TCP/IP stack ของเครื่องเอง', hint: 'ping -c 2 127.0.0.1', check: (s, h) => said(h, /ping.*127\.0\.0\.1/i) },
-            { t: 'ขั้น 2 — ตรวจว่าการ์ดได้ IP และลิงก์ขึ้นจริง', hint: 'ip addr', check: (s, h) => said(h, /^ip\s+(addr|a)\b/i) },
-            { t: 'ขั้น 3 — ตรวจว่ามี default gateway ตั้งไว้', hint: 'ip route', check: (s, h) => said(h, /^ip\s+(route|r)\b/i) },
-            { t: 'ขั้น 4 — ทดสอบว่าออกจากวงตัวเองได้ไหม', hint: 'ping -c 2 192.168.10.1', check: (s, h) => said(h, /ping.*192\.168\.10\.1/i) },
-            { t: 'ขั้น 5 — ทดสอบว่าออกอินเทอร์เน็ตได้ไหม (ใช้ IP ไม่ใช่ชื่อ)', hint: 'ping -c 2 8.8.8.8', check: (s, h) => said(h, /ping.*8\.8\.8\.8/i) },
-            { t: 'ขั้น 6 — ตรวจว่า DNS ตั้งไว้เป็นอะไร', hint: 'cat /etc/resolv.conf', check: (s, h) => said(h, /resolv\.conf/i) },
-            { t: 'ขั้น 7 — ทดสอบว่าแปลงชื่อเป็น IP ได้ไหม', hint: 'dig example.com', check: (s, h) => said(h, /^(dig|nslookup|host)\s/i) },
-            { t: 'ขั้น 8 — ถ้าออกได้แต่ช้า ให้ดูว่าตายหรือหน่วงที่ hop ไหน', hint: 'traceroute 8.8.8.8', check: (s, h) => said(h, /^(traceroute|tracepath|mtr)\s/i) },
-            { t: 'ขั้น 9 — ตรวจ error สะสมที่ interface เผื่อเป็นปัญหาสาย', hint: 'ip -s link show ens33', check: (s, h) => said(h, /ip\s+-s\s+link/i) },
+            { t: 'ขั้น 1 — ทดสอบ TCP/IP stack ของเครื่องเอง (ถ้าตรงนี้ไม่ผ่าน ปัญหาอยู่ที่ตัว Windows ไม่ใช่สาย)', hint: 'ping 127.0.0.1', check: (s, h) => said(h, /^ping\s+127\.0\.0\.1/i) },
+            { t: 'ขั้น 2 — ตรวจว่าการ์ดได้ IP จริง และไม่ใช่เลข <code>169.254.x.x</code> ซึ่งแปลว่าหา DHCP ไม่เจอ', hint: 'ipconfig /all', check: (s, h) => said(h, /^ipconfig\s+\/all/i) },
+            { t: 'ขั้น 3 — ตรวจว่าลิงก์ขึ้นจริงไหม การ์ดถูกปิดอยู่หรือเปล่า', hint: 'netsh interface show interface', check: (s, h) => said(h, /^netsh\s+int(erface)?\s+show\s+interface/i) },
+            { t: 'ขั้น 4 — ตรวจว่ามี default gateway ตั้งไว้', hint: 'route print', check: (s, h) => said(h, /^route\s+print/i) },
+            { t: 'ขั้น 5 — ทดสอบว่าออกจากวงตัวเองได้ไหม (ping gateway)', hint: 'ping 192.168.10.1', check: (s, h) => said(h, /^ping\s+192\.168\.10\.1/i) },
+            { t: 'ขั้น 6 — ทดสอบว่าออกอินเทอร์เน็ตได้ไหม โดยใช้ <b>IP ไม่ใช่ชื่อ</b> เพื่อตัดปัญหา DNS ออกไปก่อน', hint: 'ping 8.8.8.8', check: (s, h) => said(h, /^ping\s+8\.8\.8\.8/i) },
+            { t: 'ขั้น 7 — ถ้า ping IP ได้แต่เปิดเว็บไม่ได้ แปลว่าปัญหาอยู่ที่ DNS ให้ลองแปลงชื่อดู', hint: 'nslookup example.com', check: (s, h) => said(h, /^nslookup\s+\S+/i) },
+            { t: 'ขั้น 8 — ล้าง DNS cache เผื่อเครื่องจำคำตอบเก่าที่ผิดไว้', hint: 'ipconfig /flushdns', check: (s, h) => said(h, /^ipconfig\s+\/flushdns/i) },
+            { t: 'ขั้น 9 — ถ้าออกได้แต่ช้า ให้ดูว่าหน่วงหรือตายที่ hop ไหน', hint: 'tracert 8.8.8.8', check: (s, h) => said(h, /^tracert\s+\S+/i) },
           ],
         },
       ],
@@ -722,35 +758,35 @@ network = <b>192.168.10.64</b> · broadcast = <b>192.168.10.127</b> · host ท�
       ],
       labs: [
         {
-          id: 'net-l3-subnet',
-          title: 'Lab 3A — แบ่ง Subnet ให้สามแผนกแล้วตั้งเส้นทาง',
-          brief: 'ออฟฟิศได้วง <code>192.168.10.0/24</code> มาก้อนเดียว ต้องแบ่งเป็นสามแผนกด้วย /26 แล้วตั้ง IP ให้เครื่องนี้อยู่ในแผนกที่สอง พร้อมวางเส้นทางไปวงสาขา',
-          device: 'linux',
+          id: 'net-l3-subnet-win',
+          title: 'Lab 3A — แบ่ง Subnet ให้สามแผนกแล้วตั้งเส้นทาง (Windows)',
+          brief: 'ออฟฟิศได้วง <code>192.168.10.0/24</code> มาก้อนเดียว ต้องแบ่งเป็นสามแผนกด้วย /26 แล้วตั้ง IP ให้เครื่องนี้อยู่ในแผนกที่สอง พร้อมวางเส้นทางไปวงสาขา — <b>/26 คือ mask <code>255.255.255.192</code></b> แบ่งได้ 4 วง วงละ 62 เครื่อง (.0 · .64 · .128 · .192)',
+          device: 'windows',
           tasks: [
-            { t: 'ดู IP ปัจจุบันของเครื่องก่อนแก้อะไร', hint: 'ip addr', check: (s, h) => said(h, /^ip\s+(addr|a)\b/i) },
-            { t: 'ใส่ IP <code>192.168.10.65/26</code> ให้ <code>ens33</code> (แผนกที่สอง เริ่มที่ .64)', hint: 'sudo ip addr add 192.168.10.65/26 dev ens33', check: s => ifc(s, 'ens33').ip === '192.168.10.65' && +ifc(s, 'ens33').prefix === 26 },
-            { t: 'ยืนยันว่า IP และ prefix ถูกตั้งจริง', hint: 'ip addr show ens33', check: (s, h) => said(h, /^(sudo\s+)?ip\s+(addr|a)\s+show\s+ens33/i) },
-            { t: 'เปิดใช้งาน interface ให้แน่ใจว่าลิงก์ขึ้น', hint: 'sudo ip link set ens33 up', check: (s, h) => said(h, /ip\s+link\s+set\s+ens33\s+up/i) },
-            { t: 'เพิ่มเส้นทางไปวงสาขา <code>10.20.0.0/16</code> ผ่าน <code>192.168.10.254</code>', hint: 'sudo ip route add 10.20.0.0/16 via 192.168.10.254', check: (s, h) => said(h, /ip\s+route\s+add\s+10\.20\.0\.0\/16\s+via\s+192\.168\.10\.254/i) },
-            { t: 'เพิ่ม default route ผ่าน <code>192.168.10.1</code>', hint: 'sudo ip route add default via 192.168.10.1', check: (s, h) => said(h, /ip\s+route\s+add\s+default\s+via/i) },
-            { t: 'ตรวจตารางเส้นทางที่ได้', hint: 'ip route', check: (s, h) => said(h, /^ip\s+(route|r)\s*$/i) },
-            { t: 'ทดสอบว่าถึง gateway', hint: 'ping -c 2 192.168.10.1', check: (s, h) => said(h, /ping.*192\.168\.10\.1/i) },
-            { t: 'ไล่ดูเส้นทางออกอินเทอร์เน็ต', hint: 'traceroute 8.8.8.8', check: (s, h) => said(h, /^(traceroute|tracepath|mtr)\s/i) },
+            { t: 'ดูค่าเครือข่ายปัจจุบันก่อนแก้อะไร', hint: 'ipconfig /all', check: (s, h) => said(h, /^ipconfig\s+\/all/i) },
+            { t: 'ตั้ง IP <code>192.168.10.65</code> mask <code>255.255.255.192</code> gateway <code>192.168.10.1</code> (แผนกที่สอง เริ่มที่ .64)', hint: 'netsh interface ip set address "Ethernet0" static 192.168.10.65 255.255.255.192 192.168.10.1', check: s => s.nics.Ethernet0.ip === '192.168.10.65' && +s.nics.Ethernet0.prefix === 26 },
+            { t: 'ยืนยันว่า IP และ mask ถูกตั้งจริง — ต้องเห็น <code>255.255.255.192</code>', hint: 'ipconfig', check: (s, h) => said(h, /^ipconfig\s*$/i) },
+            { t: 'ตั้ง DNS ของเครื่องเป็น <code>192.168.10.1</code>', hint: 'netsh interface ip set dns "Ethernet0" static 192.168.10.1', check: (s, h) => said(h, /^netsh\s+int(erface)?\s+ip\s+set\s+dns/i) },
+            { t: 'เพิ่มเส้นทางไปวงสาขา <code>10.20.0.0/16</code> ผ่าน <code>192.168.10.254</code>', hint: 'route add 10.20.0.0 mask 255.255.0.0 192.168.10.254', check: (s, h) => said(h, /^route\s+add\s+10\.20\.0\.0\s+mask\s+255\.255\.0\.0\s+192\.168\.10\.254/i) },
+            { t: 'ตรวจตารางเส้นทางว่าเส้นใหม่เข้าไปแล้ว และยังมี default route อยู่', hint: 'route print', check: (s, h) => said(h, /^route\s+print/i) },
+            { t: 'ทดสอบว่าถึง gateway ของวงตัวเอง', hint: 'ping 192.168.10.1', check: (s, h) => said(h, /^ping\s+192\.168\.10\.1/i) },
+            { t: 'ไล่ดูเส้นทางออกอินเทอร์เน็ตว่าผ่าน hop ไหนบ้าง', hint: 'tracert 8.8.8.8', check: (s, h) => said(h, /^tracert\s+\S+/i) },
           ],
         },
         {
-          id: 'net-l3-ipv6',
-          title: 'Lab 3B — ทำความรู้จัก IPv6 บนเครื่องจริง',
-          brief: 'องค์กรกำลังจะเปิดใช้ IPv6 แบบ dual stack คุณต้องสำรวจว่าเครื่องมี address IPv6 อะไรอยู่แล้วบ้าง เพิ่ม global address และตรวจว่าทำงานได้',
-          device: 'linux',
+          id: 'net-l3-ipv6-win',
+          title: 'Lab 3B — ทำความรู้จัก IPv6 บนเครื่อง Windows',
+          brief: 'องค์กรกำลังจะเปิดใช้ IPv6 แบบ dual stack — สิ่งที่หลายคนไม่รู้คือ <b>Windows ทุกเครื่องมี IPv6 เปิดอยู่แล้ว</b> และมี address <code>fe80::</code> ติดมาตั้งแต่แรก Lab นี้ให้สำรวจของที่มีอยู่ก่อน แล้วค่อยเพิ่ม global address',
+          device: 'windows',
           tasks: [
-            { t: 'ดู IPv6 address ทั้งหมดของเครื่อง', hint: 'ip -6 addr', check: (s, h) => said(h, /ip\s+-6\s+(addr|a)\b/i) },
-            { t: 'สังเกตว่ามี link-local ขึ้นต้นด้วย <code>fe80::</code> อยู่แล้วทุก interface', hint: 'ip -6 addr show ens33', check: (s, h) => said(h, /ip\s+-6\s+(addr|a).*ens33/i) },
-            { t: 'ทดสอบ loopback ของ IPv6', hint: 'ping6 -c 2 ::1', check: (s, h) => said(h, /ping6?.*::1/i) },
-            { t: 'เพิ่ม global address <code>2001:db8::10/64</code> ให้ <code>ens33</code>', hint: 'sudo ip addr add 2001:db8::10/64 dev ens33', check: s => (ifc(s, 'ens33').ip6 || []).some(x => x.ip === '2001:db8::10' && +x.prefix === 64) },
-            { t: 'ดูตารางเส้นทาง IPv6', hint: 'ip -6 route', check: (s, h) => said(h, /ip\s+-6\s+(route|r)\b/i) },
-            { t: 'ถาม DNS หา AAAA record ของโดเมน', hint: 'dig AAAA example.com', check: (s, h) => said(h, /dig.*aaaa|aaaa.*example/i) },
-            { t: 'ดูตาราง neighbor (สิ่งที่ IPv6 ใช้แทน ARP)', hint: 'ip -6 neigh', check: (s, h) => said(h, /ip\s+(-6\s+)?neigh/i) },
+            { t: 'ดูค่าเครือข่ายทั้งหมด แล้วมองหาบรรทัด <code>Link-local IPv6 Address</code>', hint: 'ipconfig /all', check: (s, h) => said(h, /^ipconfig\s+\/all/i) },
+            { t: 'ดูเฉพาะรายการ address ของ IPv6 — สังเกตว่า link-local ขึ้นต้นด้วย <code>fe80::</code> เสมอ และมีมาให้เองโดยไม่ต้องตั้ง', hint: 'netsh interface ipv6 show address', check: (s, h) => said(h, /^netsh\s+int(erface)?\s+ipv6\s+show\s+addr/i) },
+            { t: 'ทดสอบ loopback ของ IPv6 (เทียบเท่า 127.0.0.1 ของ IPv4)', hint: 'ping ::1', check: (s, h) => said(h, /^ping\s+(-6\s+)?::1/i) },
+            { t: 'ping ที่อยู่ link-local ของการ์ดตัวเอง <code>fe80::a9c4:3f21:7b05:11de</code>', hint: 'ping fe80::a9c4:3f21:7b05:11de', check: (s, h) => said(h, /^ping\s+(-6\s+)?fe80::/i) },
+            { t: 'ตั้ง global address <code>2001:db8::10</code> ให้การ์ด <code>Ethernet0</code>', hint: 'netsh interface ipv6 add address "Ethernet0" 2001:db8::10/64', check: s => String(s.nics.Ethernet0.ipv6 || '').startsWith('2001:db8::10') },
+            { t: 'ยืนยันว่า global address เข้าไปแล้ว และตอนนี้การ์ดมีทั้ง IPv4 และ IPv6 พร้อมกัน (dual stack)', hint: 'netsh interface ipv6 show address', check: (s, h) => h.filter(c => /^netsh\s+int(erface)?\s+ipv6\s+show\s+addr/i.test(String(c).trim())).length >= 2 },
+            { t: 'ดูตารางเส้นทางของ IPv6', hint: 'netsh interface ipv6 show route', check: (s, h) => said(h, /^netsh\s+int(erface)?\s+ipv6\s+show\s+route/i) },
+            { t: 'ถาม DNS หา AAAA record (เรคคอร์ดที่ชี้ไปยัง IPv6) ของโดเมน', hint: 'nslookup -type=AAAA example.com', check: (s, h) => said(h, /nslookup.*(aaaa|-type)/i) },
           ],
         },
       ],
@@ -979,20 +1015,19 @@ dig @8.8.8.8 example.com     <span style="color:#5b6b8c"># บังคับถ
           ],
         },
         {
-          id: 'net-l4-services',
-          title: 'Lab 4B — ตรวจพอร์ตและบริการชื่อโดเมน',
-          brief: 'ก่อนส่งมอบเซิร์ฟเวอร์ ต้องรู้ว่ามันเปิดพอร์ตอะไรไว้บ้าง และตรวจว่าระบบ DNS ขององค์กรตอบถูกต้องทั้ง A record และ MX record',
-          device: 'linux',
+          id: 'net-l4-services-win',
+          title: 'Lab 4B — ตรวจพอร์ตและบริการชื่อโดเมน (Windows)',
+          brief: 'ก่อนส่งมอบเครื่อง ต้องรู้ว่ามันเปิดพอร์ตอะไรไว้บ้าง ใครเป็นเจ้าของพอร์ตนั้น และตรวจว่าระบบ DNS ตอบถูกต้องทั้ง A record และ MX record',
+          device: 'windows',
           tasks: [
-            { t: 'ดูพอร์ตที่เครื่องเราเปิดฟังอยู่พร้อม process เจ้าของ', hint: 'ss -tulpn', check: (s, h) => said(h, /^(sudo\s+)?(ss|netstat)\s+-\w+/i) },
-            { t: 'ดูว่ามีการเชื่อมต่อ TCP ใดค้างอยู่บ้าง', hint: 'ss -tan', check: (s, h) => h.filter(c => /^(sudo\s+)?(ss|netstat)\s/i.test(String(c))).length >= 2 },
-            { t: 'สำรวจว่ามีเครื่องใดออนไลน์ในวง <code>192.168.10.0/24</code>', hint: 'nmap -sn 192.168.10.0/24', check: (s, h) => said(h, /nmap.*-sn/i) },
-            { t: 'สแกนพอร์ตและเวอร์ชันบริการของเครื่องเป้าหมาย', hint: 'nmap -sV 192.168.10.20', check: (s, h) => said(h, /nmap.*-sV/i) },
-            { t: 'ตรวจว่า DNS ที่เครื่องใช้อยู่คือตัวไหน', hint: 'cat /etc/resolv.conf', check: (s, h) => said(h, /resolv\.conf/i) },
-            { t: 'ถาม A record ของโดเมน', hint: 'dig example.com', check: (s, h) => said(h, /^(dig|nslookup|host)\s+example\.com\s*$/i) },
-            { t: 'ถาม MX record เพื่อดูว่าเมลไปที่ไหน', hint: 'dig example.com MX', check: (s, h) => said(h, /dig.*mx|nslookup.*mx|host\s+-t\s+mx/i) },
-            { t: 'ถาม DNS ตัวอื่นเทียบผลว่าตรงกันไหม', hint: 'dig @8.8.8.8 example.com', check: (s, h) => said(h, /dig\s+@/i) },
-            { t: 'ตรวจว่าเว็บปลายทางตอบ HTTPS ปกติ', hint: 'curl -I https://example.com', check: (s, h) => said(h, /curl\s+-I/i) },
+            { t: 'ดูพอร์ตที่เครื่องเปิดฟังอยู่ พร้อมเลข PID ของ process เจ้าของ', hint: 'netstat -ano', check: (s, h) => said(h, /^netstat\s+-\w*a\w*n\w*o|^netstat\s+-ano/i) },
+            { t: 'เอา PID ที่ได้ไปหาว่าเป็นโปรแกรมอะไร', hint: 'tasklist', check: (s, h) => said(h, /^tasklist/i) },
+            { t: 'ตรวจว่าเครื่องใช้ DNS server ตัวไหนอยู่', hint: 'ipconfig /all', check: (s, h) => said(h, /^ipconfig\s+\/all/i) },
+            { t: 'ถาม A record ของโดเมน (ชื่อ → IPv4)', hint: 'nslookup example.com', check: (s, h) => said(h, /^nslookup\s+example\.com\s*$/i) },
+            { t: 'ถาม MX record เพื่อดูว่าเมลของโดเมนนี้ไปเข้าที่ไหน', hint: 'nslookup -type=MX example.com', check: (s, h) => said(h, /^nslookup\s+-(type|q|querytype)=mx/i) },
+            { t: 'ดู DNS cache ที่เครื่องจำคำตอบไว้', hint: 'ipconfig /displaydns', check: (s, h) => said(h, /^ipconfig\s+\/displaydns/i) },
+            { t: 'ล้าง DNS cache แล้วถามใหม่ เพื่อไม่ให้ได้คำตอบเก่าที่ค้างอยู่', hint: 'ipconfig /flushdns', check: (s, h) => said(h, /^ipconfig\s+\/flushdns/i) },
+            { t: 'ตรวจว่าเปิดเชื่อมต่อไปพอร์ต 443 ของปลายทางได้จริงไหม', hint: 'Test-NetConnection example.com -Port 443', check: (s, h) => said(h, /test-netconnection.*-port\s*443/i) },
           ],
         },
       ],

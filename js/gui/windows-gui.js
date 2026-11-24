@@ -15,6 +15,39 @@ const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 export const GUI_ACTIONS = {
   'open': (s, p) => `gui:open:${p.app}`,
   'nic-props': (s, p) => `gui:nic-props:${p.nic}`,
+  'nic-status': (s, p) => (s.nics[p.nic] ? `gui:nic-status:${p.nic}` : null),
+  'nic-details': (s, p) => (s.nics[p.nic] ? `gui:nic-details:${p.nic}` : null),
+  'nic-advanced': (s, p) => (s.nics[p.nic] ? `gui:nic-advanced:${p.nic}` : null),
+  /**
+   * ตั้ง Speed & Duplex จากแท็บ Advanced ของไดรเวอร์การ์ด
+   * ที่หน้างานนี่คือจุดที่แก้ duplex mismatch จริง ๆ — ตั้งกลับเป็น Auto Negotiation
+   * แล้วตัวนับ error จะหยุดวิ่ง เพราะสองฝั่งตกลงความเร็วกันใหม่
+   */
+  'nic-linkspeed': (s, p) => {
+    const n = s.nics[p.nic];
+    if (!n) return null;
+    const MODES = {
+      'Auto Negotiation': { speed: 1000, duplex: 'Full', autoneg: true },
+      '1.0 Gbps Full Duplex': { speed: 1000, duplex: 'Full', autoneg: false },
+      '100 Mbps Full Duplex': { speed: 100, duplex: 'Full', autoneg: false },
+      '100 Mbps Half Duplex': { speed: 100, duplex: 'Half', autoneg: false },
+      '10 Mbps Full Duplex': { speed: 10, duplex: 'Full', autoneg: false },
+      '10 Mbps Half Duplex': { speed: 10, duplex: 'Half', autoneg: false },
+    };
+    const m = MODES[p.mode];
+    if (!m) return null;
+    Object.assign(n, m);
+    // ลิงก์ต่อใหม่ = ตัวนับเริ่มนับใหม่ เหมือนถอดสายเสียบใหม่
+    n.rxErrors = 0; n.txErrors = 0; n.discards = 0; n.upSince = Date.now();
+    return `gui:nic-linkspeed:${p.nic}=${m.speed}${m.duplex[0]}${m.autoneg ? 'auto' : ''}`;
+  },
+  'nic-mtu': (s, p) => {
+    const n = s.nics[p.nic];
+    const mtu = Number(p.mtu);
+    if (!n || ![1500, 4088, 9014].includes(mtu)) return null;
+    n.mtu = mtu;
+    return `gui:nic-mtu:${p.nic}=${mtu}`;
+  },
   'nic-toggle': (s, p) => {
     const n = s.nics[p.nic];
     if (!n) return null;
@@ -414,6 +447,76 @@ export function createWindowsGui({ initial = {}, onExec }) {
   // ---------- หน้าจอของแต่ละแอป ----------
   const VIEWS = {
     'ncpa.cpl': (s, ctx) => {
+      // ---- Status (General) — หน้าที่คนหน้างานเปิดดูเป็นอย่างแรกเวลาผู้ใช้บอกว่าเน็ตช้า ----
+      if (ctx.view === 'status') {
+        const n = s.nics[ctx.nic];
+        const mins = Math.max(1, Math.round((Date.now() - (n.upSince || Date.now())) / 60000));
+        const dur = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}:00`;
+        const errs = (n.rxErrors || 0) + (n.txErrors || 0);
+        return `<div class="winos-pad">
+          <div class="winos-h">${esc(ctx.nic)} Status</div>
+          ${T(['Connection', ''], [
+            ['IPv4 Connectivity', n.status === 'Up' ? (n.gw ? 'Internet' : 'No network access') : 'Not connected'],
+            ['IPv6 Connectivity', n.ipv6 ? 'Internet' : 'No network access'],
+            ['Media State', n.status === 'Up' ? '<span class="winos-ok">Enabled</span>' : '<span class="winos-mute">Network cable unplugged</span>'],
+            ['Duration', dur],
+            ['Speed', `<b>${n.speed >= 1000 ? (n.speed / 1000) + '.0 Gbps' : n.speed + ' Mbps'}</b>${n.duplex === 'Half' ? ' <span class="winos-warn">(Half Duplex)</span>' : ' (Full Duplex)'}`],
+          ])}
+          ${T(['Activity', 'Sent', 'Received'], [
+            ['Bytes', (n.txBytes || 0).toLocaleString(), (n.rxBytes || 0).toLocaleString()],
+            ['Errors', (n.txErrors || 0).toLocaleString(), (n.rxErrors || 0).toLocaleString()],
+            ['Discards', (n.discards || 0).toLocaleString(), '0'],
+          ])}
+          ${errs ? `<div class="winos-note">มี error สะสม ${errs.toLocaleString()} เฟรม — ถ้าลิงก์วิ่งที่ Half Duplex ให้ไปแก้ที่ Properties → Configure → Advanced</div>` : ''}
+          <div class="winos-actions">
+            ${btn('Details…', 'nic-details', `data-nic="${esc(ctx.nic)}"`, 'primary')}
+            ${btn('Properties', 'nic-props', `data-nic="${esc(ctx.nic)}"`)}
+            ${btn('Configure…', 'nic-advanced', `data-nic="${esc(ctx.nic)}"`)}
+            ${btn('Close', 'back-nics')}</div>
+        </div>`;
+      }
+      // ---- Network Connection Details ----
+      if (ctx.view === 'details') {
+        const n = s.nics[ctx.nic];
+        const mask = n.prefix === 16 ? '255.255.0.0' : n.prefix === 30 ? '255.255.255.252' : '255.255.255.0';
+        return `<div class="winos-pad">
+          <div class="winos-h">Network Connection Details — ${esc(ctx.nic)}</div>
+          ${T(['Property', 'Value'], [
+            ['Description', 'Intel(R) 82574L Gigabit Network Connection'],
+            ['Physical Address', `<b>${esc(n.mac)}</b>`],
+            ['DHCP Enabled', n.dhcp ? 'Yes' : 'No'],
+            ['IPv4 Address', esc(n.ip)],
+            ['IPv4 Subnet Mask', mask],
+            ['IPv4 Default Gateway', esc(n.gw || '')],
+            ['IPv4 DNS Servers', esc((n.dns || []).join(', '))],
+            ['IPv6 Address', esc(n.ipv6 || '')],
+            ['Link-local IPv6 Address', esc(n.ipv6ll || '')],
+            ['MTU', String(n.mtu || 1500)],
+          ])}
+          <div class="winos-actions">${btn('Close', 'nic-status', `data-nic="${esc(ctx.nic)}"`, 'primary')}</div>
+        </div>`;
+      }
+      // ---- Advanced (แท็บของไดรเวอร์การ์ด) — จุดที่แก้ duplex mismatch และเปิด jumbo frame ----
+      if (ctx.view === 'advanced') {
+        const n = s.nics[ctx.nic];
+        const cur = n.autoneg ? 'Auto Negotiation'
+          : `${n.speed >= 1000 ? '1.0 Gbps' : n.speed + ' Mbps'} ${n.duplex} Duplex`;
+        const MODES = ['Auto Negotiation', '1.0 Gbps Full Duplex', '100 Mbps Full Duplex',
+          '100 Mbps Half Duplex', '10 Mbps Full Duplex', '10 Mbps Half Duplex'];
+        const JUMBO = { 1500: 'Disabled', 4088: '4088 Bytes', 9014: '9014 Bytes' };
+        return `<div class="winos-pad">
+          <div class="winos-h">${esc(ctx.nic)} Properties — Advanced</div>
+          <div class="winos-note">แท็บนี้คือค่าของไดรเวอร์การ์ด ไม่ใช่ค่า IP — ปกติควรปล่อยเป็น Auto Negotiation
+            การบังคับความเร็วไว้ข้างเดียวคือต้นเหตุของ duplex mismatch</div>
+          <label class="winos-fld"><span>Speed &amp; Duplex</span>
+            ${pick('g-linkspeed', MODES, cur)}</label>
+          <label class="winos-fld"><span>Jumbo Packet</span>
+            ${pick('g-jumbo', Object.values(JUMBO), JUMBO[n.mtu] || 'Disabled')}</label>
+          <div class="winos-actions">
+            ${btn('OK', 'adv-ok', `data-nic="${esc(ctx.nic)}"`, 'primary')}
+            ${btn('Cancel', 'nic-status', `data-nic="${esc(ctx.nic)}"`)}</div>
+        </div>`;
+      }
       if (ctx.view === 'ipv4') {
         const n = s.nics[ctx.nic];
         const mask = n.prefix === 24 ? '255.255.255.0' : n.prefix === 16 ? '255.255.0.0' : '255.255.255.0';
@@ -445,7 +548,8 @@ export function createWindowsGui({ initial = {}, onExec }) {
             <div class="winos-item-ic">🔌</div>
             <div><b>${esc(k)}</b><div class="winos-sub">${n.status === 'Up' ? (n.dhcp ? 'Enabled · DHCP' : 'Enabled · Static ' + n.ip) : 'Network cable unplugged'}</div></div>
             <div class="winos-item-act">
-              ${btn('Properties', 'nic-props', `data-nic="${esc(k)}"`, 'primary')}
+              ${btn('Status', 'nic-status', `data-nic="${esc(k)}"`, 'primary')}
+              ${btn('Properties', 'nic-props', `data-nic="${esc(k)}"`)}
               ${btn(n.status === 'Up' ? 'Disable' : 'Enable', 'nic-toggle', `data-nic="${esc(k)}"`)}
             </div></div>`).join('')}
         </div></div>`;
@@ -929,6 +1033,16 @@ export function createWindowsGui({ initial = {}, onExec }) {
     switch (what) {
       // ---- Network Connections ----
       case 'nic-props': w.ctx = { view: 'ipv4', nic: data.nic }; run('nic-props', { nic: data.nic }); break;
+      case 'nic-status': w.ctx = { view: 'status', nic: data.nic }; run('nic-status', { nic: data.nic }); break;
+      case 'nic-details': w.ctx = { view: 'details', nic: data.nic }; run('nic-details', { nic: data.nic }); break;
+      case 'nic-advanced': w.ctx = { view: 'advanced', nic: data.nic }; run('nic-advanced', { nic: data.nic }); break;
+      case 'adv-ok': {
+        const JUMBO = { Disabled: 1500, '4088 Bytes': 4088, '9014 Bytes': 9014 };
+        run('nic-linkspeed', { nic: data.nic, mode: val('g-linkspeed') });
+        run('nic-mtu', { nic: data.nic, mtu: JUMBO[val('g-jumbo')] });
+        w.ctx = { view: 'status', nic: data.nic };
+        break;
+      }
       case 'back-nics': w.ctx = {}; break;
       case 'nic-toggle': run('nic-toggle', { nic: data.nic }); break;
       case 'ipv4-ok': {
