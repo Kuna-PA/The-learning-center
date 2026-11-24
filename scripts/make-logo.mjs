@@ -44,7 +44,64 @@ const out = (name) => join(ROOT, name);
 const LOGO_FULL = [80, 100, 1376, 790];
 const LOGO_MARK = [350, 100, 826, 588];
 
+// แถบแนวนอนของแต่ละส่วนในภาพต้นฉบับ ใช้ตอนตัด .COM และจัดกึ่งกลางใหม่
+const WORD_Y = [715, 814];   // ASD-ACADEMY.COM
+const MONO_Y = [110, 678];   // ตัว A
+
 const DARK = [11, 14, 20];              // --bg ของธีม
+
+/**
+ * ตัด ".COM" ออกจากตัวหนังสือ ให้ตรงกับชื่อที่ใช้เป็นข้อความในเว็บ (ASD ACADEMY)
+ *
+ * ตัดด้วยพิกัดไม่ได้ตรง ๆ เพราะแขนขวาของตัว Y กับจุด "." อยู่ในคอลัมน์เดียวกัน
+ * แต่คนละความสูง — วัดแล้วแขน Y อยู่ y 720-751 ส่วนจุดอยู่ y 795-814
+ * จึงลบเป็นสองส่วน: "COM" ตัดทั้งคอลัมน์ตั้งแต่ x 1186 (หลังช่องว่าง)
+ * ส่วนจุดตัดเฉพาะครึ่งล่างของคอลัมน์ 1166-1185
+ *
+ * ลบแล้วตัวหนังสือจะเยื้องไปทางซ้าย จึงเลื่อนกลับมาให้กึ่งกลางตรงกับตัว A ด้านบน
+ * (คำนวณจากขอบจริงที่วัดได้ ไม่ได้ฮาร์ดโค้ดระยะไว้)
+ */
+function dropDotCom(img) {
+  const white = (x, y) => {
+    const i = at(img, x, y);
+    img.data[i] = 255; img.data[i + 1] = 255; img.data[i + 2] = 255;
+  };
+  const isInk = (x, y) => {
+    const i = at(img, x, y);
+    const r = img.data[i], g = img.data[i + 1], b = img.data[i + 2];
+    return Math.max(r, g, b) - Math.min(r, g, b) > 12 || 0.299 * r + 0.587 * g + 0.114 * b < 244;
+  };
+
+  for (let y = WORD_Y[0]; y <= WORD_Y[1]; y++) {
+    for (let x = 1186; x < img.w; x++) white(x, y);
+    if (y >= 790) for (let x = 1166; x <= 1185; x++) white(x, y);
+  }
+
+  const bbox = (ya, yb) => {
+    let a = img.w, b = -1;
+    for (let y = ya; y <= yb; y++) for (let x = 0; x < img.w; x++) {
+      if (!isInk(x, y)) continue;
+      if (x < a) a = x; if (x > b) b = x;
+    }
+    return [a, b];
+  };
+  const [wa, wb] = bbox(...WORD_Y);
+  const [ma, mb] = bbox(...MONO_Y);
+  const shift = Math.round((ma + mb) / 2 - (wa + wb) / 2);
+
+  const band = crop(img, 0, WORD_Y[0], img.w, WORD_Y[1] - WORD_Y[0] + 1);
+  for (let y = WORD_Y[0]; y <= WORD_Y[1]; y++) for (let x = 0; x < img.w; x++) white(x, y);
+  for (let y = 0; y < band.h; y++) {
+    for (let x = 0; x < band.w; x++) {
+      const nx = x + shift;
+      if (nx < 0 || nx >= img.w) continue;
+      const s = at(band, x, y), d = at(img, nx, y + WORD_Y[0]);
+      img.data[d] = band.data[s]; img.data[d + 1] = band.data[s + 1]; img.data[d + 2] = band.data[s + 2];
+    }
+  }
+  console.log(`ตัด .COM ออก แล้วเลื่อนตัวหนังสือไปขวา ${shift} px ให้กึ่งกลางตรงกับตัว A`);
+  return img;
+}
 
 /** ลบพื้นขาวทั้งภาพโดยใช้ความอิ่มสีเป็น alpha · unmultiply คืนความเข้มให้พิกเซลขอบ */
 function cutWhite(img, { lo = 10, hi = 46 } = {}) {
@@ -129,10 +186,12 @@ function onDarkTile(img, size, margin) {
 }
 
 const wide = (img, w) => resize(img, w, Math.round(w * img.h / img.w));
-const prep = (box) => trim(liftForDark(cutWhite(crop(readBmp(SRC), ...box))), 4);
 
-const logo = readBmp(SRC);
+// อ่านต้นฉบับครั้งเดียวแล้วตัด .COM ก่อน จากนั้นค่อยครอบเอาแต่ละส่วนออกมา
+const logo = dropDotCom(readBmp(SRC));
 console.log(`ต้นฉบับ ${logo.w} x ${logo.h}`);
+
+const prep = (box) => trim(liftForDark(cutWhite(crop(logo, ...box))), 4);
 
 const full = prep(LOGO_FULL);
 writePng(out('assets/logo-full.png'), wide(full, 820));
