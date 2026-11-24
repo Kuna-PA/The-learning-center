@@ -11,7 +11,7 @@ XP/Rank, Lab ที่มี **command prompt จำลอง** และใบ�
 ไม่ต้องติดตั้งอะไรเลย (ไม่มี dependency, ไม่ต้อง build) ต้องใช้ **Node 22.5 ขึ้นไป**
 เพราะใช้ `node:sqlite` ที่ติดมากับ Node เอง
 
-> 📘 ติดตั้งครั้งแรก ตั้งให้รันเป็น service สำรองข้อมูล และแก้ปัญหาที่พบบ่อย
+> 📘 หัวข้อนี้คือการรันตอน**พัฒนา** · การ**ติดตั้งใช้งานจริงให้ใช้ Docker** ซึ่งไม่ต้องลง Node เลย
 > ดูคู่มือเต็ม → **[INSTALL.md](INSTALL.md)**
 
 ```bash
@@ -437,19 +437,20 @@ Vercel รัน `http.createServer(...).listen()` แบบค้างพอ�
 
 ### ที่ที่รัน backend ได้จริง
 
-ต้องเป็นที่ที่รัน process ค้างไว้ได้และมีดิสก์ถาวร เช่น VM/VPS, Render, Railway, Fly.io หรือ Docker
+ต้องเป็นที่ที่รัน process ค้างไว้ได้และมีดิสก์ถาวร เช่น VM/VPS, Render, Railway, Fly.io
+วิธีที่แนะนำคือ **Docker** เพราะไม่ต้องสนใจเวอร์ชัน Node บนเครื่องปลายทางเลย
 
 ```bash
-git clone https://github.com/Kuna-PA/The-learning-center.git
-cd The-learning-center
-LC_ADMIN_PASSWORD='รหัสที่ต้องการ' PORT=8080 npm start
+git clone https://github.com/Kuna-PA/The-learning-center.git /opt/asd-academy
+cd /opt/asd-academy && docker compose up -d --build
 ```
 
-ให้ reverse proxy (nginx / Caddy) ครอบด้วย HTTPS แล้วชี้มาที่พอร์ตนั้น
+ให้ reverse proxy (nginx / Caddy) ครอบด้วย HTTPS แล้วชี้มาที่พอร์ต 5173
 
-สำรองข้อมูลด้วย `npm run backup` — ทำได้ขณะเซิร์ฟเวอร์ยังทำงาน เพราะใช้ backup API ของ SQLite เอง
-(ฐานข้อมูลเปิดโหมด WAL อยู่ การ copy แค่ไฟล์ `.db` ตอนเซิร์ฟเวอร์ยังรันจะได้ข้อมูลไม่ครบ)
-รายละเอียดการตั้ง service, สำรองอัตโนมัติ และกู้คืน อยู่ใน [INSTALL.md](INSTALL.md)
+สำรองข้อมูลด้วย `docker compose exec asd-academy npm run backup` — ทำได้ขณะเซิร์ฟเวอร์ยังทำงาน
+เพราะใช้ backup API ของ SQLite เอง (ฐานข้อมูลเปิดโหมด WAL อยู่ การ copy แค่ไฟล์ `.db`
+ตอนเซิร์ฟเวอร์ยังรันจะได้ข้อมูลไม่ครบ)
+รายละเอียดครบทุกขั้นตอน รวมถึงสำรองอัตโนมัติและกู้คืน อยู่ใน [INSTALL.md](INSTALL.md)
 
 ---
 
@@ -505,7 +506,7 @@ server.js             เสิร์ฟไฟล์ + mount API + security head
 sw.js                 service worker — ทำให้เปิดเว็บได้ตอนเน็ตหลุด
 manifest.webmanifest  ข้อมูลแอปสำหรับติดตั้งลงเครื่อง (PWA)
 icon-192.png icon-512.png   ไอคอนแอป
-INSTALL.md            คู่มือติดตั้ง (Windows · Ubuntu · Docker · สำรองข้อมูล · แก้ปัญหา)
+INSTALL.md            คู่มือติดตั้งด้วย Docker (รวมสำรองข้อมูล · กู้คืน · แก้ปัญหา)
 Dockerfile  docker-compose.yml  .dockerignore   รันเป็น container
 vercel.json  .vercelignore      deploy เป็น static site (โหมดออฟไลน์)
 assets/               รูปที่ใช้ในหน้าเว็บ
