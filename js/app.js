@@ -212,41 +212,30 @@ function renderLogin(err = '') {
         <img class="brand-logo" src="assets/logo-full.png" alt="ASD ACADEMY">
       </div>
       <h1>${loginMode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครบัญชีผู้เรียน'}</h1>
-      <div class="sub">${loginMode === 'login' ? 'ความคืบหน้าจะถูกเก็บแยกตามบัญชีของคุณ' : 'สร้างบัญชีใหม่เพื่อเริ่มเก็บความคืบหน้า'}</div>
       ${openRegister ? `<div class="login-tabs">
         <button data-m="login" class="${loginMode === 'login' ? 'on' : ''}">เข้าสู่ระบบ</button>
         <button data-m="register" class="${loginMode === 'register' ? 'on' : ''}">สมัครใหม่</button>
-      </div>` : `<div class="hint-box">
-        เซิร์ฟเวอร์นี้ปิดรับสมัครเอง — ให้ผู้ดูแลระบบสร้างบัญชีให้ก่อน</div>`}
+      </div>` : ''}
       ${err ? `<div class="login-err">${esc(err)}</div>` : ''}
       <form id="login-form">
         <div class="fld"><label>ชื่อผู้ใช้</label>
-          <input id="f-user" autocomplete="username" placeholder="เช่น somchai" spellcheck="false"></div>
+          <input id="f-user" autocomplete="username" spellcheck="false"></div>
         ${loginMode === 'register' ? `<div class="fld"><label>ชื่อที่แสดง</label>
           <input id="f-display" placeholder="ชื่อ-นามสกุล (ใช้พิมพ์บนใบประกาศ)"></div>` : ''}
         <div class="fld"><label>รหัสผ่าน</label>
-          <input id="f-pass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+          <input id="f-pass" type="password" autocomplete="current-password"></div>
         ${loginMode === 'register' ? `<div class="fld"><label>ยืนยันรหัสผ่าน</label>
-          <input id="f-pass2" type="password" placeholder="••••••••"></div>` : ''}
+          <input id="f-pass2" type="password"></div>` : ''}
         <button class="btn primary block" type="submit" style="margin-top:6px">
           ${loginMode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครและเข้าใช้งาน'}</button>
       </form>
-      ${loginMode === 'login' && serverUp && hasUsers === 1 ? `<div class="hint-box">
-        <b>ครั้งแรกใช้งาน?</b> ล็อกอินด้วยบัญชีผู้ดูแลที่เซิร์ฟเวอร์สร้างให้<br>
-        ผู้ใช้ <code>admin</code> · รหัสผ่านตามที่ขึ้นใน console ตอนเปิดเซิร์ฟเวอร์<br>
-        แล้วเปลี่ยนรหัสผ่านทันทีที่หน้า "บัญชีของฉัน"</div>` : ''}
       ${loginMode === 'login' && !serverUp && hasUsers === 0 ? `<div class="hint-box">
         <b>ยังไม่มีบัญชีในเบราว์เซอร์นี้</b> — กด "สมัครบัญชี" เพื่อสร้างบัญชีแรก
         (บัญชีแรกจะได้สิทธิ์ผู้ดูแลระบบอัตโนมัติ)</div>` : ''}
-      ${serverUp ? `<div class="hint-box" style="border-style:solid">
-        🔒 <b>โหมดเซิร์ฟเวอร์</b> — บัญชีและความคืบหน้าเก็บที่เซิร์ฟเวอร์
-        รหัสผ่านแฮชด้วย scrypt เซสชันเป็นคุกกี้ httpOnly เข้าเรียนจากเครื่องไหนก็ต่อจากที่ค้างไว้ได้</div>`
-      : `<div class="hint-box" style="border-style:solid;border-color:var(--warn)">
+      ${serverUp ? '' : `<div class="hint-box" style="border-style:solid;border-color:var(--warn)">
         💾 <b>โหมดออฟไลน์</b> — หน้านี้เปิดจาก static hosting จึงไม่มีเซิร์ฟเวอร์ให้เก็บข้อมูล
         บัญชีและความคืบหน้าจะอยู่ใน<b>เบราว์เซอร์เครื่องนี้เท่านั้น</b> ล้างข้อมูลเบราว์เซอร์แล้วหาย
-        และไม่ตามไปเครื่องอื่น<br>
-        อยากให้ความคืบหน้าตามตัวและผู้ดูแลเห็นของทุกคน ให้รันเซิร์ฟเวอร์เองด้วย
-        <code>npm start</code> แล้วเปิดผ่านเซิร์ฟเวอร์นั้น</div>`}
+        และไม่ตามไปเครื่องอื่น</div>`}
     </div>`;
 
   lw.querySelectorAll('[data-m]').forEach(b =>
