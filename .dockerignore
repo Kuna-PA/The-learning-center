@@ -1,0 +1,32 @@
+# ข้อมูลผู้ใช้จริง — ห้ามอบเข้า image เด็ดขาด ไม่งั้นฐานข้อมูลของเครื่องที่ build
+# จะติดไปกับ image แล้วไปโผล่ในทุกเครื่องที่เอา image ไปรัน
+data-db/
+backup/
+*.db
+*.db-wal
+*.db-shm
+
+# ประวัติ git และ CI — ไม่ได้ใช้ตอนรัน และทำให้ image ใหญ่ขึ้นมาก
+.git/
+.github/
+.gitattributes
+.gitignore
+
+# ไฟล์ต้นฉบับของโลโก้และพื้นหลัง หนักหลายเมกะไบต์และใช้แค่ตอนสร้าง asset
+assets/src/
+
+# ของเฉพาะเครื่องที่ build
+node_modules/
+.vscode/
+.idea/
+.claude/
+*.log
+
+# ของ Vercel (เอาไว้ deploy แบบ static ไม่เกี่ยวกับ container)
+.vercelignore
+vercel.json
+
+# ตัว Dockerfile เอง
+Dockerfile
+.dockerignore
+docker-compose.yml

@@ -1,0 +1,30 @@
+# ============================================================
+#  ASD ACADEMY — docker compose
+#    docker compose up -d --build
+#    docker compose logs            <- รหัส admin ครั้งแรก (แสดงครั้งเดียว)
+#    docker compose down            <- หยุด · ข้อมูลยังอยู่ใน volume
+# ============================================================
+services:
+  asd-academy:
+    build: .
+    image: asd-academy
+    container_name: asd-academy
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      # ปิดการสมัครเอง — ให้ผู้ดูแลเป็นคนสร้างบัญชีให้
+      LC_OPEN_REGISTER: "0"
+      # ตั้งรหัส admin เองตั้งแต่สร้างครั้งแรกได้ (ต้องยาว 8 ตัวขึ้นไป)
+      # ไม่ตั้งก็ได้ ระบบจะสุ่มให้แล้วพิมพ์ออก log ครั้งเดียว
+      # LC_ADMIN_PASSWORD: "เปลี่ยนรหัสนี้ด้วย"
+      #
+      # เปิดสองตัวล่างนี้เมื่อมี reverse proxy ครอบ HTTPS อยู่ข้างหน้า
+      # LC_TRUST_PROXY: "1"
+      # LC_SECURE_COOKIE: "1"
+    volumes:
+      # ฐานข้อมูลอยู่ใน volume ไม่ใช่ใน container — ลบ container ทิ้งข้อมูลก็ยังอยู่
+      - asd-data:/data
+
+volumes:
+  asd-data:

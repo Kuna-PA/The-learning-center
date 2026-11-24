@@ -14,7 +14,16 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = join(process.env.LC_DATA_DIR || join(root, 'data-db'), 'learning-center.db');
+const DATA_DIR = process.env.LC_DATA_DIR || join(root, 'data-db');
+const SRC = join(DATA_DIR, 'learning-center.db');
+
+/**
+ * ที่เก็บไฟล์สำรองเริ่มต้น
+ * ถ้าตั้ง LC_DATA_DIR ไว้ แปลว่าข้อมูลอยู่คนละที่กับโค้ด (เช่นใน container ที่ /app เป็นของ root
+ * และแอปรันเป็นผู้ใช้ node จึงเขียนข้าง ๆ โค้ดไม่ได้) ให้เก็บไฟล์สำรองไว้ข้างข้อมูลแทน
+ * ได้ประโยชน์สองต่อ: เขียนได้แน่ และไฟล์สำรองอยู่ใน volume เดียวกับข้อมูล ไม่หายไปกับ container
+ */
+const DEST_DIR = process.env.LC_DATA_DIR ? join(DATA_DIR, 'backup') : join(root, 'backup');
 
 /** ชื่อไฟล์ตามวันเวลา เรียงตามตัวอักษรแล้วได้ลำดับเวลาพอดี */
 const stamp = () => {
@@ -23,7 +32,7 @@ const stamp = () => {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
 };
 
-const dest = process.argv[2] || join(root, 'backup', `learning-center-${stamp()}.db`);
+const dest = process.argv[2] || join(DEST_DIR, `learning-center-${stamp()}.db`);
 
 try {
   statSync(SRC);

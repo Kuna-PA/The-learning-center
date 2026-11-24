@@ -303,27 +303,64 @@ sudo journalctl -u asd-academy -n 50    # อ่านรหัส admin คร�
 
 ### Docker
 
-ไม่มี `Dockerfile` ให้ในโปรเจกต์ (เพราะปกติไม่ต้องใช้) ถ้าต้องการ สร้างเองสั้น ๆ ได้เลย:
+มี `Dockerfile` · `docker-compose.yml` · `.dockerignore` ให้พร้อมใช้ในโปรเจกต์แล้ว
+สั่งครั้งเดียวจบ:
 
-```dockerfile
-FROM node:24-alpine
-WORKDIR /app
-COPY . .
-ENV PORT=5173 LC_DATA_DIR=/data LC_OPEN_REGISTER=0
-VOLUME /data
-EXPOSE 5173
-CMD ["node", "server.js"]
+```bash
+docker compose up -d --build
 ```
 
-```powershell
-docker build -t asd-academy .
+**รหัส admin ครั้งแรกอยู่ใน log และแสดงครั้งเดียว** — อ่านทันที:
+
+```bash
+docker compose logs
 ```
 
-```powershell
-docker run -d --name lc -p 5173:5173 -v lc-data:/data asd-academy
+| | ตั้งค่าไว้อย่างไร |
+|---|---|
+| ฐาน image | `node:24-alpine` — ต้อง 24 เพราะ `backup()` ของ `node:sqlite` เพิ่มมาทีหลัง 22.5 |
+| ขนาด | ~250 MB · ชั้นเดียว ไม่มี build step เพราะโปรเจกต์ไม่มี dependency |
+| ผู้ใช้ที่รัน | `node` (uid 1000) **ไม่ใช่ root** · `/app` เป็นของ root แอปจึงแก้โค้ดตัวเองไม่ได้ |
+| ข้อมูล | volume `asd-data` ที่ `/data` — ลบ container ทิ้งข้อมูลยังอยู่ |
+| ไฟล์สำรอง | `/data/backup/` คืออยู่ใน volume เดียวกับข้อมูล ไม่หายไปกับ container |
+| healthcheck | เรียก `/api/health` ทุก 30 วินาที (ใช้ `node` ตรวจเอง เพราะ alpine ไม่มี curl) |
+| สมัครเอง | ปิดไว้ (`LC_OPEN_REGISTER=0`) ให้ผู้ดูแลเป็นคนสร้างบัญชี |
+
+ตั้งรหัส admin เองตั้งแต่แรก: แก้ `LC_ADMIN_PASSWORD` ใน `docker-compose.yml` ก่อนสั่ง up ครั้งแรก
+
+เครื่องมือดูแลระบบใช้ใน container ได้ตามปกติ:
+
+```bash
+docker compose exec asd-academy npm run backup
 ```
 
-ต้อง map volume ให้ `/data` จริง ๆ ไม่งั้นลบ container ทีเดียวข้อมูลผู้เรียนหายทั้งหมด
+```bash
+docker compose exec asd-academy npm run reset-password -- admin
+```
+
+ดึงไฟล์สำรองออกมาเก็บนอกเครื่อง:
+
+```bash
+docker compose cp asd-academy:/data/backup ./backup-from-container
+```
+
+หยุดโดยข้อมูลยังอยู่ · และคำสั่งที่**ลบข้อมูลทิ้งทั้งหมด** (ระวัง):
+
+```bash
+docker compose down
+```
+
+```bash
+docker compose down -v
+```
+
+> `-v` ลบ volume ด้วย = บัญชีผู้เรียนและความคืบหน้าหายหมด ใช้ตอนอยากเริ่มใหม่จริง ๆ เท่านั้น
+
+อัปเดตเป็นโค้ดใหม่ — ข้อมูลไม่หายเพราะอยู่คนละที่กับ image:
+
+```bash
+git pull && docker compose up -d --build
+```
 
 ### ครอบ HTTPS
 
