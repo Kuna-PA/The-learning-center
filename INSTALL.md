@@ -13,14 +13,21 @@
 
 | | ต้องการ | ตรวจด้วย |
 |---|---|---|
-| Node.js | **22.5.0 ขึ้นไป** (แนะนำ 24 LTS) | `node -v` |
+| Node.js | **22.5.0 ขึ้นไป · แนะนำ 24 LTS** | `node -v` |
 | พื้นที่ดิสก์ | ~30 MB (โค้ด) + ฐานข้อมูลที่โตตามจำนวนผู้เรียน | |
 | เบราว์เซอร์ | Chrome / Edge / Firefox รุ่นใหม่ | |
 
 ทำไมต้อง 22.5 ขึ้นไป — เพราะใช้ `node:sqlite` ซึ่งเป็นโมดูลฐานข้อมูลที่ติดมากับ Node เอง
-Node รุ่นเก่ากว่านี้จะไม่มีโมดูลนี้และเซิร์ฟเวอร์จะไม่สตาร์ต
+Node รุ่นเก่ากว่านี้จะไม่มีโมดูลนี้ และเซิร์ฟเวอร์จะตายทันทีตอนสตาร์ตด้วย
+`Cannot find module 'node:sqlite'` — **Node 20 ใช้ไม่ได้** ถึงจะเป็น LTS ก็ตาม
 
-ถ้ายังไม่มี Node: โหลดตัวติดตั้ง **Windows Installer (.msi) รุ่น LTS** จาก <https://nodejs.org>
+ทำไมแนะนำ 24 — เพราะ `npm run backup` ใช้ `backup()` ของ `node:sqlite` ซึ่งเพิ่มเข้ามาทีหลัง
+`DatabaseSync` พอสมควร Node 22 รุ่นแรก ๆ จะมีฐานข้อมูลแต่สำรองแบบไม่ต้องหยุดเซิร์ฟเวอร์ไม่ได้
+(สคริปต์จะฟ้องให้ชัดเองถ้าเจอกรณีนี้ ไม่ได้พังเงียบ ๆ)
+
+### ติดตั้ง Node บน Windows
+
+โหลดตัวติดตั้ง **Windows Installer (.msi) รุ่น LTS** จาก <https://nodejs.org>
 กด Next ไปตามค่าเริ่มต้นได้เลย (ไม่ต้องติ๊ก "Tools for Native Modules")
 แล้วเปิด PowerShell **หน้าต่างใหม่** เพื่อให้ PATH อัปเดต
 
@@ -28,7 +35,40 @@ Node รุ่นเก่ากว่านี้จะไม่มีโมด
 node -v
 ```
 
-ต้องขึ้นเลขตั้งแต่ `v22.5.0` ขึ้นไป
+### ติดตั้ง Node บน Ubuntu / Debian
+
+**อย่าใช้ `apt install nodejs` เฉย ๆ** เพราะคลังของ Ubuntu ยังเป็นรุ่นเก่า (18 หรือ 20) ซึ่งใช้ไม่ได้
+ให้เพิ่มคลังของ NodeSource ก่อน:
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_24.x -o /tmp/nodesource_setup.sh
+```
+
+เปิดอ่านก่อนรันได้ (สคริปต์นี้รันด้วยสิทธิ์ root — ควรดูสักหน่อยว่าทำอะไรบ้าง):
+
+```bash
+less /tmp/nodesource_setup.sh
+```
+
+```bash
+sudo -E bash /tmp/nodesource_setup.sh
+```
+
+```bash
+sudo apt-get install -y nodejs
+```
+
+แพ็กเกจ `nodejs` ของ NodeSource มี `npm` มาด้วยแล้ว ไม่ต้องลงแยก
+
+> ถ้าไม่อยากใช้ sudo หรือต้องสลับหลายเวอร์ชันบนเครื่องเดียว ให้ใช้ [nvm](https://github.com/nvm-sh/nvm)
+> แล้วสั่ง `nvm install 24` แทน — แต่ถ้าจะตั้งเป็น service ด้วย systemd ควรลงแบบ NodeSource
+> เพราะ systemd มองไม่เห็น node ที่อยู่ใน nvm ของผู้ใช้
+
+ตรวจผล — ต้องขึ้นเลขตั้งแต่ `v22.5.0` ขึ้นไป:
+
+```bash
+node -v
+```
 
 ---
 
@@ -36,8 +76,24 @@ node -v
 
 ### แบบ A — git (ได้อัปเดตง่ายกว่า)
 
+บน Windows:
+
 ```powershell
 git clone https://github.com/Kuna-PA/The-learning-center.git "D:\Projects\Learning Center"
+```
+
+บน Ubuntu:
+
+```bash
+sudo apt-get install -y git
+```
+
+```bash
+sudo git clone https://github.com/Kuna-PA/The-learning-center.git /opt/asd-academy
+```
+
+```bash
+sudo chown -R $USER:$USER /opt/asd-academy
 ```
 
 ### แบบ B — ไม่มี git / เครือข่ายปิด
