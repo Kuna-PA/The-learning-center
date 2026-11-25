@@ -145,8 +145,9 @@ button{font-family:inherit}
 
 /* ไอคอน SVG ของ Learning Path — ทำตัวเหมือน emoji คือโตตาม font-size ของที่ที่วาง */
 .ic{width:1em;height:1em;display:inline-block;vertical-align:-.14em;flex:none}
-.brand-title{font-weight:700;font-size:14px;letter-spacing:1.2px}
-.brand-sub{font-size:11px;color:var(--txt-mute);font-family:var(--mono)}
+/* ชื่อแบรนด์ในแถบข้าง — บรรทัดเดียวโดด ๆ แล้ว (เลิกมีบรรทัดรองใต้)
+   18px คือใหญ่สุดที่ยังไม่ชนขอบแถบข้าง 250px */
+.brand-title{font-weight:700;font-size:18px;letter-spacing:1.5px;line-height:1.2}
 #nav{display:flex;flex-direction:column;gap:2px;flex:1}
 .nav-h{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt-mute);margin:14px 8px 5px;font-weight:700}
 .nav-i{
