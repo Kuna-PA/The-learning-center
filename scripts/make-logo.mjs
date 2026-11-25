@@ -1,22 +1,22 @@
 // ============================================================
-//  สร้าง asset ของโลโก้ ASD-ACADEMY.COM จากไฟล์ต้นฉบับ
+//  สร้าง asset ของโลโก้ ASD ACADEMY จากไฟล์ต้นฉบับ
 //    node scripts/make-logo.mjs <ไฟล์ asd-logo.bmp>
 //
-//  ต้นฉบับเป็นโลโก้วางซ้อน: ตัว A พร้อมหมวกบัณฑิตและหนังสืออยู่บน
-//  ตัวหนังสือ ASD-ACADEMY.COM และบรรทัดรองอยู่ล่าง ทั้งหมดเป็นโทนน้ำเงินบนพื้นขาว
+//  ต้นฉบับเป็นโลโก้วางซ้อนสามชั้น: ตัว A ที่มีลายวงจรอยู่บน · คำว่า ASD ตรงกลาง
+//  · คำว่า ACADEMY ล่างสุด โทนสีกรมท่ากับเขียวเทอร์ควอยซ์ และมีเส้นวงจรสีขาว
 //
-//  สคริปต์นี้ทำสองอย่าง
-//    1. ลบพื้นขาวออกให้หมดทั้งภาพ — ใช้ "ความอิ่มสี" (chroma) เป็นค่า alpha
-//       ตรวจแล้วพื้นขาวมีความอิ่มสีสูงสุดแค่ 2 ส่วนงานโลโก้เป็นน้ำเงินล้วน
-//       (ในกรอบเนื้อหามีพิกเซลที่มีสี 270,155 จุด เทาแค่ 2,519 จุด) จึงแยกกันได้หมดจด
-//       วิธีนี้ยังลบช่องว่างที่ถูกตัวอักษรล้อมปิดไว้ (ใจกลาง A · D · O) ได้ด้วย
-//       ซึ่งการเทสีจากขอบเข้ามาทำไม่ได้
-//    2. ยกความสว่างของน้ำเงินเข้มเพื่อให้อ่านออกบนธีมมืด
-//       สีเข้มสุดในโลโก้คือ rgb(0,1,54) ซึ่งบนพื้น #0b0e14 ได้ contrast 1.00:1
-//       คือมองไม่เห็นเลย · หลังปรับได้เฉลี่ย 6.98:1
-//       ใช้วิธีขยับค่า L ใน HSL ไม่ใช่ผสมสีขาว เพราะการผสมขาวจะทำให้น้ำเงินกลายเป็นเทา
+//  ต่างจากโลโก้ชุดก่อน ๆ ตรงที่ไฟล์นี้ **มีช่อง alpha มาแล้วจริง ๆ**
+//  (ตรวจแล้วพื้นหลังโปร่งใสสนิท) จึงไม่ต้องตัดพื้นหลังเองเลย
+//  และสำคัญกว่านั้นคือ **ห้ามตัดด้วยความอิ่มสีเด็ดขาด** เพราะเส้นวงจรในโลโก้นี้
+//  เป็นสีขาวซึ่งไร้สี ถ้าใช้วิธีเดิมเส้นวงจรจะหายไปทั้งหมด
 //
-//  แปลง .png/.jpg เป็น .bmp ก่อนด้วย (Windows PowerShell):
+//  เหลืองานเดียวคือ **ยกความสว่างของสีกรมท่าให้อ่านออกบนธีมมืด**
+//  สีเข้มสุดในโลโก้คือ rgb(0,0,39) ซึ่งบนพื้น #0b0e14 ได้ contrast 1.00:1
+//  คือมองไม่เห็นเลย · หลังปรับได้เฉลี่ย 6.24:1
+//  ใช้วิธีขยับค่า L ใน HSL ไม่ใช่ผสมสีขาว เพราะการผสมขาวจะทำให้สีกลายเป็นเทา
+//  และข้ามพิกเซลที่ไร้สี (s < 0.08) ไว้ เส้นวงจรสีขาวจึงยังขาวเหมือนเดิม
+//
+//  แปลง .png เป็น .bmp ก่อนด้วย (Windows PowerShell) — ช่อง alpha ติดไปด้วย:
 //    Add-Type -AssemblyName System.Drawing
 //    $i=[System.Drawing.Image]::FromFile('assets\src\asd-logo.png')
 //    $b=New-Object System.Drawing.Bitmap($i.Width,$i.Height,'Format32bppArgb')
@@ -37,87 +37,15 @@ if (!SRC) {
 }
 const out = (name) => join(ROOT, name);
 
-// ---------- ตำแหน่งที่ครอบไว้ในภาพต้นฉบับ (1536 x 1024) ----------
-// วัดจากการไล่หาขอบเนื้อหาจริง: ทั้งโลโก้อยู่ x 90–1445 · y 110–880
-// มีช่องว่างแนวนอนที่ y 679–714 แยกตัว A ออกจากตัวหนังสือ และที่ y 815–849 แยกบรรทัดรอง
-// ตัว A เองกินพื้นที่ x 360–1166 · y 110–678
-const LOGO_FULL = [80, 100, 1376, 790];
-const LOGO_MARK = [350, 100, 826, 588];
-
-// แถบแนวนอนของแต่ละส่วนในภาพต้นฉบับ ใช้ตอนตัด .COM และจัดกึ่งกลางใหม่
-const WORD_Y = [715, 814];   // ASD-ACADEMY.COM
-const MONO_Y = [110, 678];   // ตัว A
+// ---------- ตำแหน่งที่ครอบไว้ในภาพต้นฉบับ (1137 x 1383) ----------
+// วัดจากช่อง alpha จริง: ทั้งโลโก้อยู่ x 88–1024 · y 69–1282
+// มีช่องว่างแนวนอนที่ y 796–881 แยกตัว A ออกจากคำว่า ASD
+// และที่ y 1136–1182 แยก ASD ออกจาก ACADEMY
+// ตัว A เองกินพื้นที่ x 108–998 · y 69–795
+const LOGO_FULL = [78, 59, 956, 1233];
+const LOGO_MARK = [98, 59, 910, 747];
 
 const DARK = [11, 14, 20];              // --bg ของธีม
-
-/**
- * ตัด ".COM" ออกจากตัวหนังสือ ให้ตรงกับชื่อที่ใช้เป็นข้อความในเว็บ (ASD ACADEMY)
- *
- * ตัดด้วยพิกัดไม่ได้ตรง ๆ เพราะแขนขวาของตัว Y กับจุด "." อยู่ในคอลัมน์เดียวกัน
- * แต่คนละความสูง — วัดแล้วแขน Y อยู่ y 720-751 ส่วนจุดอยู่ y 795-814
- * จึงลบเป็นสองส่วน: "COM" ตัดทั้งคอลัมน์ตั้งแต่ x 1186 (หลังช่องว่าง)
- * ส่วนจุดตัดเฉพาะครึ่งล่างของคอลัมน์ 1166-1185
- *
- * ลบแล้วตัวหนังสือจะเยื้องไปทางซ้าย จึงเลื่อนกลับมาให้กึ่งกลางตรงกับตัว A ด้านบน
- * (คำนวณจากขอบจริงที่วัดได้ ไม่ได้ฮาร์ดโค้ดระยะไว้)
- */
-function dropDotCom(img) {
-  const white = (x, y) => {
-    const i = at(img, x, y);
-    img.data[i] = 255; img.data[i + 1] = 255; img.data[i + 2] = 255;
-  };
-  const isInk = (x, y) => {
-    const i = at(img, x, y);
-    const r = img.data[i], g = img.data[i + 1], b = img.data[i + 2];
-    return Math.max(r, g, b) - Math.min(r, g, b) > 12 || 0.299 * r + 0.587 * g + 0.114 * b < 244;
-  };
-
-  for (let y = WORD_Y[0]; y <= WORD_Y[1]; y++) {
-    for (let x = 1186; x < img.w; x++) white(x, y);
-    if (y >= 790) for (let x = 1166; x <= 1185; x++) white(x, y);
-  }
-
-  const bbox = (ya, yb) => {
-    let a = img.w, b = -1;
-    for (let y = ya; y <= yb; y++) for (let x = 0; x < img.w; x++) {
-      if (!isInk(x, y)) continue;
-      if (x < a) a = x; if (x > b) b = x;
-    }
-    return [a, b];
-  };
-  const [wa, wb] = bbox(...WORD_Y);
-  const [ma, mb] = bbox(...MONO_Y);
-  const shift = Math.round((ma + mb) / 2 - (wa + wb) / 2);
-
-  const band = crop(img, 0, WORD_Y[0], img.w, WORD_Y[1] - WORD_Y[0] + 1);
-  for (let y = WORD_Y[0]; y <= WORD_Y[1]; y++) for (let x = 0; x < img.w; x++) white(x, y);
-  for (let y = 0; y < band.h; y++) {
-    for (let x = 0; x < band.w; x++) {
-      const nx = x + shift;
-      if (nx < 0 || nx >= img.w) continue;
-      const s = at(band, x, y), d = at(img, nx, y + WORD_Y[0]);
-      img.data[d] = band.data[s]; img.data[d + 1] = band.data[s + 1]; img.data[d + 2] = band.data[s + 2];
-    }
-  }
-  console.log(`ตัด .COM ออก แล้วเลื่อนตัวหนังสือไปขวา ${shift} px ให้กึ่งกลางตรงกับตัว A`);
-  return img;
-}
-
-/** ลบพื้นขาวทั้งภาพโดยใช้ความอิ่มสีเป็น alpha · unmultiply คืนความเข้มให้พิกเซลขอบ */
-function cutWhite(img, { lo = 10, hi = 46 } = {}) {
-  for (let i = 0; i < img.data.length; i += 4) {
-    const r = img.data[i], g = img.data[i + 1], b = img.data[i + 2];
-    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-    const a = Math.max(0, Math.min(1, (chroma - lo) / (hi - lo)));
-    img.data[i + 3] = Math.round(a * 255);
-    if (a > 0.02) {
-      for (let k = 0; k < 3; k++) {
-        img.data[i + k] = Math.max(0, Math.min(255, (img.data[i + k] - 255 * (1 - a)) / a));
-      }
-    }
-  }
-  return img;
-}
 
 // ---------- แปลงสีไป-กลับ HSL ----------
 function toHsl(r, g, b) {
@@ -147,11 +75,12 @@ function toRgb(h, s, l) {
 
 /**
  * ยกความสว่างของพิกเซลเข้มโดยคงเฉดสีและความอิ่มสีไว้
- * keep = เหลือไล่เฉดเดิมไว้เท่าไร · ไม่แตะพิกเซลสีเทา/ขาว
+ * ข้ามพิกเซลไร้สี (เส้นวงจรสีขาว) และพิกเซลที่สว่างพออยู่แล้ว
+ * keep = เหลือไล่เฉดเดิมไว้เท่าไร · 0 คือตัดเรียบเท่ากันหมด
  */
-function liftForDark(img, { floor = 0.64, keep = 0.3, satBoost = 1.15 } = {}) {
+function liftForDark(img, { floor = 0.52, keep = 0.3, satBoost = 1.1 } = {}) {
   for (let i = 0; i < img.data.length; i += 4) {
-    if (!img.data[i + 3]) continue;
+    if (img.data[i + 3] < 10) continue;
     const [h, s, l] = toHsl(img.data[i], img.data[i + 1], img.data[i + 2]);
     if (l >= floor || s < 0.08) continue;
     const [r, g, b] = toRgb(h, Math.min(1, s * satBoost), floor - (floor - l) * keep);
@@ -186,24 +115,23 @@ function onDarkTile(img, size, margin) {
 }
 
 const wide = (img, w) => resize(img, w, Math.round(w * img.h / img.w));
+const prep = (box) => trim(liftForDark(crop(readBmp(SRC), ...box)), 4);
 
-// อ่านต้นฉบับครั้งเดียวแล้วตัด .COM ก่อน จากนั้นค่อยครอบเอาแต่ละส่วนออกมา
-const logo = dropDotCom(readBmp(SRC));
-console.log(`ต้นฉบับ ${logo.w} x ${logo.h}`);
+const logo = readBmp(SRC);
+console.log(`ต้นฉบับ ${logo.w} x ${logo.h} (มีช่อง alpha มาแล้ว ไม่ต้องตัดพื้นหลัง)`);
 
-const prep = (box) => trim(liftForDark(cutWhite(crop(logo, ...box))), 4);
-
+// โลโก้ตัวนี้เป็นแนวตั้ง จึงคิดขนาดจากความสูงที่จะแสดงจริงเป็นหลัก
 const full = prep(LOGO_FULL);
-writePng(out('assets/logo-full.png'), wide(full, 820));
+writePng(out('assets/logo-full.png'), wide(full, 440));
 
 const mark = prep(LOGO_MARK);
 writePng(out('assets/logo-mark.png'), wide(mark, 240));
 
-writePng(out('icon-192.png'), onDarkTile(mark, 192, 20));
-writePng(out('icon-512.png'), onDarkTile(mark, 512, 54));
+writePng(out('icon-192.png'), onDarkTile(mark, 192, 18));
+writePng(out('icon-512.png'), onDarkTile(mark, 512, 48));
 writePng(out('assets/favicon.png'), onDarkTile(mark, 64, 5));
 
 console.log('เขียนไฟล์แล้ว:');
-console.log(`  assets/logo-full.png   ${full.w} x ${full.h} (ย่อเหลือกว้าง 820)`);
+console.log(`  assets/logo-full.png   ${full.w} x ${full.h} (ย่อเหลือกว้าง 440)`);
 console.log(`  assets/logo-mark.png   ${mark.w} x ${mark.h} (ย่อเหลือกว้าง 240)`);
 console.log('  icon-192.png · icon-512.png · assets/favicon.png');

@@ -132,9 +132,11 @@ button{font-family:inherit}
 }
 .brand{display:flex;gap:11px;align-items:center;padding:2px 4px 12px;border-bottom:1px solid var(--line-soft)}
 /* โลโก้จริงของศูนย์เรียนรู้ — ไฟล์ PNG พื้นโปร่งใสที่ตัดมาจากไฟล์ต้นฉบับ */
-.brand-mark{width:46px;height:34px;object-fit:contain;flex:none;
+.brand-mark{width:44px;height:36px;object-fit:contain;flex:none;
   filter:drop-shadow(0 4px 14px rgba(56,189,248,.28))}
-.login-card .brand-logo{width:min(310px,88%);height:auto;display:block;margin:0 auto;
+/* โลโก้ชุดนี้เป็นแนวตั้ง (สูงกว่ากว้าง) จึงคุมด้วยความสูง ไม่ใช่ความกว้าง
+   ไม่งั้นการ์ดล็อกอินจะถูกรูปกินพื้นที่จนฟอร์มตกไปอยู่ใต้ขอบจอ */
+.login-card .brand-logo{max-height:190px;width:auto;max-width:88%;display:block;margin:0 auto;
   filter:drop-shadow(0 6px 20px rgba(56,189,248,.22))}
 
 /* ไอคอน SVG ของ Learning Path — ทำตัวเหมือน emoji คือโตตาม font-size ของที่ที่วาง */
