@@ -110,6 +110,51 @@ test('ความคืบหน้าเป็นของใครของ�
   });
 });
 
+/**
+ * เคสจริงที่เคยหลุด: ผู้ดูแลล้างความคืบหน้าแล้ว พอผู้ใช้ล็อกอินกลับมาของเดิมยังอยู่
+ *
+ * ต้นเหตุคือเดิมการล้างใช้วิธี "ลบแถวทิ้ง" ทำให้ GET ตอบ data: null
+ * ซึ่งฝั่งเบราว์เซอร์ตีความว่าเป็นบัญชีที่ยังไม่เคยมีข้อมูลบนเซิร์ฟเวอร์
+ * แล้วยกแคชที่ค้างอยู่ในเครื่องขึ้นไปแทน สิ่งที่เพิ่งล้างจึงกลับมาทันที
+ *
+ * หลังแก้: การล้างต้องเขียน "ก้อนว่าง" ทับ เพื่อให้แยกออกจากบัญชีที่ยังไม่เคยมีข้อมูล
+ */
+test('ล้างความคืบหน้าแล้วต้องว่างจริง ไม่ใช่กลายเป็นบัญชีที่ยังไม่เคยมีข้อมูล', async (t) => {
+  const srv = await startServer();
+  t.after(() => srv.stop());
+
+  const admin = client(srv.base);
+  await admin.req('POST', '/api/auth/login', { username: 'admin', password: srv.adminPass });
+  await admin.req('POST', '/api/auth/password', { oldPass: srv.adminPass, newPass: 'admin-new-98765' });
+
+  const u = client(srv.base);
+  await u.req('POST', '/api/auth/register', { username: 'somchai', password: 'pass12345' });
+
+  await t.test('บัญชีที่ยังไม่เคยบันทึกอะไร ต้องได้ null — ตรงนี้คือที่ให้ยกแคชขึ้นได้', async () => {
+    const fresh = await u.req('GET', '/api/progress');
+    assert.equal(fresh.data.data, null);
+  });
+
+  await u.req('PUT', '/api/progress', { data: { xp: 250, read: { 'linux:1': true } } });
+  assert.equal((await u.req('GET', '/api/progress')).data.data.xp, 250);
+
+  await t.test('ผู้ดูแลล้างแล้ว ต้องได้ก้อนว่าง ไม่ใช่ null', async () => {
+    assert.equal((await admin.req('DELETE', '/api/admin/progress/somchai')).status, 200);
+    const after = await u.req('GET', '/api/progress');
+    assert.notEqual(after.data.data, null, 'ถ้าได้ null เบราว์เซอร์จะยกแคชเก่ากลับขึ้นมา');
+    assert.equal(after.data.data.xp, 0, 'XP ต้องถูกล้างเป็นศูนย์');
+    assert.deepEqual(after.data.data.read, {}, 'บทที่อ่านแล้วต้องถูกล้าง');
+  });
+
+  await t.test('ผู้ใช้ล้างของตัวเองก็ต้องได้ผลเหมือนกัน', async () => {
+    await u.req('PUT', '/api/progress', { data: { xp: 99 } });
+    assert.equal((await u.req('DELETE', '/api/progress')).status, 200);
+    const after = await u.req('GET', '/api/progress');
+    assert.notEqual(after.data.data, null);
+    assert.equal(after.data.data.xp, 0);
+  });
+});
+
 test('บัญชีที่ผู้ดูแลตั้งรหัสให้ ต้องเปลี่ยนรหัสก่อนใช้งาน', async (t) => {
   const srv = await startServer();
   t.after(() => srv.stop());

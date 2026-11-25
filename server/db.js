@@ -115,6 +115,11 @@ export const sessions = {
   purge: () => S.purgeSessions.run(Date.now()),
 };
 
+/** โครงความคืบหน้าเปล่า — ต้องตรงกับ blank() ฝั่ง js/store.js */
+const BLANK_PROGRESS = () => ({
+  version: 1, xp: 0, read: {}, quiz: {}, labs: {}, unlockAll: false, createdAt: Date.now(),
+});
+
 export const progress = {
   get: (username) => {
     const row = S.getProgress.get(username);
@@ -123,7 +128,17 @@ export const progress = {
     catch { return null; }
   },
   save: (username, data) => S.upsertProgress.run(username, JSON.stringify(data), Date.now()),
-  clear: (username) => S.deleteProgress.run(username),
+  /**
+   * ล้างความคืบหน้า — เขียนทับด้วยก้อนว่าง ไม่ใช่ลบแถวทิ้ง
+   *
+   * ถ้าลบแถว GET /api/progress จะตอบ data: null ซึ่งฝั่งเบราว์เซอร์ตีความว่า
+   * "บัญชีนี้ยังไม่เคยมีข้อมูลบนเซิร์ฟเวอร์" แล้วยกแคชที่ค้างอยู่ในเครื่องขึ้นไปแทน
+   * ผลคือสิ่งที่ผู้ดูแลเพิ่งล้างไปกลับคืนมาทันทีที่ผู้ใช้ล็อกอิน
+   * การเขียนก้อนว่างทับทำให้แยกออกว่า "ถูกล้างโดยตั้งใจ" ต่างจาก "ยังไม่เคยมี"
+   */
+  clear: (username) => S.upsertProgress.run(username, JSON.stringify(BLANK_PROGRESS()), Date.now()),
+  /** ลบแถวทิ้งจริง ๆ — ใช้ตอนลบบัญชี ไม่ใช่ตอนล้างความคืบหน้า */
+  remove: (username) => S.deleteProgress.run(username),
   all: () => S.allProgress.all().map((r) => {
     try { return { username: r.username, data: JSON.parse(r.data), updatedAt: r.updated_at }; }
     catch { return { username: r.username, data: null, updatedAt: r.updated_at }; }

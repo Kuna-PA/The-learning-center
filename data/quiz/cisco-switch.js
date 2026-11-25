@@ -22,6 +22,12 @@ export default {
     { type: 'mcq', q: 'Subnet mask <code>255.255.255.240</code> ตรงกับ prefix ใด', opts: ['/26', '/27', '/28', '/29'], a: 2, why: '240 = 11110000 มี 4 บิต จึงเป็น 24+4 = /28 ให้ host ใช้ได้ 14 เบอร์' },
     { type: 'mcq', q: 'Full duplex ต่างจาก half duplex อย่างไร', opts: ['เร็วกว่าเป็นสองเท่าเสมอ', 'ส่งและรับพร้อมกันได้ จึงไม่มี collision', 'ใช้สายน้อยกว่า', 'ใช้ได้เฉพาะไฟเบอร์'], a: 1, why: 'half duplex ต้องผลัดกันส่งจึงเกิด collision (ยุค hub) ส่วน switch ทำงาน full duplex เป็นมาตรฐาน' },
     { type: 'cmd', q: 'พิมพ์คำสั่งดูรุ่นอุปกรณ์ เวอร์ชัน IOS และระยะเวลาที่เปิดเครื่องมา', ans: ['show version', 'sh version', 'show ver'], why: 'ข้อมูลชุดแรกที่ต้องเก็บเมื่อรับช่วงดูแลอุปกรณ์ต่อ — บอกทั้งรุ่น เวอร์ชัน IOS และ uptime ที่ใช้เดาได้ว่าเพิ่งรีบูตไปหรือเปล่า' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูเวลาปัจจุบันของอุปกรณ์', ans: ['show clock', 'sh clock'], why: 'เวลาที่ผิดทำให้ log อ่านไม่รู้เรื่อง ควรตั้ง NTP ให้ทุกอุปกรณ์ตั้งแต่แรก' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูว่ามีใครล็อกอินเข้าอุปกรณ์อยู่บ้างตอนนี้', ans: ['show users', 'sh users'], why: 'เห็นว่ามีใครเข้ามาทาง console หรือ vty พร้อมกันหรือเปล่า ก่อนจะแก้ config จะได้ไม่ชนกัน' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูพื้นที่ใน flash และไฟล์ IOS ที่เก็บอยู่', ans: ['show flash', 'sh flash'], why: 'ต้องเช็คก่อนอัปเกรด IOS ว่ามีที่ว่างพอวางไฟล์ใหม่ไหม' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดู config ที่บันทึกไว้ใน NVRAM (ตัวที่จะโหลดตอนบูต)', ans: ['show startup-config', 'sh startup-config'], why: 'ถ้าต่างจาก running-config แปลว่ามีของที่ยังไม่ได้บันทึก รีบูตแล้วจะหาย' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูตาราง ARP ของอุปกรณ์', ans: ['show arp', 'sh arp'], why: 'ใช้จับคู่ IP กับ MAC เพื่อตามหาว่าเครื่องเป้าหมายเสียบอยู่พอร์ตไหน' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายละเอียดของ interface <code>gi0/1</code> ใบเดียว', ans: ['show interfaces gi0/1', 'show interface gi0/1', 'sh int gi0/1'], why: 'เห็นทั้งสถานะ ความเร็ว duplex และตัวนับ error ของพอร์ตนั้นโดยเฉพาะ' },
   ],
 
   // ---------------- L2: Network Access ----------------
@@ -43,6 +49,7 @@ export default {
     { type: 'mcq', q: 'พอร์ตที่เข้าสถานะ err-disable กู้คืนอย่างไร', opts: ['reload สวิตช์อย่างเดียว', 'สั่ง shutdown แล้ว no shutdown ที่พอร์ตนั้น หลังแก้ต้นเหตุแล้ว', 'ถอดสายออกเสียบใหม่', 'เปลี่ยน VLAN'], a: 1, why: 'ต้องแก้ต้นเหตุก่อน ไม่งั้นพอร์ตจะกลับไป err-disable อีก — และตั้ง errdisable recovery ให้กู้อัตโนมัติได้' },
     { type: 'mcq', q: 'ในเครือข่ายไร้สาย SSID คืออะไร', opts: ['รหัสผ่าน', 'ชื่อของเครือข่ายไร้สายที่ประกาศออกไป', 'หมายเลขช่อง', 'MAC ของ AP'], a: 1, why: 'การซ่อน SSID ไม่ได้เพิ่มความปลอดภัยจริง เพราะยังดักจับได้จากเฟรมของเครื่องที่เชื่อมต่ออยู่' },
     { type: 'cmd', q: 'พิมพ์คำสั่งเข้าสู่โหมด global configuration', ans: ['configure terminal', 'conf t', 'config t'], why: 'ต้องอยู่ใน privileged EXEC (หลัง enable) ก่อนจึงจะเข้าโหมดนี้ได้' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูสรุปสถานะ EtherChannel ทุกกลุ่ม', ans: ['show etherchannel summary', 'sh etherchannel summary'], why: 'ดูธงท้ายบรรทัด (P) ว่าพอร์ตเข้ากลุ่มสำเร็จจริงไหม ไม่ใช่แค่สั่ง config ไปแล้ว' },
   ],
 
   // ---------------- L3: IP Connectivity ----------------
@@ -66,6 +73,10 @@ export default {
     { type: 'mcq', q: 'ทำไม loopback interface จึงนิยมใช้กับ OSPF และการจัดการ', opts: ['เร็วกว่า', 'ไม่มีวันดับตราบใดที่ router ยังทำงาน จึงเสถียรกว่า interface จริง', 'ประหยัด IP', 'ไม่ต้องตั้งค่า'], a: 1, why: 'interface จริงดับได้เมื่อสายหลุด แต่ loopback เป็น interface เสมือนที่ขึ้นอยู่กับตัว router เท่านั้น' },
     { type: 'cmd', q: 'พิมพ์คำสั่งดูว่าพอร์ตไหนเป็น trunk อยู่บ้าง และยอมให้ VLAN ใดผ่าน', ans: ['show interfaces trunk', 'show interface trunk', 'sh int trunk'], why: 'บอกทั้งพอร์ตที่เป็น trunk, native VLAN และรายการ VLAN ที่อนุญาต — จุดแรกที่ต้องดูเมื่อ VLAN หนึ่งข้ามสวิตช์ไม่ได้' },
     { type: 'cmd', q: 'พิมพ์คำสั่งดูว่ามีอุปกรณ์ Cisco ตัวใดต่ออยู่กับพอร์ตไหนบ้าง', ans: ['show cdp neighbors', 'show cdp neighbor', 'sh cdp nei'], why: 'CDP บอกชื่อเพื่อนบ้าน รุ่น และพอร์ตที่ต่อถึงกัน ใช้ไล่ผังเครือข่ายตอนไม่มีเอกสาร — เติม detail ต่อท้ายจะได้ IP ด้วย' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูสถานะ spanning tree ของทุก VLAN', ans: ['show spanning-tree', 'sh spanning-tree'], why: 'บอกว่าใครเป็น root bridge และพอร์ตไหนถูก block ไว้ ใช้ไล่ปัญหา loop' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายละเอียดเพื่อนบ้าน CDP พร้อม IP ของแต่ละตัว', ans: ['show cdp neighbors detail', 'show cdp neighbor detail', 'sh cdp nei detail'], why: 'แบบย่อบอกแค่ชื่อกับพอร์ต แบบ detail ได้ IP ด้วย ทำให้รีโมตต่อไปตัวถัดไปได้เลย' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งบันทึก config ปัจจุบันลง NVRAM แบบเต็มรูปแบบ (ไม่ใช่ตัวย่อ)', ans: ['copy running-config startup-config'], why: 'ได้ผลเหมือน write memory แต่เป็นรูปแบบที่ IOS รุ่นใหม่แนะนำ' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งสั่ง<b>รีบูต</b>อุปกรณ์', ans: ['reload'], why: 'ระบบจะถามก่อนว่าบันทึก config แล้วหรือยัง ตอบผิดตรงนี้คือ config หายทั้งชุด' },
   ],
 
   // ---------------- L4: IP Services ----------------
@@ -73,7 +84,7 @@ export default {
     { type: 'mcq', q: 'ลำดับข้อความของ DHCP คือข้อใด', opts: ['Discover → Request → Offer → Ack', 'Discover → Offer → Request → Ack', 'Offer → Discover → Ack → Request', 'Request → Discover → Offer → Ack'], a: 1, why: 'จำว่า DORA — client ถาม, server เสนอ, client ขอตัวนั้น, server ยืนยัน' },
     { type: 'mcq', q: 'Client อยู่คนละวงกับ DHCP server ต้องมีอะไรที่ router', opts: ['NAT', 'ip helper-address ชี้ไปยัง DHCP server', 'ACL', 'OSPF'], a: 1, why: 'DHCP Discover เป็น broadcast ซึ่ง router ไม่ส่งต่อ — helper-address ทำหน้าที่รับแล้วส่งต่อแบบ unicast' },
     { type: 'mcq', q: 'PAT ต่างจาก NAT แบบ static อย่างไร', opts: ['PAT ช้ากว่า', 'PAT ใช้หมายเลขพอร์ตแยกว่าเป็นของเครื่องไหน จึงใช้ IP จริงเบอร์เดียวได้ทั้งออฟฟิศ', 'static NAT ประหยัด IP กว่า', 'ไม่ต่างกัน'], a: 1, why: 'คำสั่งของ Cisco เติมคำว่า overload ต่อท้ายเพื่อเปิด PAT — static NAT ผูก IP ต่อ IP จึงเปลืองกว่ามาก' },
-    { type: 'cmd', q: 'พิมพ์คำสั่งดูตาราง NAT ที่กำลังทำงานอยู่', ans: ['show ip nat translations', 'sh ip nat translations'], why: 'ตรวจว่ามีการแปลง IP เกิดขึ้นจริงหรือไม่ — ถ้าตารางว่างแสดงว่า traffic ยังไม่เข้าเงื่อนไข inside/outside หรือ ACL' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูสรุปการใช้งาน CPU ของอุปกรณ์', ans: ['show processes cpu', 'sh processes cpu'], why: 'CPU ที่สูงค้างบนสวิตช์มักมาจาก broadcast storm หรือ loop ที่ STP จับไม่ได้' },
     { type: 'mcq', q: 'ในการตั้ง NAT ต้องกำหนดอะไรที่ interface', opts: ['ความเร็ว', 'ระบุว่า interface ไหนเป็น ip nat inside และไหนเป็น outside', 'VLAN', 'duplex'], a: 1, why: 'การลืมกำหนด inside/outside เป็นสาเหตุอันดับหนึ่งที่ NAT ไม่ทำงานทั้งที่คำสั่งอื่นถูกหมด' },
     { type: 'mcq', q: 'ทำไม NTP จึงสำคัญกับอุปกรณ์เครือข่าย', opts: ['ทำให้เร็วขึ้น', 'เพื่อให้เวลาใน log ตรงกัน จะได้เรียงลำดับเหตุการณ์ตอนสืบปัญหาได้', 'ประหยัดไฟ', 'ป้องกันไวรัส'], a: 1, why: 'ถ้านาฬิกาของ firewall กับ switch ต่างกันสิบนาที การไล่ timeline ข้ามอุปกรณ์จะสรุปผิดทันที' },
     { type: 'mcq', q: 'Syslog ใช้พอร์ตใดโดยค่าเริ่มต้น', opts: ['161 UDP', '514 UDP', '443 TCP', '69 UDP'], a: 1, why: 'syslog 514 · SNMP 161 (trap 162) · TFTP 69 — สี่ตัวนี้เป็นบริการที่อุปกรณ์เครือข่ายใช้บ่อยที่สุด' },
@@ -89,6 +100,11 @@ export default {
     { type: 'mcq', q: 'ตรวจสอบว่า router ซิงก์เวลากับ NTP สำเร็จหรือไม่ ใช้คำสั่งใด', opts: ['show clock', 'show ntp status', 'show version', 'show ip route'], a: 1, why: 'show clock บอกเวลาปัจจุบันแต่ไม่บอกว่าซิงก์อยู่หรือไม่ — ต้องดู ntp status ว่า synchronized แล้วหรือยัง' },
     { type: 'cmd', q: 'พิมพ์คำสั่งดู<b>ตาราง MAC address</b> ที่สวิตช์เรียนรู้ไว้', ans: ['show mac address-table', 'show mac-address-table', 'sh mac address-table'], why: 'บอกว่า MAC ไหนอยู่พอร์ตไหน VLAN ไหน — ใช้ตามหาว่าเครื่องเป้าหมายเสียบอยู่พอร์ตใดจริง ๆ แทนการไล่ถอดสายทีละเส้น' },
     { type: 'cmd', q: 'พิมพ์คำสั่ง global config เพื่อตั้งชื่ออุปกรณ์เป็น <code>SW-CORE</code>', ans: ['hostname SW-CORE'], why: 'ชื่อที่สื่อความหมายช่วยไม่ให้สั่งผิดเครื่อง — ควรตั้งเป็นอย่างแรกหลังเอาอุปกรณ์ออกจากกล่อง' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งไล่ดูเส้นทางจากอุปกรณ์ไปยัง <code>8.8.8.8</code>', ans: ['traceroute 8.8.8.8'], why: 'ยิงจากตัวอุปกรณ์เองทำให้รู้ว่าปัญหาอยู่ขาออกของอุปกรณ์หรือที่เครื่องผู้ใช้' },
+    { type: 'cmd', q: 'พิมพ์คำสั่ง (ในโหมด interface) ให้พอร์ตนี้เป็น access ของ VLAN 10', ans: ['switchport access vlan 10'], why: 'ต้องสั่ง switchport mode access ด้วยถึงจะล็อกไม่ให้พอร์ตไปเจรจาเป็น trunk เอง' },
+    { type: 'cmd', q: 'พิมพ์คำสั่ง (ในโหมด interface) เพื่อตั้ง native VLAN ของ trunk เป็น 99', ans: ['switchport trunk native vlan 99'], why: 'เปลี่ยนจาก VLAN 1 ที่เป็นค่าเริ่มต้นเพื่อลดความเสี่ยง VLAN hopping และต้องตั้งให้ตรงกันทั้งสองฝั่ง' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดู config ทั้งหมดที่กำลังทำงานอยู่ในหน่วยความจำ', ans: ['show running-config', 'sh running-config', 'show run'], why: 'คือภาพปัจจุบันจริง ๆ ต่างจาก startup-config ที่เป็นตัวที่จะโหลดตอนบูตครั้งหน้า' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูตารางเส้นทางของอุปกรณ์', ans: ['show ip route', 'sh ip route'], why: 'ตัวอักษรหน้าบรรทัดบอกที่มาของเส้นทาง C=ต่อตรง S=ตั้งเอง O=OSPF' },
   ],
 
   // ---------------- L5: Security Fundamentals ----------------
@@ -112,6 +128,11 @@ export default {
     { type: 'mcq', q: 'ทำไมจึงควรปิดพอร์ตสวิตช์ที่ไม่ได้ใช้งาน', opts: ['ประหยัดไฟอย่างเดียว', 'กันไม่ให้ใครเดินมาเสียบสายแล้วเข้าเครือข่ายได้ทันที', 'ทำให้ STP เร็วขึ้น', 'ลดความร้อน'], a: 1, why: 'เป็นมาตรการที่ไม่มีต้นทุนแต่ปิดช่องทางเข้าถึงทางกายภาพได้จริง' },
     { type: 'cmd', q: 'พิมพ์คำสั่งดูสถานะ <b>port security</b> ของทุกพอร์ต', ans: ['show port-security', 'sh port-security'], why: 'เห็นว่าพอร์ตไหนเปิด port security ไว้ จำนวน MAC สูงสุดเท่าไร และมีพอร์ตไหนโดนสั่ง shutdown เพราะละเมิดกฎหรือเปล่า' },
     { type: 'cmd', q: 'พิมพ์คำสั่ง (ในโหมด interface) เพื่อ<b>ปิดพอร์ตนี้</b>', ans: ['shutdown', 'shut'], why: 'ปิดพอร์ตที่ไม่ได้ใช้คือมาตรการพื้นฐานที่สุดของการทำ hardening — เปิดกลับด้วย no shutdown' },
+    { type: 'cmd', q: 'พิมพ์คำสั่ง (ในโหมด interface) จำกัดให้พอร์ตนี้เรียนรู้ MAC ได้สูงสุด 2 ตัว', ans: ['switchport port-security maximum 2'], why: 'ใช้กันคนเอาสวิตช์ส่วนตัวมาต่อพ่วงใต้โต๊ะ ซึ่งทำให้ไล่ปัญหายากและเสี่ยงเกิด loop' },
+    { type: 'cmd', q: 'พิมพ์คำสั่ง (ในโหมด interface) เปิดใช้งาน port security บนพอร์ตนี้', ans: ['switchport port-security'], why: 'ต้องให้พอร์ตเป็น access mode ก่อนถึงจะเปิดได้ สั่งบน trunk ไม่ผ่าน' },
+    { type: 'cmd', q: 'พิมพ์คำสั่ง global config เพื่อตั้งให้บันทึก log พร้อมวันเวลาที่ละเอียด', ans: ['service timestamps log datetime msec'], why: 'log ที่ไม่มีเวลาที่แม่นยำแทบใช้สืบย้อนหลังไม่ได้เลย' },
+    { type: 'cmd', q: 'พิมพ์คำสั่ง global config เพื่อเข้ารหัสรหัสผ่านที่เก็บเป็นข้อความเปล่าใน config', ans: ['service password-encryption'], why: 'เป็นการเข้ารหัสแบบอ่อนที่ถอดกลับได้ กันคนเหลือบเห็นเท่านั้น ของจริงต้องใช้ enable secret' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการ ACL พร้อมจำนวนครั้งที่แต่ละกฎถูกใช้', ans: ['show access-lists', 'sh access-lists'], why: 'ตัวเลข matches ท้ายกฎบอกว่ากฎไหนทำงานจริง กฎที่ไม่เคยโดนเลยมักเป็นกฎที่เขียนผิดลำดับ' },
   ],
 
   // ---------------- L6: Automation ----------------
@@ -134,5 +155,13 @@ export default {
     { type: 'mcq', q: 'ทำไมจึงควรทดสอบ automation ในสภาพแวดล้อมทดสอบก่อน', opts: ['เป็นข้อบังคับตามกฎหมาย', 'เพราะความผิดพลาดจะกระจายไปทุกเครื่องพร้อมกันถ้ารันบน production เลย', 'ทำให้เร็วขึ้น', 'ประหยัดค่าไฟ'], a: 1, why: 'ยิ่ง automation มีประสิทธิภาพเท่าไหร่ ความผิดพลาดก็ยิ่งกระจายเร็วเท่านั้น' },
     { type: 'multi', q: 'ข้อใดคือขั้นตอนที่ควรมีก่อนนำสคริปต์ไปใช้กับอุปกรณ์จริง (เลือกทุกข้อที่ถูก)', opts: ['ทดสอบใน lab ก่อน', 'มี backup ของ config เดิม', 'มีแผนย้อนกลับถ้าไม่สำเร็จ', 'รันตอนเวลาเร่งด่วนที่สุดเพื่อพิสูจน์ว่าทนได้'], a: [0, 1, 2], why: 'การเปลี่ยนแปลงควรทำในช่วงที่กระทบผู้ใช้น้อยที่สุด ไม่ใช่ช่วงที่ระบบถูกใช้งานหนักที่สุด' },
     { type: 'cmd', q: 'พิมพ์คำสั่งดู log ที่เก็บอยู่ในตัวอุปกรณ์', ans: ['show logging', 'sh logging', 'show log'], why: 'ดู log ในเครื่องก่อนเสมอเมื่อมีคนแจ้งว่าเน็ตสะดุด — จะเห็นว่าพอร์ตไหน up/down ตอนกี่โมง ก่อนจะไปไล่หาที่อื่น' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูสถานะพอร์ตทั้งหมดในหน้าเดียวว่าพอร์ตไหน connected', ans: ['show interfaces status', 'show interface status', 'sh int status'], why: 'หน้าจอเดียวเห็นครบทั้งสถานะ VLAN ความเร็วและ duplex เป็นคำสั่งที่ใช้บ่อยที่สุดตอนไล่ปัญหา' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายชื่อ VLAN พร้อมพอร์ตที่อยู่ในแต่ละ VLAN', ans: ['show vlan brief', 'sh vlan brief'], why: 'เห็นทันทีว่าพอร์ตที่มีปัญหาอยู่ VLAN ถูกตัวหรือเปล่า' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดู IP และสถานะของทุก interface ในรูปแบบย่อ', ans: ['show ip interface brief', 'sh ip int brief'], why: 'สองคอลัมน์ท้ายคือ status กับ protocol ถ้าเป็น up/down แปลว่าชั้น 1 ผ่านแต่ชั้น 2 ตกลงกันไม่ได้' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการ DHCP lease ที่อุปกรณ์แจกไปแล้ว', ans: ['show ip dhcp binding', 'sh ip dhcp binding'], why: 'ใช้ตรวจว่าเครื่องที่มีปัญหาได้ IP ไปจริงไหม และได้ไปตอนไหน' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูตาราง NAT ที่กำลังทำงานอยู่', ans: ['show ip nat translations', 'sh ip nat translations'], why: 'เห็นคู่ของ IP ภายในกับ IP จริงที่ใช้ออกไป ใช้ไล่ตอนปลายทางบล็อก IP เรา' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูสถานะเพื่อนบ้าน OSPF', ans: ['show ip ospf neighbor', 'sh ip ospf neighbor'], why: 'ต้องขึ้นสถานะ FULL ถึงจะแลกเส้นทางกันได้จริง ค้างที่ INIT หรือ 2WAY แปลว่ามีอะไรไม่ตรงกัน' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูสถานะแหล่งจ่ายไฟและพัดลมของอุปกรณ์', ans: ['show environment', 'sh environment'], why: 'พัดลมเสียหรือแหล่งจ่ายไฟตัวหนึ่งดับ เป็นสิ่งที่ต้องรู้ก่อนที่อุปกรณ์จะร้อนจนดับทั้งตัว' },
+    { type: 'cmd', q: 'พิมพ์คำสั่ง global config เพื่อตั้งให้อุปกรณ์ไปเทียบเวลากับ NTP server <code>10.10.10.5</code>', ans: ['ntp server 10.10.10.5'], why: 'เวลาที่ตรงกันทุกอุปกรณ์คือเงื่อนไขแรกของการเอา log หลายเครื่องมาไล่เรียงเหตุการณ์ร่วมกัน' },
   ],
 };

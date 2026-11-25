@@ -627,6 +627,26 @@ export function createCisco(init = {}) {
       });
       return L;
     }
+    // สองคำสั่งนี้ใช้ดูสุขภาพของตัวอุปกรณ์เอง ไม่ใช่เรื่องเครือข่าย
+    // CPU ที่สูงค้างบนสวิตช์มักมาจาก broadcast storm ส่วนพัดลม/ไฟเสียทำให้อุปกรณ์ร้อนจนดับ
+    if (is(0, 'processes') && is(1, 'cpu')) {
+      return ['CPU utilization for five seconds: 7%/1%; one minute: 6%; five minutes: 6%', '',
+        ' PID Runtime(ms)   Invoked  uSecs   5Sec   1Min   5Min TTY Process',
+        '   1        1284      4521    284  0.00%  0.00%  0.00%   0 Chunk Manager',
+        '  58       64210    192044    334  2.15%  1.80%  1.76%   0 Hulc LED Process',
+        '  97       18432     55210    333  1.11%  0.95%  0.90%   0 Spanning Tree', ''];
+    }
+    if (is(0, 'environment')) {
+      return ['SW PID                 Serial#     Status           Sys Pwr  PoE Pwr  Watts',
+        '-- ------------------  ----------  ---------------  -------  -------  -----',
+        ' 1 PWR-C1-350WAC       DCB2102K0FT  OK              Good     Good     350',
+        '',
+        'Switch   FAN     Speed   State',
+        '-------------------------------',
+        '  1       1      5100    OK',
+        '  1       2      5040    OK',
+        '', 'SYSTEM TEMPERATURE is OK', 'Temperature Value: 41 Degree Celsius', ''];
+    }
     if (is(0, 'logging')) {
       const L = ['Syslog logging: enabled', '    Console logging: level debugging',
         '    Buffer logging: level debugging, 42 messages logged', ''];
@@ -973,6 +993,8 @@ export function createCisco(init = {}) {
       return [E('% Invalid input detected.')];
     }
     if (w(0, 'service') && w(1, 'password-encryption')) { st.pwEncrypt = !no; return []; }
+    // ใส่วันเวลาที่ละเอียดลงทุกบรรทัดของ log — log ที่ไม่มีเวลาแม่น ๆ แทบใช้สืบย้อนหลังไม่ได้
+    if (w(0, 'service') && w(1, 'timestamps')) { st.logTimestamps = !no; return []; }
     if (w(0, 'banner')) {
       const m = raw.match(/banner\s+motd\s+(\S)(.*)\1/i);
       if (m) { st.banner = m[2]; return []; }

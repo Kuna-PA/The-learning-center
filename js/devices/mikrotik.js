@@ -323,7 +323,13 @@ export function createMikrotik(init = {}) {
       });
       return res;
     }
-    return null;
+    // RouterOS จริงอ้างรายการด้วย "ชื่อ" ได้เลย เช่น /interface bridge set bridge1 vlan-filtering=yes
+    // โดยไม่ต้องเขียน [find name=bridge1] ให้ยืดยาว จึงรองรับให้เหมือนของจริง
+    const byName = [];
+    rowsOf(p).forEach((r, i) => {
+      if (r.name !== undefined && String(r.name) === String(tok)) byName.push(i);
+    });
+    return byName.length ? byName : null;
   }
 
   // ---------- export ----------

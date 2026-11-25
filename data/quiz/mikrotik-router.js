@@ -12,6 +12,10 @@ export default {
     { type: 'multi', q: 'ข้อใดคือความต่างระหว่าง backup กับ export (เลือกทุกข้อที่ถูก)', opts: ['backup เป็น binary ส่วน export เป็นข้อความ', 'backup เก็บรหัสผ่านผู้ใช้ด้วย', 'export ย้ายข้ามรุ่นเครื่องได้', 'export กู้ทั้งเครื่องได้เร็วกว่า'], a: [0, 1, 2], why: 'backup กู้เครื่องเดิมกลับสภาพเดิมได้เร็วกว่า แต่ย้ายข้ามรุ่นไม่ได้ — จึงควรเก็บทั้งสองแบบเสมอ' },
     { type: 'mcq', q: 'Safe Mode ใน WinBox กดด้วยปุ่มใด', opts: ['Ctrl+S', 'Ctrl+X', 'Ctrl+Z', 'F5'], a: 1, why: 'ถ้าหลุดการเชื่อมต่อระหว่างแก้ config ระบบจะย้อนกลับให้อัตโนมัติ — ควรเปิดทุกครั้งที่แก้ค่าที่อาจตัดขาดตัวเอง' },
     { type: 'cmd', q: 'พิมพ์คำสั่งดูวันเวลาปัจจุบันของอุปกรณ์', ans: ['/system clock print', 'system clock print'], why: 'เวลาที่ผิดทำให้ log อ่านไม่รู้เรื่องและใบรับรองใช้ไม่ได้ — ตรวจเวลาเป็นอย่างแรกเสมอก่อนไล่ปัญหาจาก log' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูชื่ออุปกรณ์ปัจจุบัน', ans: ['/system identity print', 'system identity print'], why: 'ตรวจว่ากำลังรีโมตอยู่ที่เครื่องถูกตัวก่อนจะสั่งอะไรที่ย้อนกลับไม่ได้' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูข้อมูล RouterBOARD เช่น รุ่นและเวอร์ชัน firmware', ans: ['/system routerboard print', 'system routerboard print'], why: 'firmware ของ RouterBOARD เป็นคนละตัวกับ RouterOS ต้องอัปเกรดแยกกัน' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูระดับ license ของอุปกรณ์', ans: ['/system license print', 'system license print'], why: 'ระดับ license จำกัดจำนวน session และฟีเจอร์บางอย่าง ต้องดูก่อนวางแผนใช้งานจริง' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการไฟล์ที่เก็บอยู่ในอุปกรณ์', ans: ['/file print', 'file print'], why: 'ใช้ดูว่าไฟล์สำรองหรือไฟล์ export ที่สั่งไว้ถูกสร้างขึ้นจริงหรือเปล่า' },
   ],
 
   2: [
@@ -23,6 +27,10 @@ export default {
     { type: 'mcq', q: 'สูตรกันคนแอบเสียบสายเข้ามาใช้เน็ตในองค์กรคือข้อใด', opts: ['ตั้งรหัส WiFi ให้ยาว', 'ใส่ static ARP ให้ทุกเครื่องแล้วตั้ง interface เป็น arp=reply-only', 'ปิด DHCP', 'ใช้ IP แบบสุ่ม'], a: 1, why: 'เครื่องที่ไม่ได้ลงทะเบียน MAC ไว้จะใช้เน็ตไม่ได้แม้ตั้ง IP เอง — แลกกับภาระในการดูแลตาราง' },
     { type: 'multi', q: 'ข้อใดคือพารามิเตอร์ของ DHCP client ที่ควรพิจารณา (เลือกทุกข้อที่ถูก)', opts: ['add-default-route', 'use-peer-dns', 'use-peer-ntp', 'vlan-filtering'], a: [0, 1, 2], why: 'vlan-filtering เป็นค่าของ bridge ไม่เกี่ยวกับ DHCP client' },
     { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการกฎ firewall filter ทั้งหมด', ans: ['/ip firewall filter print', 'ip firewall filter print'], why: 'ลำดับของกฎสำคัญมากเพราะ RouterOS ไล่จากบนลงล่างแล้วหยุดที่กฎแรกที่ตรง — ดูเลขลำดับให้ดีก่อนแทรกกฎใหม่' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการ IP ทั้งหมดที่ตั้งไว้บนอุปกรณ์', ans: ['/ip address print', 'ip address print'], why: 'ดูว่า IP ไปอยู่บน interface ถูกใบไหม — ใส่ผิดใบคือสาเหตุยอดฮิตที่ตั้งเสร็จแล้วใช้ไม่ได้' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการ interface ทั้งหมดของอุปกรณ์', ans: ['/interface print', 'interface print'], why: 'เห็นทั้งพอร์ตจริงและ interface เสมือน พร้อมสถานะ running ที่บอกว่าลิงก์ขึ้นหรือยัง' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูการตั้งค่า DNS ของอุปกรณ์', ans: ['/ip dns print', 'ip dns print'], why: 'ถ้า allow-remote-requests เป็น yes อุปกรณ์จะทำตัวเป็น DNS server ให้เครื่องในวงด้วย' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการ DHCP server ที่ตั้งไว้', ans: ['/ip dhcp-server print', 'ip dhcp-server print'], why: 'ตรวจว่า DHCP ผูกอยู่กับ interface ถูกใบและใช้ pool ถูกชุดหรือเปล่า' },
   ],
 
   3: [
@@ -34,6 +42,10 @@ export default {
     { type: 'mcq', q: 'Bridge ต่างจากการ route ระหว่าง interface อย่างไร', opts: ['bridge เร็วกว่าเสมอ', 'bridge รวมพอร์ตเป็นวงเดียวกัน ส่วน routing แยกแต่ละขาเป็นคนละวง', 'routing ใช้ MAC', 'ไม่ต่างกัน'], a: 1, why: 'bridge ทำให้ broadcast ถึงกันทั้งหมด ส่วน routing แบ่ง broadcast domain ออกจากกัน' },
     { type: 'multi', q: 'ข้อใดคือลำดับกฎ firewall ที่ถูกต้องสำหรับ chain input (เลือกทุกข้อที่ถูก)', opts: ['accept established,related มาก่อน', 'drop invalid', 'drop ที่เหลือจาก WAN ไว้ล่างสุด', 'drop ทุกอย่างไว้บนสุด'], a: [0, 1, 2], why: 'กฎ drop ที่วางบนสุดจะทำให้กฎ accept ข้างล่างไม่มีความหมายเลย' },
     { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการชื่อที่ DNS ของ router จำไว้', ans: ['/ip dns cache print', 'ip dns cache print'], why: 'ใช้ตรวจว่า router ตอบชื่อจากของเก่าที่ค้างอยู่หรือเปล่า — ล้างด้วย /ip dns cache flush' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการ DHCP lease ที่ยังใช้งานอยู่ พร้อม MAC ของแต่ละเครื่อง', ans: ['/ip dhcp-server lease print', 'ip dhcp-server lease print'], why: 'ใช้จับคู่ว่า IP ที่มีปัญหาเป็นของเครื่องไหน และดูว่า lease หมดอายุไปแล้วหรือยัง' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการกฎ NAT ทั้งหมด', ans: ['/ip firewall nat print', 'ip firewall nat print'], why: 'ตรวจว่ากฎ masquerade ผูกกับ out-interface ถูกใบ ไม่งั้น LAN จะออกเน็ตไม่ได้' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการ VLAN interface ที่สร้างไว้', ans: ['/interface vlan print', 'interface vlan print'], why: 'VLAN interface คือการทำ router-on-a-stick ให้เราเตอร์คุยได้หลาย VLAN ผ่านสายเส้นเดียว' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูสถานะ DHCP client ของอุปกรณ์', ans: ['/ip dhcp-client print', 'ip dhcp-client print'], why: 'ใช้ตอนฝั่ง WAN รับ IP จากผู้ให้บริการ ดูว่าสถานะเป็น bound แล้วหรือยัง' },
   ],
 
   4: [
@@ -46,6 +58,10 @@ export default {
     { type: 'mcq', q: 'SSTP ใช้พอร์ตใด', opts: ['1723', '443', '500', '1701'], a: 1, why: 'วิ่งบน TCP 443 จึงดูเหมือน HTTPS และผ่าน firewall ของที่อื่นได้เกือบทุกที่ ต่างจาก PPTP ที่ต้องใช้ GRE' },
     { type: 'multi', q: 'ข้อใดคือส่วนประกอบของระบบ PPP บน RouterOS (เลือกทุกข้อที่ถูก)', opts: ['/ppp profile', '/ppp secret', '/ip pool', '/ip firewall filter'], a: [0, 1, 2], why: 'profile กำหนดค่าร่วม · secret คือบัญชีรายคน · pool คือช่วง IP ที่จะแจก' },
     { type: 'cmd', q: 'พิมพ์คำสั่ง<b>รีบูต</b>อุปกรณ์', ans: ['/system reboot', 'system reboot'], why: 'ต่างจาก /system shutdown ที่สั่งปิดแล้วต้องไปกดเปิดเองหน้าเครื่อง — อย่าสับสนสองคำสั่งนี้เวลารีโมตอยู่' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการ Simple Queue ทั้งหมด', ans: ['/queue simple print', 'queue simple print'], why: 'ลำดับของ queue มีผลเหมือนกฎ firewall คือไล่จากบนลงล่าง' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายชื่อบัญชี PPP ที่สร้างไว้', ans: ['/ppp secret print', 'ppp secret print'], why: 'คือรายชื่อผู้ใช้สำหรับ VPN ต่างจาก /ppp active ที่บอกว่าตอนนี้ใครออนไลน์อยู่' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการ IP pool ที่สร้างไว้', ans: ['/ip pool print', 'ip pool print'], why: 'ตรวจว่า pool มีที่ว่างเหลือไหม — pool เต็มคือสาเหตุที่เครื่องใหม่ไม่ได้ IP' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการผู้ใช้ที่ล็อกอินเข้าอุปกรณ์ได้', ans: ['/user print', 'user print'], why: 'ควรมีบัญชีเท่าที่จำเป็นและเลี่ยงการใช้ชื่อ admin ค่าเริ่มต้น' },
   ],
 
   5: [
@@ -59,5 +75,10 @@ export default {
     { type: 'multi', q: 'ข้อใดควรแนบไปกับคำถามเมื่อขอความช่วยเหลือเรื่องเครือข่าย (เลือกทุกข้อที่ถูก)', opts: ['ผังเครือข่ายพร้อม IP', 'สิ่งที่คาดหวังกับสิ่งที่เกิดขึ้นจริง', 'สิ่งที่เปลี่ยนไปก่อนหน้านั้น', 'รุ่นของจอคอมพิวเตอร์'], a: [0, 1, 2], why: 'สามข้อแรกทำให้คนช่วยเข้าใจบริบทได้ทันที ส่วนข้อสุดท้ายไม่เกี่ยวกับปัญหาเครือข่าย' },
     { type: 'cmd', q: 'พิมพ์คำสั่งดู log ของอุปกรณ์', ans: ['/log print', 'log print'], why: 'RouterOS เก็บ log ไว้ในหน่วยความจำซึ่งหายเมื่อรีบูต — ถ้าต้องเก็บไว้สืบย้อนหลังต้องส่งออกไป syslog server' },
     { type: 'cmd', q: 'พิมพ์คำสั่ง ping ไปยัง <code>8.8.8.8</code> จำนวน 4 ครั้งแล้วหยุด', ans: ['/ping 8.8.8.8 count=4', 'ping 8.8.8.8 count=4'], why: 'ถ้าไม่ใส่ count มันจะ ping ไม่หยุดจนกว่าจะกด Ctrl+C — ใส่ count ไว้จะสะดวกกว่าเวลาเขียนเป็นสคริปต์' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการ script ที่เก็บไว้ในอุปกรณ์', ans: ['/system script print', 'system script print'], why: 'ใช้ตรวจว่ามี script แปลกปลอมที่ใครฝังไว้หรือเปล่า เป็นจุดที่มัลแวร์ของ MikroTik ชอบซ่อน' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการงานตั้งเวลาทั้งหมด', ans: ['/system scheduler print', 'system scheduler print'], why: 'คู่กับ script — งานตั้งเวลาที่เราไม่ได้สร้างเองคือสัญญาณอันตราย' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งสำรอง config เป็นไฟล์ไบนารีชื่อ <code>bk</code>', ans: ['/system backup save name=bk', 'system backup save name=bk'], why: 'ต่างจาก /export ตรงที่กู้ได้ทั้งเครื่องรวมรหัสผ่าน แต่ต้องเป็นรุ่นเดียวกันถึงกู้ได้' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูการตั้งค่า SNMP ของอุปกรณ์', ans: ['/snmp print', 'snmp print'], why: 'ถ้าเปิด SNMP ไว้ด้วย community เป็น public คือเปิดให้ใครก็อ่านข้อมูลอุปกรณ์ได้' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการ service ที่เปิดอยู่บนอุปกรณ์', ans: ['/ip service print', 'ip service print'], why: 'ปิด telnet ftp และ www ที่ไม่ได้ใช้ เหลือเฉพาะ ssh กับ winbox คือการ hardening ขั้นแรก' },
   ],
 };
