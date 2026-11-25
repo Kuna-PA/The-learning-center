@@ -79,8 +79,14 @@ button{font-family:inherit}
   border:1px solid var(--line);
   border-radius:16px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.6);
 }
-.login-card .brand{border:0;padding:0 0 18px;justify-content:center;flex-direction:column;gap:12px}
-.login-card h1{font-size:20px;margin:0 0 4px;text-align:center}
+.login-card .brand{border:0;padding:0 0 20px;justify-content:center;flex-direction:column;gap:7px}
+/* คำบรรยายใต้โลโก้ — ตัวเล็กและจาง ทำหน้าที่ปิดท้ายบล็อกโลโก้ ไม่ใช่หัวข้อที่สอง */
+.login-card .brand-tag{font-family:var(--mono);font-size:11.5px;letter-spacing:2.6px;
+  color:var(--txt-mute);text-align:center}
+.login-card h1{font-size:19px;margin:0 0 18px;text-align:center}
+/* ซ่อนจากสายตาแต่ยังอยู่ให้โปรแกรมอ่านหน้าจอ — ใช้กับหัวข้อที่ซ้ำกับแท็บด้านล่าง */
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+  clip-path:inset(50%);white-space:nowrap;border:0}
 .login-card .sub{font-size:13px;color:var(--txt-mute);text-align:center;margin-bottom:20px}
 .fld{margin-bottom:13px}
 .fld label{display:block;font-size:12.5px;color:var(--txt-dim);margin-bottom:5px}
@@ -135,8 +141,9 @@ button{font-family:inherit}
 .brand-mark{width:44px;height:36px;object-fit:contain;flex:none;
   filter:drop-shadow(0 4px 14px rgba(56,189,248,.28))}
 /* โลโก้ชุดนี้เป็นแนวตั้ง (สูงกว่ากว้าง) จึงคุมด้วยความสูง ไม่ใช่ความกว้าง
-   ไม่งั้นการ์ดล็อกอินจะถูกรูปกินพื้นที่จนฟอร์มตกไปอยู่ใต้ขอบจอ */
-.login-card .brand-logo{max-height:190px;width:auto;max-width:88%;display:block;margin:0 auto;
+   ไม่งั้นการ์ดล็อกอินจะถูกรูปกินพื้นที่จนฟอร์มตกไปอยู่ใต้ขอบจอ
+   130px ≈ หนึ่งในสี่ของความสูงการ์ด — ใหญ่พอให้เป็นพระเอก แต่ไม่ทับฟอร์ม */
+.login-card .brand-logo{max-height:130px;width:auto;max-width:88%;display:block;margin:0 auto;
   filter:drop-shadow(0 6px 20px rgba(56,189,248,.22))}
 
 /* ไอคอน SVG ของ Learning Path — ทำตัวเหมือน emoji คือโตตาม font-size ของที่ที่วาง */

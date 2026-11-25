@@ -206,12 +206,17 @@ function renderLogin(err = '') {
   const lw = $('#login-wrap');
   lw.hidden = false;
   const hasUsers = serverUsers;
+  // โลโก้มีคำว่า ASD ACADEMY อยู่ในรูปแล้ว และแท็บด้านล่างก็บอกว่ากำลังอยู่โหมดไหน
+  // หัวข้อตรงกลางจึงกลายเป็นคำเดิมซ้ำสองบรรทัดติดกัน ทำให้หัวการ์ดดูหนักและไม่ได้สัดส่วน
+  // ตอนมีแท็บจึงซ่อนไว้ให้เฉพาะโปรแกรมอ่านหน้าจอ ส่วนตอนปิดรับสมัคร (ไม่มีแท็บ) ยังแสดงตามปกติ
+  const titleCls = openRegister ? ' class="sr-only"' : '';
   lw.innerHTML = `
     <div class="login-card">
       <div class="brand">
         <img class="brand-logo" src="assets/logo-full.png" alt="ASD ACADEMY">
+        <div class="brand-tag">IT &amp; SysEng</div>
       </div>
-      <h1>${loginMode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครบัญชีผู้เรียน'}</h1>
+      <h1${titleCls}>${loginMode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครบัญชีผู้เรียน'}</h1>
       ${openRegister ? `<div class="login-tabs">
         <button data-m="login" class="${loginMode === 'login' ? 'on' : ''}">เข้าสู่ระบบ</button>
         <button data-m="register" class="${loginMode === 'register' ? 'on' : ''}">สมัครใหม่</button>
