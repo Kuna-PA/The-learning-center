@@ -48,6 +48,26 @@ const OPT_FAMILIES = [
   },
 ];
 
+/**
+ * ตัวเลือกหลอกแบบ "ขอไปที" — สั้น กำปั้นทุบดิน และไม่เกี่ยวกับเนื้อหาเลย
+ * ข้อที่มีตัวเลือกพวกนี้ผู้เรียนตัดทิ้งได้ทันทีโดยไม่ต้องรู้อะไร เหลือให้เดาแค่สองข้อ
+ * ตัวหลอกที่ดีต้อง "ฟังดูเป็นไปได้แต่ผิด" ไม่ใช่ผิดจนขำ
+ */
+const LAZY_OPTIONS = [
+  'สนุกกว่า', 'ราคาถูกกว่า', 'แพง', 'เพราะแพง', 'เพราะช้า', 'เสียเวลา',
+  'ผิดกฎหมาย', 'เครื่องจะเสีย', 'ไม่ต้องเรียนรู้อะไรเพิ่ม', 'ใช้ไฟน้อยกว่า',
+  'ดูเท่กว่า', 'ไม่มีเหตุผล', 'ไม่มีอะไรเลย', 'ทำไม่ได้',
+];
+
+function checkLazyOptions(q, at) {
+  (q.opts || []).forEach((o) => {
+    const t = String(o).replace(/<[^>]*>/g, '').trim();
+    if (LAZY_OPTIONS.includes(t)) {
+      at(`ตัวเลือก "${t}" กำปั้นทุบดินเกินไป — ผู้เรียนตัดทิ้งได้โดยไม่ต้องรู้เนื้อหา ให้เปลี่ยนเป็นตัวเลือกที่ฟังขึ้นแต่ผิด`);
+    }
+  });
+}
+
 function checkOptionFamily(q, at) {
   const opts = (q.opts || []).map(o => String(o).replace(/<[^>]*>/g, '').trim());
   if (opts.length < 2) return;
@@ -70,6 +90,7 @@ function checkQuestion(q, where, problems) {
     return;
   }
   if (!Array.isArray(q.opts) || q.opts.length < 2) return at('ต้องมีตัวเลือกอย่างน้อย 2 ข้อ');
+  checkLazyOptions(q, at);
   if (!q.opts.every(isStr)) at('มีตัวเลือกที่ว่าง');
   if (new Set(q.opts.map(o => o.trim())).size !== q.opts.length) at('มีตัวเลือกซ้ำกัน');
 
