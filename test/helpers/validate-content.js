@@ -87,6 +87,10 @@ function checkQuestion(q, where, problems) {
 export function validateContent() {
   const problems = [];
   const labIds = new Map();      // id -> ที่แรกที่เจอ
+  // คำถาม -> ที่แรกที่เจอ · ใช้จับข้อสอบซ้ำ "ข้ามหัวข้อ" ซึ่งเดิมหลุดรอดไปได้
+  // เพราะตรวจซ้ำแค่ภายในระดับเดียวกัน ผู้เรียนที่ทำหลายหัวข้อจึงเจอคำถามเดิมซ้ำ ๆ
+  const quizKeys = new Map();
+  const quizKey = q => String(q.q || '').replace(/<[^>]*>/g, '').replace(/\s+/g, '').toLowerCase();
 
   for (const t of TRACKS) {
     const where = `track ${t.id}`;
@@ -109,11 +113,11 @@ export function validateContent() {
       if (!Array.isArray(d.quiz) || !d.quiz.length) problems.push(`${w}: ไม่มีข้อสอบ`);
       else {
         d.quiz.forEach((q, i) => checkQuestion(q, `${w} ข้อ #${i + 1}`, problems));
-        const seen = new Set();
         d.quiz.forEach((q, i) => {
-          const key = String(q.q || '').trim().toLowerCase();
-          if (seen.has(key)) problems.push(`${w} ข้อ #${i + 1}: คำถามซ้ำกับข้ออื่นในระดับเดียวกัน`);
-          seen.add(key);
+          const key = quizKey(q);
+          const prev = quizKeys.get(key);
+          if (prev) problems.push(`${w} ข้อ #${i + 1}: คำถามซ้ำกับ ${prev} — ผู้เรียนที่ทำหลายหัวข้อจะเจอข้อเดิมซ้ำ`);
+          else quizKeys.set(key, `${w} ข้อ #${i + 1}`);
         });
       }
 

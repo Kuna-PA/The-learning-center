@@ -11,6 +11,7 @@ export default {
     { type: 'mcq', q: 'หลังอัปเกรด RouterOS แล้ว ต้องทำอะไรต่อ', opts: ['ไม่ต้องทำอะไร', 'อัปเกรด RouterBOOT ด้วย /system routerboard upgrade แล้ว reboot อีกครั้ง', 'รีเซ็ต config', 'ลง Netinstall'], a: 1, why: 'RouterBOOT เป็น firmware ระดับ bootloader ที่แยกจาก RouterOS — ไม่อัปเกรดตามจะทำให้ PoE, USB และการบูตทำงานไม่ครบ' },
     { type: 'multi', q: 'ข้อใดคือความต่างระหว่าง backup กับ export (เลือกทุกข้อที่ถูก)', opts: ['backup เป็น binary ส่วน export เป็นข้อความ', 'backup เก็บรหัสผ่านผู้ใช้ด้วย', 'export ย้ายข้ามรุ่นเครื่องได้', 'export กู้ทั้งเครื่องได้เร็วกว่า'], a: [0, 1, 2], why: 'backup กู้เครื่องเดิมกลับสภาพเดิมได้เร็วกว่า แต่ย้ายข้ามรุ่นไม่ได้ — จึงควรเก็บทั้งสองแบบเสมอ' },
     { type: 'mcq', q: 'Safe Mode ใน WinBox กดด้วยปุ่มใด', opts: ['Ctrl+S', 'Ctrl+X', 'Ctrl+Z', 'F5'], a: 1, why: 'ถ้าหลุดการเชื่อมต่อระหว่างแก้ config ระบบจะย้อนกลับให้อัตโนมัติ — ควรเปิดทุกครั้งที่แก้ค่าที่อาจตัดขาดตัวเอง' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูวันเวลาปัจจุบันของอุปกรณ์', ans: ['/system clock print', 'system clock print'], why: 'เวลาที่ผิดทำให้ log อ่านไม่รู้เรื่องและใบรับรองใช้ไม่ได้ — ตรวจเวลาเป็นอย่างแรกเสมอก่อนไล่ปัญหาจาก log' },
   ],
 
   2: [
@@ -21,6 +22,7 @@ export default {
     { type: 'mcq', q: 'สามชิ้นที่ต้องมีครบเพื่อให้ DHCP server ทำงานคืออะไร', opts: ['pool, server, network', 'pool, client, route', 'server, firewall, NAT', 'address, gateway, DNS'], a: 0, why: 'ขาด network จะทำให้ client ได้ IP แต่ไม่ได้ gateway และ DNS — เป็นอาการที่พบบ่อยที่สุด' },
     { type: 'mcq', q: 'สูตรกันคนแอบเสียบสายเข้ามาใช้เน็ตในองค์กรคือข้อใด', opts: ['ตั้งรหัส WiFi ให้ยาว', 'ใส่ static ARP ให้ทุกเครื่องแล้วตั้ง interface เป็น arp=reply-only', 'ปิด DHCP', 'ใช้ IP แบบสุ่ม'], a: 1, why: 'เครื่องที่ไม่ได้ลงทะเบียน MAC ไว้จะใช้เน็ตไม่ได้แม้ตั้ง IP เอง — แลกกับภาระในการดูแลตาราง' },
     { type: 'multi', q: 'ข้อใดคือพารามิเตอร์ของ DHCP client ที่ควรพิจารณา (เลือกทุกข้อที่ถูก)', opts: ['add-default-route', 'use-peer-dns', 'use-peer-ntp', 'vlan-filtering'], a: [0, 1, 2], why: 'vlan-filtering เป็นค่าของ bridge ไม่เกี่ยวกับ DHCP client' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการกฎ firewall filter ทั้งหมด', ans: ['/ip firewall filter print', 'ip firewall filter print'], why: 'ลำดับของกฎสำคัญมากเพราะ RouterOS ไล่จากบนลงล่างแล้วหยุดที่กฎแรกที่ตรง — ดูเลขลำดับให้ดีก่อนแทรกกฎใหม่' },
   ],
 
   3: [
@@ -31,6 +33,7 @@ export default {
     { type: 'mcq', q: 'action <code>redirect</code> ต่างจาก <code>dst-nat</code> อย่างไร', opts: ['เหมือนกัน', 'redirect ส่งไปที่ตัว router เอง ส่วน dst-nat ส่งไปเครื่องอื่นที่ระบุ', 'redirect ใช้กับ UDP เท่านั้น', 'dst-nat ใช้กับ chain srcnat'], a: 1, why: 'redirect ใช้บังคับให้ traffic เข้า service บน router เช่น transparent proxy หรือบังคับ DNS' },
     { type: 'mcq', q: 'Bridge ต่างจากการ route ระหว่าง interface อย่างไร', opts: ['bridge เร็วกว่าเสมอ', 'bridge รวมพอร์ตเป็นวงเดียวกัน ส่วน routing แยกแต่ละขาเป็นคนละวง', 'routing ใช้ MAC', 'ไม่ต่างกัน'], a: 1, why: 'bridge ทำให้ broadcast ถึงกันทั้งหมด ส่วน routing แบ่ง broadcast domain ออกจากกัน' },
     { type: 'multi', q: 'ข้อใดคือลำดับกฎ firewall ที่ถูกต้องสำหรับ chain input (เลือกทุกข้อที่ถูก)', opts: ['accept established,related มาก่อน', 'drop invalid', 'drop ที่เหลือจาก WAN ไว้ล่างสุด', 'drop ทุกอย่างไว้บนสุด'], a: [0, 1, 2], why: 'กฎ drop ที่วางบนสุดจะทำให้กฎ accept ข้างล่างไม่มีความหมายเลย' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดูรายการชื่อที่ DNS ของ router จำไว้', ans: ['/ip dns cache print', 'ip dns cache print'], why: 'ใช้ตรวจว่า router ตอบชื่อจากของเก่าที่ค้างอยู่หรือเปล่า — ล้างด้วย /ip dns cache flush' },
   ],
 
   4: [
@@ -42,6 +45,7 @@ export default {
     { type: 'mcq', q: 'PPPoE service-name มีไว้ทำไม', opts: ['ตั้งชื่อเครื่อง', 'ให้ client เลือกได้ว่าจะต่อกับ server ตัวไหนเมื่อมีหลายเจ้าในวงเดียวกัน', 'เข้ารหัสข้อมูล', 'จำกัดความเร็ว'], a: 1, why: 'ถ้าเว้นว่าง client จะต่อกับตัวไหนก็ได้ที่ตอบมาก่อน ซึ่งอาจไม่ใช่ตัวที่ตั้งใจ' },
     { type: 'mcq', q: 'SSTP ใช้พอร์ตใด', opts: ['1723', '443', '500', '1701'], a: 1, why: 'วิ่งบน TCP 443 จึงดูเหมือน HTTPS และผ่าน firewall ของที่อื่นได้เกือบทุกที่ ต่างจาก PPTP ที่ต้องใช้ GRE' },
     { type: 'multi', q: 'ข้อใดคือส่วนประกอบของระบบ PPP บน RouterOS (เลือกทุกข้อที่ถูก)', opts: ['/ppp profile', '/ppp secret', '/ip pool', '/ip firewall filter'], a: [0, 1, 2], why: 'profile กำหนดค่าร่วม · secret คือบัญชีรายคน · pool คือช่วง IP ที่จะแจก' },
+    { type: 'cmd', q: 'พิมพ์คำสั่ง<b>รีบูต</b>อุปกรณ์', ans: ['/system reboot', 'system reboot'], why: 'ต่างจาก /system shutdown ที่สั่งปิดแล้วต้องไปกดเปิดเองหน้าเครื่อง — อย่าสับสนสองคำสั่งนี้เวลารีโมตอยู่' },
   ],
 
   5: [
@@ -53,5 +57,7 @@ export default {
     { type: 'mcq', q: 'Netwatch ทำอะไรได้มากกว่าการ ping ธรรมดา', opts: ['ping ได้เร็วกว่า', 'รัน script อัตโนมัติเมื่อสถานะเปลี่ยนจาก up เป็น down หรือกลับกัน', 'วาดกราฟ', 'สแกนพอร์ต'], a: 1, why: 'down-script และ up-script ทำให้ทำ failover หรือส่งแจ้งเตือนได้โดยไม่ต้องใช้ routing protocol' },
     { type: 'mcq', q: 'ไฟล์ใดที่ต้องแนบเมื่อติดต่อ support ของ MikroTik', opts: ['ไฟล์ backup', 'supout.rif', 'ไฟล์ .rsc', 'ภาพหน้าจอ'], a: 1, why: 'รวม config, log, สถานะและ resource ไว้ในไฟล์เดียว — ถ้ามี autosupout.rif ที่สร้างตอนเครื่องแครชต้องส่งไปด้วย' },
     { type: 'multi', q: 'ข้อใดควรแนบไปกับคำถามเมื่อขอความช่วยเหลือเรื่องเครือข่าย (เลือกทุกข้อที่ถูก)', opts: ['ผังเครือข่ายพร้อม IP', 'สิ่งที่คาดหวังกับสิ่งที่เกิดขึ้นจริง', 'สิ่งที่เปลี่ยนไปก่อนหน้านั้น', 'รุ่นของจอคอมพิวเตอร์'], a: [0, 1, 2], why: 'สามข้อแรกทำให้คนช่วยเข้าใจบริบทได้ทันที ส่วนข้อสุดท้ายไม่เกี่ยวกับปัญหาเครือข่าย' },
+    { type: 'cmd', q: 'พิมพ์คำสั่งดู log ของอุปกรณ์', ans: ['/log print', 'log print'], why: 'RouterOS เก็บ log ไว้ในหน่วยความจำซึ่งหายเมื่อรีบูต — ถ้าต้องเก็บไว้สืบย้อนหลังต้องส่งออกไป syslog server' },
+    { type: 'cmd', q: 'พิมพ์คำสั่ง ping ไปยัง <code>8.8.8.8</code> จำนวน 4 ครั้งแล้วหยุด', ans: ['/ping 8.8.8.8 count=4', 'ping 8.8.8.8 count=4'], why: 'ถ้าไม่ใส่ count มันจะ ping ไม่หยุดจนกว่าจะกด Ctrl+C — ใส่ count ไว้จะสะดวกกว่าเวลาเขียนเป็นสคริปต์' },
   ],
 };

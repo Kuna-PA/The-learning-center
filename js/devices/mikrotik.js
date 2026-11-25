@@ -54,6 +54,10 @@ const SPEC = {
 
   // --- เพิ่มสำหรับหลักสูตร MTCNA ---
   'ip arp': { cols: ['address', 'mac-address', 'interface'], required: ['address', 'interface'] },
+  // เพื่อนบ้านที่เห็นผ่าน CDP/LLDP — ใช้ไล่ผังว่าพอร์ตไหนต่อไปหาอุปกรณ์ใด
+  'ip neighbor': { cols: ['interface', 'address', 'mac-address', 'identity', 'platform'], readonly: true },
+  // ชื่อที่ DNS ของอุปกรณ์จำไว้ — ใช้ตรวจว่าตอบจากของเก่าที่ค้างอยู่หรือเปล่า
+  'ip dns cache': { cols: ['name', 'type', 'data', 'ttl'], readonly: true },
   'interface wireless': {
     cols: ['name', 'mode', 'band', 'frequency', 'ssid', 'security-profile'], required: ['name'],
     defaults: { mode: 'ap-bridge', band: '2ghz-b/g/n', frequency: 'auto', ssid: 'MikroTik', 'security-profile': 'default' },
@@ -177,6 +181,14 @@ export function createMikrotik(init = {}) {
     { _id: '*3', name: 'security', version: '7.14.2', scheduled: '' },
     { _id: '*4', name: 'advanced-tools', version: '7.14.2', scheduled: '' },
     { _id: '*5', name: 'ppp', version: '7.14.2', scheduled: '' },
+  ];
+  st.tables['ip neighbor'] = [
+    { _id: '*1', interface: 'ether1', address: '192.168.88.1', 'mac-address': '48:8F:5A:0A:00:01', identity: 'RTR-HQ', platform: 'MikroTik' },
+    { _id: '*2', interface: 'ether2', address: '192.168.88.20', 'mac-address': '00:1B:0D:63:1C:02', identity: 'SW-ACCESS-01', platform: 'cisco' },
+  ];
+  st.tables['ip dns cache'] = [
+    { _id: '*1', name: 'www.mikrotik.com', type: 'A', data: '159.148.147.196', ttl: '23h59m52s' },
+    { _id: '*2', name: 'pool.ntp.org', type: 'A', data: '203.159.70.33', ttl: '1h2m10s' },
   ];
   st.tables['log'] = [
     { _id: '*1', time: 'aug/21 09:40:11', topics: 'system,info', message: 'router rebooted' },
