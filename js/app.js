@@ -214,7 +214,6 @@ function renderLogin(err = '') {
     <div class="login-card">
       <div class="brand">
         <img class="brand-logo" src="assets/logo-full.png" alt="ASD ACADEMY">
-        <div class="brand-tag">IT &amp; SysEng</div>
       </div>
       <h1${titleCls}>${loginMode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครบัญชีผู้เรียน'}</h1>
       ${openRegister ? `<div class="login-tabs">

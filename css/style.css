@@ -79,10 +79,7 @@ button{font-family:inherit}
   border:1px solid var(--line);
   border-radius:16px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.6);
 }
-.login-card .brand{border:0;padding:0 0 20px;justify-content:center;flex-direction:column;gap:7px}
-/* คำบรรยายใต้โลโก้ — ตัวเล็กและจาง ทำหน้าที่ปิดท้ายบล็อกโลโก้ ไม่ใช่หัวข้อที่สอง */
-.login-card .brand-tag{font-family:var(--mono);font-size:11.5px;letter-spacing:2.6px;
-  color:var(--txt-mute);text-align:center}
+.login-card .brand{border:0;padding:0 0 20px;justify-content:center;flex-direction:column;gap:0}
 .login-card h1{font-size:19px;margin:0 0 18px;text-align:center}
 /* ซ่อนจากสายตาแต่ยังอยู่ให้โปรแกรมอ่านหน้าจอ — ใช้กับหัวข้อที่ซ้ำกับแท็บด้านล่าง */
 .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
