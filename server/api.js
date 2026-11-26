@@ -114,6 +114,9 @@ function sanitiseProgress(p) {
     read: obj(p?.read),
     quiz: obj(p?.quiz),
     labs: obj(p?.labs),
+    // ข้อสอบรวบยอด — มีได้ก้อนเดียว ไม่ใช่ map เหมือนสามช่องบน
+    // ต้องมีชื่อช่องอยู่ตรงนี้ด้วย ไม่งั้นผลสอบจะถูกตัดทิ้งทุกครั้งที่ซิงก์
+    final: p?.final && typeof p.final === 'object' && !Array.isArray(p.final) ? p.final : null,
     unlockAll: !!p?.unlockAll,
     createdAt: Number(p?.createdAt) || Date.now(),
   };

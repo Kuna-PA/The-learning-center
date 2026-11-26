@@ -19,12 +19,16 @@ let username = null;
 let syncTimer = null;
 let lastError = null;
 
+/** เก็บประวัติการสอบย้อนหลังได้ไม่เกินกี่ครั้งต่อหนึ่งบท — กันความคืบหน้าบวมจนส่งไม่ขึ้น */
+export const QUIZ_HISTORY_MAX = 20;
+
 const blank = () => ({
   version: 1,
   xp: 0,
   read: {},    // "track:level" -> true
-  quiz: {},    // "track:level" -> {best, attempts, passed, at}
+  quiz: {},    // "track:level" -> {best, attempts, passed, at, history:[]}
   labs: {},    // "track:labId" -> {done, tasks:[bool], at}
+  final: null, // ข้อสอบรวบยอด — {best, attempts, passed, at, history:[]}
   unlockAll: false,
   createdAt: Date.now(),
 });
@@ -122,6 +126,19 @@ function save() {
   window.dispatchEvent(new CustomEvent('progress-changed'));
 }
 
+/**
+ * ต่อผลการสอบครั้งล่าสุดเข้าไปในประวัติ แล้วตัดให้เหลือเท่าที่กำหนด
+ * เก็บจำนวนข้อไว้ด้วย เพราะชุดข้อสอบแต่ละครั้งอาจยาวไม่เท่ากัน
+ * (ท้ายบทสุ่มมาราว 70% ของคลัง ส่วนรวบยอดคงที่ 50 ข้อ)
+ */
+function pushAttempt(history, pct, passed, result) {
+  const total = result && Array.isArray(result.asked) ? result.asked.length : 0;
+  const wrong = result && Array.isArray(result.wrong) ? result.wrong.length : 0;
+  const entry = { at: Date.now(), pct, passed: !!passed };
+  if (total) { entry.total = total; entry.right = total - wrong; }
+  return [...(Array.isArray(history) ? history : []), entry].slice(-QUIZ_HISTORY_MAX);
+}
+
 export const store = {
   get all() { return data; },
   get xp() { return data.xp; },
@@ -165,12 +182,39 @@ export const store = {
       at: Date.now(),
       miss,
       lastAsked: result ? (result.asked || []) : (cur.lastAsked || []),
+      // ประวัติรายครั้ง — ทำซ้ำได้ไม่จำกัด แต่เก็บย้อนหลังไว้เท่าที่ยังมีประโยชน์
+      history: pushAttempt(cur.history, pct, passed, result),
     };
     data.xp += gained;
     save();
     return gained;
   },
   quizOf(track, level) { return data.quiz[`${track}:${level}`] || null; },
+
+  /** ผลข้อสอบรวบยอด — null แปลว่ายังไม่เคยทำ */
+  get final() { return data.final || null; },
+
+  /**
+   * บันทึกผลข้อสอบรวบยอด
+   * ทำซ้ำได้เหมือนแบบทดสอบท้ายบท และเก็บประวัติทุกครั้งเช่นกัน
+   * ให้ XP ก้อนใหญ่ครั้งเดียวตอนสอบผ่านครั้งแรก
+   */
+  recordFinal(pct, passed, result = null) {
+    const cur = data.final || { best: 0, attempts: 0, passed: false };
+    let gained = 0;
+    if (pct > cur.best) gained += pct - cur.best;
+    if (passed && !cur.passed) gained += 500;
+    data.final = {
+      best: Math.max(cur.best, pct),
+      attempts: cur.attempts + 1,
+      passed: cur.passed || passed,
+      at: Date.now(),
+      history: pushAttempt(cur.history, pct, passed, result),
+    };
+    data.xp += gained;
+    save();
+    return gained;
+  },
 
   /**
    * บันทึกความคืบหน้าของ Lab

@@ -117,7 +117,7 @@ export const sessions = {
 
 /** โครงความคืบหน้าเปล่า — ต้องตรงกับ blank() ฝั่ง js/store.js */
 const BLANK_PROGRESS = () => ({
-  version: 1, xp: 0, read: {}, quiz: {}, labs: {}, unlockAll: false, createdAt: Date.now(),
+  version: 1, xp: 0, read: {}, quiz: {}, labs: {}, final: null, unlockAll: false, createdAt: Date.now(),
 });
 
 export const progress = {

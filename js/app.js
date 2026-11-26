@@ -13,6 +13,10 @@ import { registerServiceWorker } from './pwa.js';
 import { overview, summarise, toCsv } from './admin-stats.js';
 import { customContent, loadCustomContent, saveCustomContent } from './content.js';
 import { blankCustom, RULE_KINDS, MAX_IMAGE_BYTES, imageBytes } from '../data/custom.js';
+import {
+  FINAL_COUNT, FINAL_UNLOCK_SCORE, FINAL_PASS_SCORE,
+  buildFinalSet, finalReadiness, blockersByTrack,
+} from './final-exam.js';
 
 const $ = s => document.querySelector(s);
 const view = () => $('#view');
@@ -297,6 +301,9 @@ function renderNav() {
     item('#/levels', '🪜', 'ระดับความรู้') +
     `<div class="nav-h">Learning Paths</div>` +
     TRACKS.map(t => item(`#/track/${t.id}`, t.icon, t.name, `<span class="pct">${trackPct(t.id)}%</span>`)).join('') +
+    item('#/final', '🎓', 'ข้อสอบรวบยอด', finalOpen()
+      ? `<span class="cnt">${store.final ? store.final.best + '%' : FINAL_COUNT + ' ข้อ'}</span>`
+      : '<span class="cnt">🔒</span>') +
     `<div class="nav-h">ลงมือทำ</div>` +
     item('#/survival', '🔥', 'เอาชีวิตรอด', `<span class="cnt">${survivalDone()}/${SURVIVAL_LABS.length}</span>`) +
     item('#/labs', '🧪', 'Lab ทั้งหมด', `<span class="cnt">${ALL_LABS.length}</span>`) +
@@ -510,6 +517,9 @@ function vTrack(id) {
 }
 
 function vLearn(id, level) {
+  // ผลสอบของบทนี้ — การ์ดท้ายบทเอาไปโชว์ว่าทำไปกี่ครั้งและได้เท่าไรบ้าง
+  const qrec = store.quizOf(id, level);
+  const lastAttempt = qrec && Array.isArray(qrec.history) ? qrec.history[qrec.history.length - 1] : null;
   const t = trackById(id);
   if (!t || !t.levels[level]) return vNotFound();
   const d = t.levels[level], l = levelOf(level);
@@ -571,7 +581,15 @@ function vLearn(id, level) {
           <h3 style="margin:0 0 6px">พร้อมทดสอบความเข้าใจหรือยัง?</h3>
           <p class="muted" style="font-size:12.8px;margin:0 0 14px">
             ${d.quiz.length} ข้อ · ต้องได้ ${PASS_SCORE}% ขึ้นไป${(d.labs || []).length ? ' <b>และทำ Lab ของระดับนี้ให้ครบ</b>' : ''} จึงจะปลดล็อกระดับถัดไป</p>
-          <button class="btn primary" id="to-quiz">📝 ทำแบบทดสอบ</button>
+          ${qrec ? `<div class="cert-stats" style="margin:0 0 14px">
+            <div><b style="color:${qrec.passed ? 'var(--ok)' : 'var(--warn)'}">${qrec.best}%</b><span>คะแนนดีที่สุด</span></div>
+            <div><b>${qrec.attempts}</b><span>ครั้งที่ทำ</span></div>
+            <div><b>${lastAttempt ? lastAttempt.pct + '%' : '—'}</b><span>ครั้งล่าสุด</span></div>
+          </div>` : ''}
+          <button class="btn primary" id="to-quiz">📝 ${qrec ? 'ทำแบบทดสอบอีกครั้ง' : 'ทำแบบทดสอบ'}</button>
+          ${qrec ? `<div class="muted" style="font-size:11.8px;margin-top:9px">
+            ทำซ้ำได้ไม่จำกัด — ระบบเก็บคะแนนทุกครั้งไว้ให้ และนับคะแนนที่ดีที่สุดเป็นผลของบทนี้</div>` : ''}
+          ${qrec ? attemptsTable(qrec, PASS_SCORE) : ''}
         </div>` : ''}
 
         ${(d.labs || []).length ? `<h2 class="sec">Lab ของระดับนี้ (${d.labs.length})</h2>
@@ -607,31 +625,19 @@ function vLearn(id, level) {
 }
 
 // ---------------- QUIZ ----------------
-function vQuiz(id, level) {
-  const t = trackById(id);
-  if (!t || !t.levels[level]) return vNotFound();
-  if (!levelUnlocked(id, level)) {
-    toast(unlockMsg(id, level), 'bad');
-    location.hash = `#/learn/${id}/${level}`;
-    return;
-  }
-  // สุ่มลำดับข้อและตัวเลือกใหม่ทุกครั้งที่เข้ามาทำ — สอบตกแล้วทำใหม่จะไม่ได้ชุดเดิม
-  const d = t.levels[level], l = levelOf(level), items = makeQuizSet(id, level, d.quiz);
-  setJulongCtx({ kind: 'quiz', track: id, level: +level });
-  crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: t.name, href: `#/track/${id}` },
-  { t: `L${level}`, href: `#/learn/${id}/${level}` }, { t: 'แบบทดสอบ' }]);
-
-  const st = { i: 0, ans: new Array(items.length).fill(null), checked: new Array(items.length).fill(false), correct: new Array(items.length).fill(false) };
-
-  view().innerHTML = `<div class="q-wrap">
-    <div class="q-head">
-      <div class="row"><span class="pill acc">${t.icon} ${t.name} · L${level}</span>${diffPill(level)}</div>
-      <div class="q-prog"><div id="qbar" style="width:0"></div></div>
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <span class="muted" style="font-size:11.5px">🎲 สุ่ม ${items.length} ข้อจากคลัง ${d.quiz.length} ข้อ · ข้อที่เคยตอบผิดจะถูกถามซ้ำ</span>
-        <span class="muted" style="font-family:var(--mono);font-size:12px" id="qcount"></span>
-      </div>
-    </div><div id="qbox"></div></div>`;
+/**
+ * เครื่องเล่นข้อสอบ — ใช้ร่วมกันระหว่างแบบทดสอบท้ายบทและข้อสอบรวบยอด
+ * ผู้เรียกเป็นคนวาดหัวข้อสอบกับหน้าสรุปผลเอง ส่วนตัวนี้ดูแลการเดินข้อ
+ * ตรวจคำตอบ และแสดงเฉลย · ต้องมี #qbar #qcount #qbox อยู่ในหน้าก่อนเรียก start()
+ * จบชุดแล้วจะเรียก onDone(st) โดย st.correct คือผลรายข้อเรียงตาม items
+ */
+function quizEngine(items, onDone) {
+  const st = {
+    i: 0,
+    ans: new Array(items.length).fill(null),
+    checked: new Array(items.length).fill(false),
+    correct: new Array(items.length).fill(false),
+  };
 
   function renderQ() {
     const q = items[st.i];
@@ -640,7 +646,9 @@ function vQuiz(id, level) {
     const typeLabel = { mcq: 'เลือกคำตอบที่ถูกที่สุด', multi: 'เลือกได้มากกว่า 1 ข้อ', cmd: 'พิมพ์คำสั่ง' }[q.type];
 
     $('#qbox').innerHTML = `<div class="q-card">
-      <div class="q-type">${typeLabel}</div><div class="q-text">${q.q}</div>
+      <div class="q-type">${typeLabel}</div>
+      ${q.trackName ? `<div class="q-src">${q.icon} ${esc(q.trackName)} · ระดับ ${q.level}</div>` : ''}
+      <div class="q-text">${q.q}</div>
       ${q.img ? `<img class="q-img" src="${esc(q.img)}" alt="ภาพประกอบคำถาม" loading="lazy">` : ''}
       <div id="opts"></div><div id="expl"></div>
       <div class="q-foot"><button class="btn ghost" id="skip">ข้าม</button>
@@ -708,10 +716,73 @@ function vQuiz(id, level) {
 
   function next() {
     if (st.i < items.length - 1) { st.i++; renderQ(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-    else finish();
+    else onDone(st);
   }
 
-  function finish() {
+  return { st, start: renderQ };
+}
+
+/** วันที่-เวลาแบบสั้นของไทย — ใช้ในตารางประวัติการสอบ */
+const shortTime = ts => new Date(ts).toLocaleString('th-TH',
+  { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+/**
+ * ตารางประวัติการสอบย้อนหลังของบทหนึ่ง (หรือของข้อสอบรวบยอด)
+ * แบบทดสอบทำซ้ำได้ไม่จำกัด ระบบจึงต้องเก็บไว้ว่าทำไปกี่ครั้งและแต่ละครั้งได้เท่าไร
+ * เก็บรายละเอียดย้อนหลังได้ไม่เกิน QUIZ_HISTORY_MAX ครั้ง แต่ช่อง attempts นับครบทุกครั้งจริง
+ */
+function attemptsTable(rec, passScore) {
+  const hist = (rec && Array.isArray(rec.history) ? rec.history : []).slice().reverse();
+  if (!hist.length) return '';
+  const trimmed = rec.attempts > hist.length;
+  const rows = hist.map((a, i) => {
+    const n = rec.attempts - i;
+    const ok = a.passed ?? (a.pct >= passScore);
+    return `<tr>
+      <td style="font-family:var(--mono)">#${n}</td>
+      <td class="muted" style="font-size:12px">${shortTime(a.at)}</td>
+      <td style="text-align:right;font-family:var(--mono);color:${ok ? 'var(--ok)' : 'var(--warn)'}">${a.pct}%</td>
+      <td style="text-align:right;font-family:var(--mono)" class="muted">${a.total ? `${a.right}/${a.total}` : '—'}</td>
+      <td>${ok ? '✅ ผ่าน' : '❌ ไม่ผ่าน'}</td></tr>`;
+  }).join('');
+  return `<div class="attempts">
+    <h4>ประวัติการสอบ — ทำไปแล้ว ${rec.attempts} ครั้ง · ดีที่สุด ${rec.best}%</h4>
+    <table class="tbl">
+      <tr><th>ครั้งที่</th><th>เมื่อ</th><th style="text-align:right">คะแนน</th><th style="text-align:right">ตอบถูก</th><th>ผล</th></tr>
+      ${rows}
+    </table>
+    ${trimmed ? `<div class="muted" style="font-size:11.5px;margin-top:6px">
+      แสดง ${hist.length} ครั้งล่าสุด — ครั้งก่อนหน้านั้นไม่ได้เก็บรายละเอียดไว้ แต่ยังนับรวมในจำนวนครั้งทั้งหมด</div>` : ''}
+  </div>`;
+}
+
+function vQuiz(id, level) {
+  const t = trackById(id);
+  if (!t || !t.levels[level]) return vNotFound();
+  if (!levelUnlocked(id, level)) {
+    toast(unlockMsg(id, level), 'bad');
+    location.hash = `#/learn/${id}/${level}`;
+    return;
+  }
+  // สุ่มลำดับข้อและตัวเลือกใหม่ทุกครั้งที่เข้ามาทำ — สอบตกแล้วทำใหม่จะไม่ได้ชุดเดิม
+  const d = t.levels[level], items = makeQuizSet(id, level, d.quiz);
+  const before = store.quizOf(id, level);
+  setJulongCtx({ kind: 'quiz', track: id, level: +level });
+  crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: t.name, href: `#/track/${id}` },
+  { t: `L${level}`, href: `#/learn/${id}/${level}` }, { t: 'แบบทดสอบ' }]);
+
+  view().innerHTML = `<div class="q-wrap">
+    <div class="q-head">
+      <div class="row"><span class="pill acc">${t.icon} ${t.name} · L${level}</span>${diffPill(level)}
+        ${before ? `<span class="pill" title="ทำซ้ำได้ไม่จำกัด ระบบเก็บคะแนนทุกครั้งไว้ให้">ครั้งที่ ${before.attempts + 1} · ดีที่สุด ${before.best}%</span>` : ''}</div>
+      <div class="q-prog"><div id="qbar" style="width:0"></div></div>
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <span class="muted" style="font-size:11.5px">🎲 สุ่ม ${items.length} ข้อจากคลัง ${d.quiz.length} ข้อ · ข้อที่เคยตอบผิดจะถูกถามซ้ำ</span>
+        <span class="muted" style="font-family:var(--mono);font-size:12px" id="qcount"></span>
+      </div>
+    </div><div id="qbox"></div></div>`;
+
+  function finish(st) {
     const right = st.correct.filter(Boolean).length;
     const pct = Math.round(right / items.length * 100);
     const passed = pct >= PASS_SCORE;
@@ -720,6 +791,7 @@ function vQuiz(id, level) {
       asked: items.map(qid),
       wrong: items.filter((_, i) => !st.correct[i]).map(qid),
     });
+    const rec = store.quizOf(id, level);
     refreshChrome();
     const C = 2 * Math.PI * 62;
     view().innerHTML = `<div class="q-wrap"><div class="card result">
@@ -729,7 +801,8 @@ function vQuiz(id, level) {
           stroke-width="11" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C - C * pct / 100}"></circle>
       </svg><div class="val">${pct}%</div></div>
       <h2>${passed ? '🎉 ผ่านแล้ว!' : '📚 ยังไม่ผ่าน ลองอีกครั้ง'}</h2>
-      <p class="muted">ตอบถูก ${right}/${items.length} · เกณฑ์ ${PASS_SCORE}%${gained ? ` · <b style="color:var(--ok)">+${gained} XP</b>` : ''}</p>
+      <p class="muted">ครั้งที่ ${rec.attempts} · ตอบถูก ${right}/${items.length} · เกณฑ์ ${PASS_SCORE}%${gained ? ` · <b style="color:var(--ok)">+${gained} XP</b>` : ''}</p>
+      ${rec.attempts > 1 ? `<p class="dim" style="font-size:12.2px">คะแนนดีที่สุดของบทนี้คือ <b>${rec.best}%</b>${pct === rec.best && pct > 0 ? ' — ครั้งนี้เองที่ทำได้' : ''}</p>` : ''}
       ${right < items.length ? `<p class="dim" style="font-size:12.2px">🎯 ${items.length - right} ข้อที่ตอบผิดจะถูกหยิบมาถามซ้ำในครั้งถัดไป จนกว่าจะตอบถูก</p>` : ''}
       ${passed && +level < maxLevel(id) ? `<p class="dim">ทำ Lab ระดับนี้ให้ครบเพื่อปลดล็อกระดับ ${+level + 1}</p>` : ''}
       ${passed && +level === maxLevel(id) && trackCertified(id) ? `<p style="color:var(--acc-2)"><b>🏅 คุณจบหัวข้อนี้ครบแล้ว — รับใบประกาศได้เลย</b></p>` : ''}
@@ -739,6 +812,7 @@ function vQuiz(id, level) {
         ${passed && +level < maxLevel(id) ? `<button class="btn primary" id="nextlv">ระดับ ${+level + 1} →</button>` : ''}
         ${(t.levels[level].labs || []).length ? `<button class="btn ok" id="dolab">🧪 ทำ Lab</button>` : ''}
       </div>
+      ${attemptsTable(rec, PASS_SCORE)}
       <div class="review"><h4 style="margin:0 0 8px;font-size:12px;color:var(--txt-mute);font-family:var(--mono)">สรุปรายข้อ</h4>
         ${items.map((q, i) => `<div class="ri"><span>${st.correct[i] ? '✅' : '❌'}</span>
         <div><div>${q.q}</div><div class="muted" style="font-size:12.2px;margin-top:3px">${q.why}</div></div></div>`).join('')}
@@ -749,7 +823,155 @@ function vQuiz(id, level) {
     const dl = $('#dolab'); if (dl) dl.addEventListener('click', () => location.hash = `#/lab/${id}/${t.levels[level].labs[0].id}`);
     if (passed) toast(`ผ่านระดับ ${level} ของ ${t.name}!`, 'ok');
   }
-  renderQ();
+
+  quizEngine(items, finish).start();
+}
+
+// ---------------- FINAL EXAM ----------------
+/** ข้อสอบรวบยอดเปิดให้ทำได้หรือยัง — ผู้ดูแลเข้าได้เสมอเพื่อตรวจข้อสอบ */
+const finalOpen = () => auth.isAdmin || store.all.unlockAll
+  || finalReadiness(store.all, TRACKS).ready;
+
+function vFinal() {
+  crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: 'ข้อสอบรวบยอด' }]);
+  setJulongCtx({ kind: 'home' });
+  const rdy = finalReadiness(store.all, TRACKS);
+  const rec = store.final;
+  const open = finalOpen();
+
+  view().innerHTML = `
+    <div class="page-head"><h1>🎓 ข้อสอบรวบยอด</h1>
+      <p>ข้อสอบชุดสุดท้าย ${FINAL_COUNT} ข้อ รวบรวมจากทุกหัวข้อทุกระดับ —
+         ไม่รวมหมวดเอาชีวิตรอดซึ่งวัดการลงมือทำ ไม่ใช่ความรู้ที่ถามเป็นข้อได้</p></div>
+
+    <div class="card" style="margin-bottom:16px;border-color:${open ? 'var(--acc)' : 'var(--line)'}">
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-size:17px;font-weight:700">${open ? '✅ ปลดล็อกแล้ว' : '🔒 ยังล็อกอยู่'}</div>
+          <div class="muted" style="font-size:12.5px;margin-top:3px">
+            เรียนจบแล้ว ${rdy.doneLevels}/${rdy.totalLevels} บท · ทุกบทต้องทำคะแนนได้ ${FINAL_UNLOCK_SCORE}% ขึ้นไป</div>
+        </div>
+        ${open ? `<button class="btn primary" id="start-final">📝 เริ่มทำข้อสอบ (${FINAL_COUNT} ข้อ)</button>` : ''}
+      </div>
+      <div class="bar" style="margin-top:12px"><div class="bar-fill" style="width:${Math.round(rdy.doneLevels / (rdy.totalLevels || 1) * 100)}%"></div></div>
+      ${auth.isAdmin && !rdy.ready ? `<div class="muted" style="font-size:11.8px;margin-top:8px">
+        ⚡ คุณเป็นผู้ดูแลระบบ จึงเข้าทำได้โดยไม่ต้องผ่านเงื่อนไข — ผู้เรียนทั่วไปยังถูกล็อกอยู่</div>` : ''}
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 8px;font-size:14px">เกณฑ์</h3>
+      <ul class="bul" style="margin:0">
+        <li>ปลดล็อกเมื่อ<b>เรียนจบครบทุกบท</b> (อ่านบทเรียน · สอบผ่าน · ทำ Lab ครบ)
+            และ<b>ทุกบททำคะแนนได้ ${FINAL_UNLOCK_SCORE}% ขึ้นไป</b></li>
+        <li>ออก <b>${FINAL_COUNT} ข้อ</b> กระจายครบทั้ง ${rdy.totalLevels} บท — สุ่มใหม่ทุกครั้งที่ทำ</li>
+        <li>สอบผ่านต้องได้ <b>${FINAL_PASS_SCORE}% ขึ้นไป</b> · ทำซ้ำได้ไม่จำกัด ระบบเก็บคะแนนทุกครั้งไว้ให้</li>
+      </ul>
+    </div>
+
+    ${rec ? `<div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 10px;font-size:14px">ผลของคุณ</h3>
+      <div class="cert-stats" style="margin:0 0 6px">
+        <div><b style="color:${rec.passed ? 'var(--ok)' : 'var(--warn)'}">${rec.best}%</b><span>คะแนนดีที่สุด</span></div>
+        <div><b>${rec.attempts}</b><span>ครั้งที่ทำ</span></div>
+        <div><b>${rec.passed ? '🏆' : '—'}</b><span>${rec.passed ? 'สอบผ่านแล้ว' : 'ยังไม่ผ่าน'}</span></div>
+      </div>
+      ${attemptsTable(rec, FINAL_PASS_SCORE)}
+    </div>` : ''}
+
+    ${rdy.ready ? '' : `<h2 class="sec">ยังเหลืออีก ${rdy.blockers.length} บท</h2>
+      ${blockersByTrack(rdy.blockers).map(g => `<div class="card" style="margin-bottom:10px">
+        <div style="font-weight:700;margin-bottom:6px">${g.icon} ${esc(g.trackName)}</div>
+        <table class="tbl"><tr><th style="width:90px">บท</th><th>ยังขาด</th><th style="width:110px"></th></tr>
+        ${g.levels.map(l => `<tr>
+          <td style="font-family:var(--mono)">ระดับ ${l.level}</td>
+          <td class="muted" style="font-size:12.5px">${l.miss.map(esc).join(' · ')}</td>
+          <td><button class="btn sm ghost" data-go="#/learn/${g.track}/${l.level}">ไปทำ →</button></td></tr>`).join('')}
+        </table></div>`).join('')}`}`;
+
+  view().querySelectorAll('[data-go]').forEach(a => a.addEventListener('click', () => location.hash = a.dataset.go));
+  $('#start-final')?.addEventListener('click', runFinal);
+}
+
+function runFinal() {
+  if (!finalOpen()) { toast('ยังปลดล็อกข้อสอบรวบยอดไม่ได้', 'bad'); return vFinal(); }
+  const items = buildFinalSet(TRACKS, FINAL_COUNT).map(shuffleOptions);
+  const before = store.final;
+  setJulongCtx({ kind: 'quiz', track: null, level: null });
+  crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: 'ข้อสอบรวบยอด', href: '#/final' }, { t: 'กำลังสอบ' }]);
+
+  view().innerHTML = `<div class="q-wrap">
+    <div class="q-head">
+      <div class="row"><span class="pill acc">🎓 ข้อสอบรวบยอด</span>
+        <span class="diff insane">FINAL</span>
+        ${before ? `<span class="pill">ครั้งที่ ${before.attempts + 1} · ดีที่สุด ${before.best}%</span>` : ''}</div>
+      <div class="q-prog"><div id="qbar" style="width:0"></div></div>
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <span class="muted" style="font-size:11.5px">🎲 ${items.length} ข้อ กระจายครบทุกหัวข้อทุกระดับ · เกณฑ์ผ่าน ${FINAL_PASS_SCORE}%</span>
+        <span class="muted" style="font-family:var(--mono);font-size:12px" id="qcount"></span>
+      </div>
+    </div><div id="qbox"></div></div>`;
+
+  function finish(st) {
+    const right = st.correct.filter(Boolean).length;
+    const pct = Math.round(right / items.length * 100);
+    const passed = pct >= FINAL_PASS_SCORE;
+    const gained = store.recordFinal(pct, passed, {
+      asked: items.map(qid),
+      wrong: items.filter((_, i) => !st.correct[i]).map(qid),
+    });
+    const rec = store.final;
+    refreshChrome();
+
+    // แยกคะแนนรายหัวข้อ — บอกได้ว่าควรกลับไปทบทวนเรื่องไหน
+    const byTrack = new Map();
+    items.forEach((q, i) => {
+      const cur = byTrack.get(q.track) || { name: q.trackName, icon: q.icon, right: 0, total: 0 };
+      cur.total++; if (st.correct[i]) cur.right++;
+      byTrack.set(q.track, cur);
+    });
+    const trackRows = [...byTrack.values()]
+      .sort((a, b) => a.right / a.total - b.right / b.total)
+      .map(v => {
+        const p = Math.round(v.right / v.total * 100);
+        return `<tr><td>${v.icon} ${esc(v.name)}</td>
+          <td style="text-align:right;font-family:var(--mono)">${v.right}/${v.total}</td>
+          <td style="text-align:right;font-family:var(--mono);color:${p >= FINAL_PASS_SCORE ? 'var(--ok)' : 'var(--warn)'}">${p}%</td></tr>`;
+      }).join('');
+
+    const C = 2 * Math.PI * 62;
+    view().innerHTML = `<div class="q-wrap"><div class="card result">
+      <div class="score-ring"><svg width="150" height="150">
+        <circle cx="75" cy="75" r="62" fill="none" stroke="#212837" stroke-width="11"></circle>
+        <circle cx="75" cy="75" r="62" fill="none" stroke="${passed ? 'var(--ok)' : 'var(--warn)'}"
+          stroke-width="11" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C - C * pct / 100}"></circle>
+      </svg><div class="val">${pct}%</div></div>
+      <h2>${passed ? '👑 ผ่านข้อสอบรวบยอดแล้ว!' : '📚 ยังไม่ผ่าน ลองอีกครั้ง'}</h2>
+      <p class="muted">ครั้งที่ ${rec.attempts} · ตอบถูก ${right}/${items.length} · เกณฑ์ ${FINAL_PASS_SCORE}%${gained ? ` · <b style="color:var(--ok)">+${gained} XP</b>` : ''}</p>
+      ${rec.attempts > 1 ? `<p class="dim" style="font-size:12.2px">คะแนนดีที่สุดคือ <b>${rec.best}%</b></p>` : ''}
+      <div class="row" style="justify-content:center;margin-top:16px">
+        <button class="btn primary" id="again">ทำใหม่</button>
+        <button class="btn" id="back">กลับหน้าข้อสอบรวบยอด</button>
+      </div>
+
+      <div class="attempts">
+        <h4>คะแนนรายหัวข้อ</h4>
+        <table class="tbl"><tr><th>หัวข้อ</th><th style="text-align:right">ตอบถูก</th><th style="text-align:right">%</th></tr>
+        ${trackRows}
+        </table>
+      </div>
+
+      ${attemptsTable(rec, FINAL_PASS_SCORE)}
+      <div class="review"><h4 style="margin:0 0 8px;font-size:12px;color:var(--txt-mute);font-family:var(--mono)">สรุปรายข้อ</h4>
+        ${items.map((q, i) => `<div class="ri"><span>${st.correct[i] ? '✅' : '❌'}</span>
+        <div><div class="muted" style="font-size:11.5px;margin-bottom:2px">${q.icon} ${esc(q.trackName)} · ระดับ ${q.level}</div>
+        <div>${q.q}</div><div class="muted" style="font-size:12.2px;margin-top:3px">${q.why}</div></div></div>`).join('')}
+      </div></div></div>`;
+    $('#again').addEventListener('click', runFinal);
+    $('#back').addEventListener('click', () => { location.hash = '#/final'; vFinal(); });
+    if (passed) toast('ผ่านข้อสอบรวบยอดแล้ว! 👑', 'ok');
+  }
+
+  quizEngine(items, finish).start();
 }
 
 // ---------------- LAB (ใช้ร่วมกับ survival) ----------------
@@ -1263,6 +1485,8 @@ function vTerminal() {
 function vProgress() {
   crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: 'ความคืบหน้า' }]);
   const tp = tierProgress(store.xp), cur = LEVELS[tp.t - 1];
+  const frdy = finalReadiness(store.all, TRACKS);
+  const fin = store.final;
 
   view().innerHTML = `
     <div class="page-head"><h1>ความคืบหน้าของคุณ</h1>
@@ -1288,12 +1512,28 @@ function vProgress() {
     if (!t.levels[l.n]) return '<td style="text-align:center" class="muted">—</td>';
     const s = levelStatus(t.id, l.n);
     const icon = !s.unlocked ? '🔒' : s.passed && s.labsDone === s.labsTotal ? '🟢' : s.passed ? '🟡' : s.read ? '⚪' : '·';
-    return `<td style="text-align:center" title="${s.quiz ? 'ทำได้ ' + s.quiz.best + '%' : 'ยังไม่ทำ'} · lab ${s.labsDone}/${s.labsTotal}">${icon}</td>`;
+    const qt = s.quiz ? `ดีที่สุด ${s.quiz.best}% · สอบไปแล้ว ${s.quiz.attempts} ครั้ง` : 'ยังไม่เคยสอบ';
+    return `<td style="text-align:center" title="${qt} · lab ${s.labsDone}/${s.labsTotal}">${icon}</td>`;
   }).join('')}
         <td style="font-family:var(--mono);color:var(--acc-hi)">${trackPct(t.id)}%</td>
         <td>${trackCertified(t.id) ? '🏅' : '—'}</td></tr>`).join('')}
     </table>
     <div class="muted" style="font-size:11.5px">🟢 ผ่านครบ · 🟡 ผ่านแบบทดสอบ · ⚪ อ่านแล้ว · 🔒 ยังล็อก</div>
+    <div class="muted" style="font-size:11.5px">เอาเมาส์ชี้ที่สัญลักษณ์เพื่อดูคะแนนและจำนวนครั้งที่สอบของบทนั้น</div>
+
+    <h2 class="sec">🎓 ข้อสอบรวบยอด</h2>
+    <div class="card" style="cursor:pointer" data-go="#/final">
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-weight:700">${finalOpen() ? '✅ ปลดล็อกแล้ว' : '🔒 ยังล็อกอยู่'}
+            ${fin ? `<span class="pill ${fin.passed ? 'ok' : 'warn'}">ดีที่สุด ${fin.best}% · ${fin.attempts} ครั้ง</span>` : ''}</div>
+          <div class="muted" style="font-size:12.3px;margin-top:3px">
+            เรียนจบแล้ว ${frdy.doneLevels}/${frdy.totalLevels} บท · ทุกบทต้องได้ ${FINAL_UNLOCK_SCORE}% ขึ้นไปจึงจะเปิดข้อสอบ ${FINAL_COUNT} ข้อชุดสุดท้าย</div>
+        </div>
+        <button class="btn sm ghost" data-go="#/final">ดูรายละเอียด →</button>
+      </div>
+      <div class="bar" style="margin-top:11px"><div class="bar-fill" style="width:${Math.round(frdy.doneLevels / (frdy.totalLevels || 1) * 100)}%"></div></div>
+    </div>
 
     <h2 class="sec">🔥 เอาชีวิตรอด</h2>
     <div class="grid g3">
@@ -2140,6 +2380,7 @@ function route() {
     case 'quiz': return vQuiz(parts[1], +parts[2]);
     case 'lab': return vLab(parts[1], parts[2]);
     case 'labs': return vLabs();
+    case 'final': return vFinal();
     case 'survival': return vSurvival();
     case 'survive': return vSurvive(parts[1]);
     case 'terminal': return vTerminal();

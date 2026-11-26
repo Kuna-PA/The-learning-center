@@ -253,3 +253,60 @@ test('เนื้อหาที่ผู้ดูแลเพิ่มเอ�
     assert.equal((await anon.req('GET', '/api/content')).status, 401);
   });
 });
+
+// ============================================================
+//  ผลข้อสอบรวบยอดและประวัติการสอบต้องรอดการซิงก์
+//
+//  sanitiseProgress ฝั่งเซิร์ฟเวอร์สร้าง object ใหม่จากช่องที่รู้จักเท่านั้น
+//  ช่องไหนไม่ได้ประกาศไว้จะถูก "ตัดทิ้งเงียบ ๆ" ผู้เรียนจะเห็นผลสอบตอนทำเสร็จ
+//  แล้วหายไปตอนเข้าใหม่ โดยไม่มี error ให้จับเลย — เทสต์นี้กันเรื่องนั้นโดยเฉพาะ
+// ============================================================
+test('ผลข้อสอบรวบยอดและประวัติการสอบต้องไม่หายตอนซิงก์ขึ้นเซิร์ฟเวอร์', async (t) => {
+  const srv = await startServer();
+  t.after(() => srv.stop());
+
+  const u = client(srv.base);
+  await u.req('POST', '/api/auth/register', { username: 'napat', password: 'pass12345' });
+
+  const data = {
+    xp: 900,
+    quiz: {
+      'linux:1': {
+        best: 95, attempts: 3, passed: true, at: 1,
+        history: [
+          { at: 1, pct: 60, passed: false, total: 10, right: 6 },
+          { at: 2, pct: 80, passed: true, total: 10, right: 8 },
+          { at: 3, pct: 95, passed: true, total: 20, right: 19 },
+        ],
+      },
+    },
+    final: {
+      best: 92, attempts: 2, passed: true, at: 9,
+      history: [
+        { at: 8, pct: 74, passed: false, total: 50, right: 37 },
+        { at: 9, pct: 92, passed: true, total: 50, right: 46 },
+      ],
+    },
+  };
+  assert.equal((await u.req('PUT', '/api/progress', { data })).status, 200);
+
+  const got = (await u.req('GET', '/api/progress')).data.data;
+  assert.deepEqual(got.final, data.final, 'ผลข้อสอบรวบยอดถูกตัดทิ้งระหว่างทาง');
+  assert.equal(got.quiz['linux:1'].attempts, 3);
+  assert.deepEqual(got.quiz['linux:1'].history, data.quiz['linux:1'].history,
+    'ประวัติการสอบรายครั้งถูกตัดทิ้งระหว่างทาง');
+
+  await t.test('ล้างความคืบหน้าแล้ว ผลข้อสอบรวบยอดต้องหายไปด้วย', async () => {
+    assert.equal((await u.req('DELETE', '/api/progress')).status, 200);
+    const after = (await u.req('GET', '/api/progress')).data.data;
+    assert.equal(after.final, null);
+    assert.deepEqual(after.quiz, {});
+  });
+
+  await t.test('ส่ง final เป็นของแปลก ๆ มา ต้องกลายเป็น null ไม่ใช่พังทั้งคำขอ', async () => {
+    for (const bad of ['x', 42, [1, 2, 3], true]) {
+      assert.equal((await u.req('PUT', '/api/progress', { data: { xp: 1, final: bad } })).status, 200);
+      assert.equal((await u.req('GET', '/api/progress')).data.data.final, null);
+    }
+  });
+});
