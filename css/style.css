@@ -98,7 +98,7 @@ button{font-family:inherit}
    ซ้ายเป็นแผงแนะนำ ขวาเป็นฟอร์ม — ทั้งคู่อยู่ในกรอบมนใบเดียวกันที่ลอยบนภาพพื้นหลัง */
 .login-shell{
   position:relative;z-index:1;width:100%;max-width:1060px;
-  display:grid;grid-template-columns:1.15fr .85fr;
+  display:grid;grid-template-columns:1.22fr .78fr;
   border:1px solid var(--line);border-radius:22px;overflow:hidden;
   background:rgba(13,17,25,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
   box-shadow:0 34px 90px rgba(0,0,0,.65);
@@ -109,7 +109,7 @@ button{font-family:inherit}
   border-right:1px solid var(--line);
 }
 .hero-pill{position:relative;z-index:2;display:inline-flex;align-items:center;gap:7px;
-  padding:8px 15px;border-radius:99px;font-size:12.5px;font-weight:600;
+  padding:8px 16px;border-radius:99px;font-size:12.5px;font-weight:600;line-height:1.45;
   background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);color:var(--txt)}
 /* ไม่มีหัวเรื่องแล้ว ภาพจึงเป็นพระเอกของแผงนี้ — วางกลางและขยายให้เต็มที่ */
 .hero-art{position:absolute;z-index:1;left:50%;transform:translateX(-50%);top:92px;
@@ -129,8 +129,10 @@ button{font-family:inherit}
   .login-shell{grid-template-columns:1fr;max-width:460px}
   /* จอแคบวางของตามแนวตั้ง จึงต้องเผื่อความสูงให้ภาพกับแถบไอคอนวิ่งไม่ทับกัน
      300 = ป้ายหัวมุม + ภาพ (สูงราว 158) + แถบวิ่ง 76 แล้วยังเหลือช่องไฟ */
-  .login-hero{min-height:300px;border-right:0;border-bottom:1px solid var(--line);padding:22px 22px 0}
-  .hero-art{width:62%;max-width:225px;top:54px}
+  .login-hero{min-height:318px;border-right:0;border-bottom:1px solid var(--line);padding:20px 20px 0}
+  .hero-pill{font-size:11.5px;padding:7px 13px}
+  /* ป้ายหัวมุมตกสองบรรทัดบนจอแคบ ภาพจึงต้องเริ่มต่ำลงมาให้พ้นกัน */
+  .hero-art{width:62%;max-width:218px;top:74px}
   .hero-stat{display:none}
   .lv-run{height:76px}
   .lv-run-track .lv-art{height:58px;margin-right:24px}
@@ -145,8 +147,11 @@ button{font-family:inherit}
 .login-card{
   position:relative;z-index:2;display:flex;flex-direction:column;justify-content:center;
   width:100%;background:rgba(22,27,38,.5);border:0;border-radius:0;
-  padding:34px 32px;box-shadow:none;
+  padding:34px 30px;box-shadow:none;
 }
+/* จำกัดความกว้างเนื้อในแล้ววางกลาง — ปล่อยให้ช่องกรอกยืดเต็มแผงจะดูอ้วนเทียบกับโลโก้
+   คุมให้โลโก้กว้างราว 38% ของฟอร์ม ซึ่งเป็นสัดส่วนที่หน้าล็อกอินทั่วไปใช้กัน */
+.login-card > *{width:100%;max-width:300px;margin-left:auto;margin-right:auto}
 .login-card .brand{border:0;padding:0 0 20px;justify-content:center;flex-direction:column;gap:0}
 .login-card h1{font-size:19px;margin:0 0 18px;text-align:center}
 /* ซ่อนจากสายตาแต่ยังอยู่ให้โปรแกรมอ่านหน้าจอ — ใช้กับหัวข้อที่ซ้ำกับแท็บด้านล่าง */
@@ -208,7 +213,7 @@ button{font-family:inherit}
 /* โลโก้ชุดนี้เป็นแนวตั้ง (สูงกว่ากว้าง) จึงคุมด้วยความสูง ไม่ใช่ความกว้าง
    ไม่งั้นการ์ดล็อกอินจะถูกรูปกินพื้นที่จนฟอร์มตกไปอยู่ใต้ขอบจอ
    130px ≈ หนึ่งในสี่ของความสูงการ์ด — ใหญ่พอให้เป็นพระเอก แต่ไม่ทับฟอร์ม */
-.login-card .brand-logo{max-height:122px;width:auto;max-width:88%;display:block;margin:0 auto;
+.login-card .brand-logo{max-height:148px;width:auto;max-width:88%;display:block;margin:0 auto;
   filter:drop-shadow(0 6px 20px rgba(56,189,248,.22))}
 
 /* ไอคอน SVG ของ Learning Path — ทำตัวเหมือน emoji คือโตตาม font-size ของที่ที่วาง */

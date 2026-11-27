@@ -240,7 +240,7 @@ function renderLogin(err = '') {
   lw.innerHTML = `
     <div class="login-shell">
       <section class="login-hero">
-        <span class="hero-pill">⚡ ศูนย์ฝึกอบรม IT &amp; SysEng</span>
+        <span class="hero-pill">⚡ ศูนย์ฝึกอบรม IT Infrastructure &amp; System Engineering</span>
         <img class="hero-art" src="assets/levels/lv5.png" alt="" loading="eager" decoding="async">
         <div class="hero-stat a"><b>${nLabs} Labs</b><span>ลงมือทำบนเครื่องจำลองจริง</span></div>
         <div class="hero-stat b"><b>${nQuiz.toLocaleString('en-US')} ข้อสอบ</b><span>สุ่มใหม่ทุกครั้งที่ทำ</span></div>
