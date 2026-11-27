@@ -227,13 +227,27 @@ function renderLogin(err = '') {
   // หัวข้อตรงกลางจึงกลายเป็นคำเดิมซ้ำสองบรรทัดติดกัน ทำให้หัวการ์ดดูหนักและไม่ได้สัดส่วน
   // ตอนมีแท็บจึงซ่อนไว้ให้เฉพาะโปรแกรมอ่านหน้าจอ ส่วนตอนปิดรับสมัคร (ไม่มีแท็บ) ยังแสดงตามปกติ
   const titleCls = openRegister ? ' class="sr-only"' : '';
-  // แถบไอคอนวิ่งด้านบน — ใช้ภาพประจำระดับชุดเดียวกับการ์ดบทเรียน
+  // แถบไอคอนวิ่ง — ใช้ภาพประจำระดับชุดเดียวกับการ์ดบทเรียน
   // วางสองชุดต่อกัน แล้วเลื่อนไป -50% พอดีหนึ่งชุด ภาพจึงวนได้ไม่มีรอยต่อ
   const runStrip = `<div class="lv-run" aria-hidden="true"><div class="lv-run-track">${
     [...LEVELS, ...LEVELS].map(l => levelArt(l.n, { eager: true })).join('')}</div></div>`;
 
+  // ตัวเลขบนป้ายลอย — ดึงจากเนื้อหาจริง ไม่ใช่เลขที่พิมพ์ทิ้งไว้แล้วลืมอัปเดต
+  const nLabs = ALL_LABS.length + SURVIVAL_LABS.length;
+  const nQuiz = TRACKS.reduce((a, t) =>
+    a + Object.values(t.levels).reduce((b, l) => b + (l.quiz || []).length, 0), 0);
+
   lw.innerHTML = `
-    ${runStrip}
+    <div class="login-shell">
+      <section class="login-hero">
+        <span class="hero-pill">⚡ ศูนย์ฝึกอบรม IT &amp; SysEng</span>
+        <h2 class="hero-title"><span class="ghost">Hands-on</span><b>IT Training.</b></h2>
+        <img class="hero-art" src="assets/levels/lv5.png" alt="" loading="eager" decoding="async">
+        <div class="hero-stat a"><b>${nLabs} Labs</b><span>ลงมือทำบนเครื่องจำลองจริง</span></div>
+        <div class="hero-stat b"><b>${nQuiz.toLocaleString('en-US')} ข้อสอบ</b><span>สุ่มใหม่ทุกครั้งที่ทำ</span></div>
+        ${runStrip}
+      </section>
+
     <div class="login-card">
       <div class="brand">
         <img class="brand-logo" src="assets/logo-full.png" alt="ASD ACADEMY">
@@ -263,6 +277,7 @@ function renderLogin(err = '') {
         💾 <b>โหมดออฟไลน์</b> — หน้านี้เปิดจาก static hosting จึงไม่มีเซิร์ฟเวอร์ให้เก็บข้อมูล
         บัญชีและความคืบหน้าจะอยู่ใน<b>เบราว์เซอร์เครื่องนี้เท่านั้น</b> ล้างข้อมูลเบราว์เซอร์แล้วหาย
         และไม่ตามไปเครื่องอื่น</div>`}
+    </div>
     </div>`;
 
   lw.querySelectorAll('[data-m]').forEach(b =>
