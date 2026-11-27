@@ -296,8 +296,11 @@ pre code,pre.code code{background:none;border:0;padding:0;color:inherit;white-sp
 /* ลายจุดจาง ๆ กันพื้นโล่งเกินไป */
 .lv-cover::after{content:"";position:absolute;inset:0;opacity:.5;
   background-image:radial-gradient(rgba(255,255,255,.065) 1px, transparent 1px);background-size:14px 14px}
-.lv-emoji{position:relative;z-index:1;font-size:44px;line-height:1;
-  filter:drop-shadow(0 6px 16px rgba(0,0,0,.5))}
+/* ภาพประจำระดับ — SVG ที่ระบายสีเน้นด้วย currentColor จึงรับสีจาก .lv-cover ได้เลย */
+.lv-art{position:relative;z-index:1;width:104px;height:78px;display:block;
+  filter:drop-shadow(0 7px 18px rgba(0,0,0,.55))}
+/* หัวหน้าบทเรียนใช้ภาพเดียวกัน แต่กล่องเล็กกว่า */
+.room-ico.lv-ico .lv-art{width:58px;height:44px;filter:none}
 
 /* เหรียญมุมขวาบน — ✓ เมื่อจบครบ · วงแหวน % เมื่อทำค้างไว้ · กุญแจเมื่อยังล็อก */
 .lv-badge{position:absolute;top:10px;right:10px;z-index:2;display:grid;place-items:center;

@@ -13,6 +13,7 @@ import { registerServiceWorker } from './pwa.js';
 import { overview, summarise, toCsv } from './admin-stats.js';
 import { customContent, loadCustomContent, saveCustomContent } from './content.js';
 import { blankCustom, RULE_KINDS, MAX_IMAGE_BYTES, imageBytes } from '../data/custom.js';
+import { levelArt } from '../data/level-art.js';
 import {
   FINAL_COUNT, FINAL_UNLOCK_SCORE, FINAL_PASS_SCORE,
   buildFinalSet, finalReadiness, blockersByTrack,
@@ -508,7 +509,7 @@ function vTrack(id) {
       : full ? '<span class="lv-badge done" title="จบครบแล้ว">✓</span>'
         : pct > 0 ? `<span class="lv-badge ring" title="ทำไปแล้ว ${pct}%">${miniRing(pct)}</span>` : '';
     return `<div class="lv-card ${s.unlocked ? '' : 'locked'}" style="--lc:${l.color}" data-l="${l.n}">
-      <div class="lv-cover"><span class="lv-emoji">${l.icon}</span>${badge}</div>
+      <div class="lv-cover" style="color:${l.color}">${levelArt(l.n)}${badge}</div>
       <div class="lv-body">
         <div class="lv-n">${(DIFF[l.n] || DIFF[1])[1]} · ระดับ ${l.n} · ${l.name}</div>
         <h3>${d.title}</h3>
@@ -560,7 +561,7 @@ function vLearn(id, level) {
 
   view().innerHTML = `
     <div class="room-hero" style="--hero:${l.color}22">
-      <div class="room-ico">${open ? l.icon : '🔒'}</div>
+      <div class="room-ico lv-ico" style="color:${l.color}">${open ? levelArt(level) : '🔒'}</div>
       <div class="room-meta">
         <div class="row" style="gap:7px">
           <span class="pill" style="color:${l.color};border-color:${l.color}">LEVEL ${level} · ${l.name}</span>
