@@ -3,7 +3,7 @@
 //  ACL · CIA · ภัยคุกคาม · VPN/Firewall เบื้องต้น
 //  หมายเหตุ: หัวข้อ password/SSH/AAA/port-security ใช้ของเดิมจาก legacy.js
 // ============================================================
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
+import { said } from '../../said.js';
 
 export default {
   title: 'Security Fundamentals — ปกป้องเครือข่ายจากผู้ไม่หวังดี',

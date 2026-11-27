@@ -1,4 +1,5 @@
 // Lab เพิ่มเติมของ Linux — 2 lab ต่อระดับ
+import { said, times } from '../said.js';
 const node = (s, p) => {
   const parts = String(p).split('/').filter(Boolean);
   let n = s.fs;
@@ -8,7 +9,6 @@ const node = (s, p) => {
   }
   return n;
 };
-const said = (h, re) => h.some(c => re.test(c.trim()));
 
 const BY_OLD_LEVEL = {
   // ================= LEVEL 1 =================
@@ -162,7 +162,7 @@ const BY_OLD_LEVEL = {
         { t: 'สร้างไฟล์ <code>/srv/www/index.html</code>', hint: 'echo "<h1>Hello from container</h1>" > /srv/www/index.html', check: s => { const f = node(s, '/srv/www/index.html'); return f && f.content.length > 5; } },
         { t: 'รัน container ชื่อ <code>web</code> จาก image <code>nginx:1.25-alpine</code> ผูกพอร์ต 80', hint: 'docker run -d --name web -p 80:80 nginx:1.25-alpine', check: s => s.containers.some(c => c.name === 'web' && c.state === 'Up') },
         { t: 'รัน container ชื่อ <code>db</code> จาก image <code>postgres:16-alpine</code>', hint: 'docker run -d --name db postgres:16-alpine', check: s => s.containers.some(c => c.name === 'db') },
-        { t: 'ตรวจสอบว่า container ทั้งสองทำงานอยู่', hint: 'docker ps', check: (s, h) => h.filter(c => /docker\s+ps/i.test(c)).length >= 2 },
+        { t: 'ตรวจสอบว่า container ทั้งสองทำงานอยู่', hint: 'docker ps', check: (s, h) => times(h, /docker\s+ps/i) >= 2 },
         { t: 'ดู resource ที่แต่ละ container ใช้', hint: 'docker stats', check: (s, h) => said(h, /docker\s+stats/i) },
         { t: 'ดู log ของ container <code>web</code>', hint: 'docker logs web', check: (s, h) => said(h, /docker\s+logs/i) },
         { t: 'เปิด firewall พอร์ต 80', hint: 'sudo ufw allow 80/tcp', check: s => s.ufw.rules.some(r => /80/.test(r.to)) },

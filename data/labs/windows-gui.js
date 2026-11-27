@@ -3,7 +3,7 @@
 //  ทำงานบน state ก้อนเดียวกับฝั่ง PowerShell — ตรวจผลจากสถานะจริง
 //  history จะเก็บ action เป็นข้อความ เช่น "gui:service-start:Spooler"
 // ============================================================
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
+import { said } from '../said.js';
 const grp = (s, n) => Object.keys(s.adGroups).find(x => x.toLowerCase() === n.toLowerCase());
 const inGrp = (s, g, m) => { const k = grp(s, g); return !!k && s.adGroups[k].includes(m); };
 const folder = (s, path) => {

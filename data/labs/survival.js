@@ -11,7 +11,6 @@ const node = (s, p) => {
   }
   return n;
 };
-const said = (h, re) => h.some(c => re.test(c.trim()));
 const T = (s, p) => s.tables[p] || [];
 const has = (s, p, fn) => T(s, p).some(fn);
 const F = n => 'FastEthernet0/' + n;
@@ -19,6 +18,7 @@ const G = n => 'GigabitEthernet0/' + n;
 const ran = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
 import { SURVIVAL_LABS_2 } from './survival2.js';
+import { said, times } from '../said.js';
 
 const BASE_LABS = [
   // ---------------------------------------------------------
@@ -46,7 +46,7 @@ const BASE_LABS = [
       { t: 'ตรวจว่าพื้นที่ดิสก์เต็มหรือไม่ (สาเหตุยอดฮิต)', hint: 'df -h', check: (s, h) => said(h, /^(sudo\s+)?df/i) },
       { t: 'ตรวจว่าพอร์ต 80 มีใครฟังอยู่ไหม', hint: 'ss -tulpn', check: (s, h) => said(h, /^(sudo\s+)?(ss|netstat)/i) },
       { t: 'กู้บริการ: เริ่ม nginx', hint: 'sudo systemctl start nginx', check: s => s.services.nginx.active },
-      { t: 'ทดสอบว่าเว็บกลับมาแล้ว', hint: 'curl -I http://localhost', check: (s, h) => h.filter(c => /^curl/i.test(c.trim())).length >= 2 },
+      { t: 'ทดสอบว่าเว็บกลับมาแล้ว', hint: 'curl -I http://localhost', check: (s, h) => times(h, /^curl/i) >= 2 },
       { t: 'ป้องกันไม่ให้เกิดซ้ำหลังรีบูต: ตั้ง nginx ให้เริ่มอัตโนมัติ', hint: 'sudo systemctl enable nginx', check: s => s.services.nginx.enabled },
       { t: 'บันทึกสิ่งที่พบลง <code>/home/student/incident.txt</code> เพื่อรายงานตอนเช้า', hint: 'echo "nginx หยุดทำงานและไม่ได้ตั้ง enable" > /home/student/incident.txt', check: s => (node(s, '/home/student/incident.txt')?.content || '').length > 5 },
     ],
@@ -118,7 +118,7 @@ const BASE_LABS = [
       { t: 'เปิด uplink Gi0/1 ที่ถูกปิดไว้', hint: 'configure terminal → interface gi0/1 → no shutdown', check: s => s.ifaces[G(1)].shutdown === false },
       { t: 'แก้ allowed vlan ของ trunk ให้มี VLAN 10 และ 20', hint: 'switchport trunk allowed vlan 10,20', check: s => { const a = s.ifaces[G(1)].allowed || ''; return /\b10\b/.test(a) && /\b20\b/.test(a); } },
       { t: 'ย้ายพอร์ตผู้ใช้ Fa0/1-8 กลับไป VLAN 10', hint: 'exit → interface range fa0/1 - 8 → switchport access vlan 10', check: s => ran(1, 8).every(i => s.ifaces[F(i)].accessVlan === 10) },
-      { t: 'ตรวจผลอีกครั้งว่า trunk ถูกต้องแล้ว', hint: 'do show interfaces trunk', check: (s, h) => h.filter(c => /sh(ow)?\s+int\w*\s+tr/i.test(c)).length >= 2 },
+      { t: 'ตรวจผลอีกครั้งว่า trunk ถูกต้องแล้ว', hint: 'do show interfaces trunk', check: (s, h) => times(h, /sh(ow)?\s+int\w*\s+tr/i) >= 2 },
       { t: 'บันทึก config ไม่ให้หายถ้าไฟดับ', hint: 'end → write memory', check: s => !!s.savedConfig },
     ],
     debrief: 'สองปัญหาซ้อนกัน: ช่างปิด uplink ไว้และ trunk ยอมให้ผ่านแค่ VLAN 1 ส่วนพอร์ตผู้ใช้ก็ถูกย้ายไป VLAN 1 <b>ลำดับการไล่ที่ถูกคือจากล่างขึ้นบน</b> — L1 (พอร์ตขึ้นไหม) → L2 (VLAN/trunk ถูกไหม) → L3 (IP/gateway) การเริ่มจาก <code>show interfaces status</code> และ <code>show interfaces trunk</code> ทำให้เจอทั้งสองปัญหาภายในไม่กี่นาที บทเรียน: ทุกครั้งที่มีคนมาทำงานกับตู้ ต้องมี change record และตรวจสอบก่อนเลิกงาน',
@@ -239,7 +239,7 @@ const BASE_LABS = [
       { t: 'เพิ่มดิสก์ใหม่เข้า volume group <code>vg_data</code>', hint: 'sudo vgextend vg_data /dev/sdb', check: s => s.lvm.vgs.vg_data.pvs.includes('/dev/sdb') },
       { t: 'ขยาย logical volume ให้ใช้พื้นที่ว่างทั้งหมด', hint: 'sudo lvextend -l +100%FREE /dev/vg_data/lv_app', check: s => s.lvm.lvs.lv_app.pendingResize === true },
       { t: '<b>อย่าลืมขั้นนี้</b> — ขยาย filesystem ให้เห็นพื้นที่ใหม่', hint: 'sudo resize2fs /dev/vg_data/lv_app', check: s => s.lvm.lvs.lv_app.pendingResize === false && s.filesystems.find(f => f.mp === '/mnt/app').size > 31457280 },
-      { t: 'ยืนยันว่าพื้นที่เพิ่มขึ้นจริง', hint: 'df -h', check: (s, h) => h.filter(c => /^(sudo\s+)?df\s+-h/i.test(c.trim())).length >= 2 },
+      { t: 'ยืนยันว่าพื้นที่เพิ่มขึ้นจริง', hint: 'df -h', check: (s, h) => times(h, /^(sudo\s+)?df\s+-h/i) >= 2 },
       { t: 'ป้องกันระยะยาว: ตรวจว่ามี log rotate อยู่ไหม', hint: 'ls -la /etc/logrotate.d', check: (s, h) => said(h, /logrotate/i) },
     ],
     debrief: 'ขั้นที่คนลืมบ่อยที่สุดคือ <code>resize2fs</code> — <code>lvextend</code> ขยายแค่ "ภาชนะ" แต่ filesystem ข้างในยังเท่าเดิม ทำให้ <code>df -h</code> แสดงขนาดเท่าเดิมและคนเข้าใจผิดว่าคำสั่งไม่ทำงาน อีกจุดที่ควรจำ: ถ้า <code>df -h</code> บอกว่ายังว่างแต่เขียนไฟล์ไม่ได้ ให้ตรวจ <code>df -i</code> เพราะอาจเป็น inode หมดจากไฟล์เล็กจำนวนมหาศาล',
@@ -273,7 +273,7 @@ const BASE_LABS = [
       { t: 'ปิดพอร์ตต้องสงสัย <code>ether5</code> ชั่วคราวเพื่อหยุด storm', hint: '/interface bridge port disable [find interface=ether5]', check: s => has(s, 'interface bridge port', r => r.interface === 'ether5' && (r.disabled === true || r.disabled === 'yes')) },
       { t: 'ตั้ง <code>edge=yes</code> ที่พอร์ตผู้ใช้ <code>ether4</code>', hint: '/interface bridge port set [find interface=ether4] edge=yes', check: s => has(s, 'interface bridge port', r => r.interface === 'ether4' && r.edge === 'yes') },
       { t: 'เปิด <code>bpdu-guard</code> ที่ <code>ether4</code> กันคนเอา switch มาเสียบ', hint: '/interface bridge port set [find interface=ether4] bpdu-guard=yes', check: s => has(s, 'interface bridge port', r => r.interface === 'ether4' && r['bpdu-guard'] === 'yes') },
-      { t: 'ตรวจสถานะพอร์ตอีกครั้งว่านิ่งแล้ว', hint: '/interface bridge port print detail', check: (s, h) => h.filter(c => /bridge\s+port\s+print/i.test(c)).length >= 2 },
+      { t: 'ตรวจสถานะพอร์ตอีกครั้งว่านิ่งแล้ว', hint: '/interface bridge port print detail', check: (s, h) => times(h, /bridge\s+port\s+print/i) >= 2 },
       { t: 'บันทึก config', hint: '/export', check: (s, h) => said(h, /^\/?export/i) },
     ],
     debrief: 'สาเหตุคือ bridge ถูกตั้ง <code>protocol-mode=none</code> (ปิด STP) ซึ่งบางคนทำเพราะคิดว่า "จะได้เร็วขึ้น" พอมีคนเสียบสายวน จึงไม่มีอะไรตัดวงเลย <b>Ethernet frame ไม่มี TTL</b> broadcast จึงวนไม่รู้จบจนล่มทั้งวง บทเรียน: อย่าปิด STP เด็ดขาด และพอร์ตผู้ใช้ทุกพอร์ตควรตั้ง <code>edge=yes</code> + <code>bpdu-guard=yes</code> เพื่อให้ระบบตัดพอร์ตเองก่อนที่จะลามทั้งวง',
@@ -308,7 +308,7 @@ const BASE_LABS = [
       { t: 'ดูสมาชิกทั้งหมดของกลุ่ม <code>Domain Admins</code>', hint: 'Get-ADGroupMember -Identity "Domain Admins"', check: (s, h) => said(h, /get-adgroupmember/i) },
       { t: '<b>Containment:</b> ปิดบัญชีต้องสงสัยทันที', hint: 'Set-ADUser -Identity svc_helper -Enabled $false', check: s => s.adUsers['svc_helper'] && s.adUsers['svc_helper'].enabled === false },
       { t: 'ตรวจ event log ฝั่ง Security เพื่อหาร่องรอยการสร้างบัญชี', hint: 'Get-EventLog -LogName Security', check: (s, h) => said(h, /get-eventlog|get-winevent/i) },
-      { t: 'ตรวจรายชื่อผู้ใช้ทั้งหมดว่ามีบัญชีแปลกอื่นอีกไหม', hint: 'Get-ADUser -Filter *', check: (s, h) => h.filter(c => /get-aduser/i.test(c)).length >= 2 },
+      { t: 'ตรวจรายชื่อผู้ใช้ทั้งหมดว่ามีบัญชีแปลกอื่นอีกไหม', hint: 'Get-ADUser -Filter *', check: (s, h) => times(h, /get-aduser/i) >= 2 },
       { t: 'ตรวจ local user บนเครื่อง DC ด้วย', hint: 'Get-LocalUser', check: (s, h) => said(h, /get-localuser/i) },
       { t: 'ตรวจ scheduled task ที่อาจถูกวางไว้เป็น persistence', hint: 'Get-ScheduledTask', check: (s, h) => said(h, /get-scheduledtask/i) },
       { t: 'ตรวจ firewall rule ว่ามีใครเปิดช่องทางไว้ไหม', hint: 'Get-NetFirewallRule', check: (s, h) => said(h, /get-netfirewallrule/i) },
@@ -377,7 +377,7 @@ const BASE_LABS = [
       { t: '<b>Containment:</b> ปิดบัญชีทันทีเพื่อตัดการเข้าถึงของผู้โจมตี', hint: 'Set-ADUser -Identity nipa -Enabled $false', check: s => s.adUsers.nipa && s.adUsers.nipa.enabled === false },
       { t: 'ตรวจว่าบัญชีนี้อยู่ในกลุ่มใดบ้าง (ประเมินความเสียหาย)', hint: 'Get-ADGroupMember -Identity Finance', check: (s, h) => said(h, /get-adgroupmember/i) },
       { t: 'ตรวจ event log หาการล็อกอินที่ผิดปกติ', hint: 'Get-EventLog -LogName Security', check: (s, h) => said(h, /get-eventlog|get-winevent/i) },
-      { t: 'ตรวจว่ามีบัญชีอื่นถูกสร้างเพิ่มหรือไม่', hint: 'Get-ADUser -Filter *', check: (s, h) => h.filter(c => /get-aduser/i.test(c)).length >= 2 },
+      { t: 'ตรวจว่ามีบัญชีอื่นถูกสร้างเพิ่มหรือไม่', hint: 'Get-ADUser -Filter *', check: (s, h) => times(h, /get-aduser/i) >= 2 },
       { t: 'ตรวจ scheduled task ที่อาจถูกวางไว้', hint: 'Get-ScheduledTask', check: (s, h) => said(h, /get-scheduledtask/i) },
       { t: 'สร้างกลุ่ม <code>MFA-Required</code> เตรียมบังคับ MFA กับกลุ่มเสี่ยง', hint: 'New-ADGroup -Name MFA-Required -GroupScope Global', check: s => Object.keys(s.adGroups).some(g => g.toLowerCase() === 'mfa-required') },
       { t: 'เพิ่ม <code>nipa</code> เข้ากลุ่ม <code>MFA-Required</code>', hint: 'Add-ADGroupMember -Identity MFA-Required -Members nipa', check: s => { const g = Object.keys(s.adGroups).find(x => x.toLowerCase() === 'mfa-required'); return g && s.adGroups[g].includes('nipa'); } },

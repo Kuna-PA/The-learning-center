@@ -197,6 +197,50 @@ export function createLinux(init = {}) {
   const prompt = () =>
     `${st.user}@${st.hostname}:${st.cwd === st.env.HOME ? '~' : st.cwd.replace(st.env.HOME, '~')}${st.user === 'root' ? '#' : '$'} `;
 
+  // ---------- เติมชื่อไฟล์ด้วย Tab ----------
+  /**
+   * รายชื่อ path ที่ขึ้นต้นด้วย token — ใช้กับปุ่ม Tab ในหน้า Lab
+   * ไม่โชว์ไฟล์ซ่อนเว้นแต่ผู้ใช้พิมพ์จุดนำหน้ามาเอง เหมือน shell จริง
+   */
+  function completePath(token) {
+    const t = String(token || '');
+    const cut = t.lastIndexOf('/');
+    const dirPart = cut === -1 ? '' : t.slice(0, cut + 1);
+    const base = cut === -1 ? t : t.slice(cut + 1);
+    const dir = node(dirPart || '.');
+    if (!dir || dir.t !== 'd') return [];
+    return Object.keys(dir.children)
+      .filter(n => n.startsWith(base) && (base.startsWith('.') || !n.startsWith('.')))
+      .sort()
+      .map(n => dirPart + n + (dir.children[n].t === 'd' ? '/' : ''));
+  }
+
+  // ---------- ขยาย path สัมพัทธ์ให้เป็น path เต็ม ----------
+  /**
+   * `cd /tmp` แล้ว `cat README.txt` ควรมีค่าเท่ากับ `cat /tmp/README.txt`
+   * ตัวตรวจ task ส่วนใหญ่เขียน regex ด้วย path เต็ม ถ้าไม่แปลงให้ ผู้เรียนที่ cd เข้าไป
+   * ก่อนแล้วพิมพ์ชื่อไฟล์เปล่า ๆ จะทำ task ไม่ผ่านทั้งที่ทำถูกทุกอย่าง
+   *
+   * ขยายเฉพาะ token ที่ชี้ไปยังไฟล์/โฟลเดอร์ที่ **มีอยู่จริง** เท่านั้น
+   * ไม่งั้นคำอย่าง `aux` ใน `ps aux` จะโดนแปลงเป็น path มั่ว ๆ ไปด้วย
+   *
+   * ยังมีโอกาสบังเอิญอยู่บ้าง เช่น `systemctl status nginx` ตอนที่ cwd คือ /etc
+   * จะได้ `systemctl status /etc/nginx` เพราะมีโฟลเดอร์ชื่อเดียวกันพอดี
+   * ไม่เป็นไรเพราะ said() เทียบรูปที่พิมพ์จริง**ก่อน**เสมอ รูปที่ขยายเป็นแค่โอกาสเพิ่ม
+   * ไม่ใช่ตัวแทน — และถ้ากรองให้แคบกว่านี้ (เช่นเอาเฉพาะไฟล์) `ls -la log`
+   * ตอนอยู่ที่ /var จะขยายไม่ได้ ซึ่งเป็นสิ่งที่ผู้เรียนพิมพ์กันจริง ๆ
+   */
+  function absolutize(cmd) {
+    return String(cmd).split(' ').map((tok, i) => {
+      if (i === 0 || !tok) return tok;
+      if (tok === 'sudo') return tok;
+      if (tok.startsWith('-') || tok.startsWith('/') || tok.startsWith('~')) return tok;
+      if (!/^[\w.][\w./+-]*$/.test(tok)) return tok;     // มี = : " ' | > ฯลฯ ถือว่าไม่ใช่ path
+      const abs = norm(tok);
+      return abs !== tok && node(abs) ? abs : tok;
+    }).join(' ');
+  }
+
   // ---------- individual commands ----------
   function ls(args) {
     const flags = args.filter(a => a.startsWith('-')).join('');
@@ -1059,12 +1103,15 @@ export function createLinux(init = {}) {
         const f = args.filter(a => !a.startsWith('-'));
         if (f.length < 2) { out = [E('mount: ต้องระบุ device และ mountpoint')]; break; }
         if (!node(f[1])) { out = [E(`mount: mount point ${f[1]} does not exist`)]; break; }
-        st.mounts.push({ dev: f[0], mp: f[1], fs: 'ext4', opts: 'defaults' });
+        // เก็บเป็น path เต็มเสมอ — ผู้ใช้ที่ cd เข้าไปก่อนแล้วสั่ง mount ด้วยชื่อสั้น
+        // ต้องได้ผลเหมือนพิมพ์ path เต็ม ไม่งั้นตาราง mount จะมีทั้งสองรูปปนกัน
+        st.mounts.push({ dev: f[0], mp: norm(f[1]), fs: 'ext4', opts: 'defaults' });
         out = [];
         break;
       }
       case 'umount': {
-        st.mounts = st.mounts.filter(m => m.mp !== args[0] && m.dev !== args[0]);
+        const target = args[0] ? norm(args[0]) : '';
+        st.mounts = st.mounts.filter(m => m.mp !== target && m.mp !== args[0] && m.dev !== args[0]);
         out = [];
         break;
       }
@@ -1585,6 +1632,8 @@ export function createLinux(init = {}) {
       D('พิมพ์ ? เพื่อดูคำสั่งที่รองรับ'),
       '',
     ],
+    completePath,
+    absolutize,
     completions: () => [
       'ls -la', 'cd /etc', 'pwd', 'cat /etc/os-release', 'cat /etc/passwd', 'grep -i fail /var/log/auth.log',
       'systemctl status sshd', 'systemctl start nginx', 'systemctl enable nginx', 'systemctl restart sshd',

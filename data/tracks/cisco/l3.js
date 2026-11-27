@@ -2,7 +2,7 @@
 //  CCNA Domain 3 — IP Connectivity
 //  Router ทำงานยังไง · static vs dynamic · OSPF · show ip route
 // ============================================================
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
+import { said } from '../../said.js';
 
 export default {
   title: 'IP Connectivity — Routing และ OSPF',

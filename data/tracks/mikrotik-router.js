@@ -5,6 +5,7 @@
 // ============================================================
 import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
 import mtcna from './mikrotik/mtcna.js';
+import { said } from '../said.js';
 
 const T = (s, p) => s.tables[p] || [];
 
@@ -128,12 +129,12 @@ export default {
         brief: 'RouterBOARD ตัวใหม่มาถึงสำนักงาน คุณต้องตั้งชื่อเครื่อง ใส่ IP ให้ฝั่ง LAN และตรวจสอบสถานะ interface',
         device: 'mikrotik',
         tasks: [
-          { t: 'ดูรายการ interface ทั้งหมด', hint: '/interface print', check: (s, h) => h.some(c => /\/?interface\s+print/i.test(c)) },
+          { t: 'ดูรายการ interface ทั้งหมด', hint: '/interface print', check: (s, h) => said(h, /\/?interface\s+print/i) },
           { t: 'เปลี่ยนชื่ออุปกรณ์เป็น <code>RTR-HQ</code>', hint: '/system identity set name=RTR-HQ', check: s => s.settings['system identity'].name === 'RTR-HQ' },
           { t: 'เพิ่ม IP <code>192.168.88.1/24</code> ให้ <code>ether2</code>', hint: '/ip address add address=192.168.88.1/24 interface=ether2', check: s => T(s, 'ip address').some(r => r.address === '192.168.88.1/24' && r.interface === 'ether2') },
           { t: 'เพิ่ม IP <code>10.10.10.1/24</code> ให้ <code>ether3</code>', hint: '/ip address add address=10.10.10.1/24 interface=ether3', check: s => T(s, 'ip address').some(r => r.address === '10.10.10.1/24' && r.interface === 'ether3') },
-          { t: 'ตรวจสอบรายการ IP ที่ตั้งไว้', hint: '/ip address print', check: (s, h) => h.some(c => /ip\s+address\s+print/i.test(c)) },
-          { t: 'ดึง config ทั้งหมดออกมาดูด้วย export', hint: '/export', check: (s, h) => h.some(c => /^\/?export/i.test(c.trim())) },
+          { t: 'ตรวจสอบรายการ IP ที่ตั้งไว้', hint: '/ip address print', check: (s, h) => said(h, /ip\s+address\s+print/i) },
+          { t: 'ดึง config ทั้งหมดออกมาดูด้วย export', hint: '/export', check: (s, h) => said(h, /^\/?export/i) },
         ],
       }],
     },
@@ -223,7 +224,7 @@ export default {
           { t: 'สร้าง dhcp-server network <code>192.168.88.0/24</code> gateway <code>192.168.88.1</code> dns <code>8.8.8.8</code>', hint: '/ip dhcp-server network add address=192.168.88.0/24 gateway=192.168.88.1 dns-server=8.8.8.8', check: s => T(s, 'ip dhcp-server network').some(r => r.address === '192.168.88.0/24' && r.gateway === '192.168.88.1' && (r['dns-server'] || '').includes('8.8.8.8')) },
           { t: 'สร้าง NAT masquerade ออกทาง <code>ether1</code>', hint: '/ip firewall nat add chain=srcnat out-interface=ether1 action=masquerade', check: s => T(s, 'ip firewall nat').some(r => r.chain === 'srcnat' && r.action === 'masquerade' && r['out-interface'] === 'ether1') },
           { t: 'ตั้ง DNS server เป็น <code>8.8.8.8</code> และเปิด allow-remote-requests', hint: '/ip dns set servers=8.8.8.8 allow-remote-requests=yes', check: s => s.settings['ip dns'].servers.includes('8.8.8.8') && s.settings['ip dns']['allow-remote-requests'] === 'yes' },
-          { t: 'ทดสอบ ping ออกอินเทอร์เน็ต', hint: '/ping 8.8.8.8', check: (s, h) => h.some(c => /ping\s+8\.8\.8\.8/i.test(c)) },
+          { t: 'ทดสอบ ping ออกอินเทอร์เน็ต', hint: '/ping 8.8.8.8', check: (s, h) => said(h, /ping\s+8\.8\.8\.8/i) },
         ],
       }],
     },
@@ -557,7 +558,7 @@ add name=to-ISP1 remote.address=203.0.113.1 remote.as=64500 \\
           { t: 'สร้าง address-list <code>mgmt</code> สำหรับ <code>192.168.88.0/24</code>', hint: '/ip firewall address-list add list=mgmt address=192.168.88.0/24', check: s => T(s, 'ip firewall address-list').some(r => r.list === 'mgmt' && r.address === '192.168.88.0/24') },
           { t: 'เพิ่มกฎ firewall input อนุญาต SSH/WinBox เฉพาะจาก address-list <code>mgmt</code>', hint: '/ip firewall filter add chain=input src-address-list=mgmt protocol=tcp dst-port=2222,8291 action=accept', check: s => T(s, 'ip firewall filter').some(r => r.chain === 'input' && r.action === 'accept' && r['src-address-list'] === 'mgmt') },
           { t: 'เพิ่มกฎ input drop ปิดท้าย', hint: '/ip firewall filter add chain=input action=drop', check: s => T(s, 'ip firewall filter').some(r => r.chain === 'input' && r.action === 'drop' && !r['connection-state'] && !r['src-address-list']) },
-          { t: 'ตรวจสอบ config ทั้งหมดด้วย export', hint: '/export', check: (s, h) => h.some(c => /^\/?export/i.test(c.trim())) },
+          { t: 'ตรวจสอบ config ทั้งหมดด้วย export', hint: '/export', check: (s, h) => said(h, /^\/?export/i) },
         ],
       }],
     },

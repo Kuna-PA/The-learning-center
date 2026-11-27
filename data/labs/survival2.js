@@ -1,6 +1,7 @@
 // ============================================================
 //  หมวด "เอาชีวิตรอด" ชุดที่ 2 — เหตุการณ์ที่เกิดขึ้นจริงในองค์กรไทย
 // ============================================================
+import { said, times } from '../said.js';
 const node = (s, p) => {
   const parts = String(p).split('/').filter(Boolean);
   let n = s.fs;
@@ -10,7 +11,6 @@ const node = (s, p) => {
   }
   return n;
 };
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
 const T = (s, p) => s.tables[p] || [];
 const has = (s, p, fn) => T(s, p).some(fn);
 const F = n => 'FastEthernet0/' + n;
@@ -78,7 +78,7 @@ export const SURVIVAL_LABS_2 = [
       { t: 'ดูว่าเครื่องเก็บโปรไฟล์ Wi-Fi อะไรไว้บ้าง', hint: 'netsh wlan show profiles', check: (s, h) => said(h, /netsh\s+wlan\s+show\s+profile/i) },
       { t: 'ดูสถานะการเชื่อมต่อ Wi-Fi ปัจจุบัน', hint: 'netsh wlan show interfaces', check: (s, h) => said(h, /netsh\s+wlan\s+show\s+interfaces/i) },
       { t: 'ลบโปรไฟล์เก่าที่ยังจำรหัสเดิม <code>CORP-WIFI</code>', hint: 'netsh wlan delete profile name="CORP-WIFI"', check: s => !s.wlanProfiles.includes('CORP-WIFI') },
-      { t: 'ตรวจว่าลบออกไปแล้วจริง', hint: 'netsh wlan show profiles', check: (s, h) => h.filter(c => /netsh\s+wlan\s+show\s+profile/i.test(c)).length >= 2 },
+      { t: 'ตรวจว่าลบออกไปแล้วจริง', hint: 'netsh wlan show profiles', check: (s, h) => times(h, /netsh\s+wlan\s+show\s+profile/i) >= 2 },
       { t: 'ตรวจการตั้งค่า IP ปัจจุบัน', hint: 'ipconfig /all', check: (s, h) => said(h, /^ipconfig\s*\/all/i) },
       { t: 'ล้าง DNS cache เผื่อค้างค่าเก่า', hint: 'ipconfig /flushdns', check: (s, h) => said(h, /ipconfig\s*\/flushdns/i) },
     ],
@@ -169,7 +169,7 @@ export const SURVIVAL_LABS_2 = [
       { t: 'ทดสอบว่ายังถึง gateway ไหม', hint: 'ping 192.168.10.1', check: (s, h) => said(h, /^ping\s+192\.168\.10\.1/i) },
       { t: 'ย้ายเครื่องนี้ไปใช้ IP ที่ไม่ชนกัน <code>192.168.10.77</code>', hint: 'netsh interface ip set address "Ethernet0" static 192.168.10.77 255.255.255.0 192.168.10.1', check: s => s.nics.Ethernet0.ip === '192.168.10.77' },
       { t: 'ตรวจ routing ว่ายังปกติ', hint: 'route print', check: (s, h) => said(h, /^route\s+print/i) },
-      { t: 'ยืนยันผลด้วย ipconfig อีกครั้ง', hint: 'ipconfig', check: (s, h) => h.filter(c => /^ipconfig/i.test(c.trim())).length >= 2 },
+      { t: 'ยืนยันผลด้วย ipconfig อีกครั้ง', hint: 'ipconfig', check: (s, h) => times(h, /^ipconfig/i) >= 2 },
     ],
     debrief: 'IP ชนกันทำให้ ARP table ปั่นป่วน — สวิตช์และเครื่องอื่นจะสลับส่ง traffic ไปหาสอง MAC สลับกัน ทำให้ "เข้าได้บ้างไม่ได้บ้าง" ซึ่งหาสาเหตุยากกว่าเน็ตล่มสนิท <b>ทางป้องกันที่ถูกคือกัน static IP ให้อยู่นอกช่วง DHCP pool</b> และใช้ DHCP reservation แทนการตั้ง static ที่เครื่อง เพื่อให้ทุก IP ถูกจัดการจากที่เดียว',
   },
@@ -197,7 +197,7 @@ export const SURVIVAL_LABS_2 = [
       { t: 'ลด lease-time เหลือ <code>2h</code> เพื่อให้ IP หมุนเวียนเร็วขึ้น', hint: '/ip dhcp-server set [find name=dhcp1] lease-time=2h', check: s => has(s, 'ip dhcp-server', r => r.name === 'dhcp1' && String(r['lease-time']) === '2h') },
       { t: 'ตรวจว่า network config มี gateway และ DNS ครบ', hint: '/ip dhcp-server network print', check: (s, h) => said(h, /dhcp-server\s+network\s+print/i) },
       { t: 'เพิ่ม network config ถ้ายังไม่มี', hint: '/ip dhcp-server network add address=192.168.88.0/24 gateway=192.168.88.1 dns-server=8.8.8.8', check: s => has(s, 'ip dhcp-server network', r => r.address === '192.168.88.0/24') },
-      { t: 'ตรวจผลด้วย print อีกครั้ง', hint: '/ip pool print', check: (s, h) => h.filter(c => /ip\s+pool\s+print/i.test(c)).length >= 2 },
+      { t: 'ตรวจผลด้วย print อีกครั้ง', hint: '/ip pool print', check: (s, h) => times(h, /ip\s+pool\s+print/i) >= 2 },
       { t: 'ตั้ง netwatch เฝ้า gateway ไว้เผื่อเกิดซ้ำ', hint: '/tool netwatch add host=192.168.88.1', check: s => has(s, 'tool netwatch', r => r.host === '192.168.88.1') },
     ],
     debrief: 'pool ที่มีแค่ 21 IP แต่มีคน 80 คน ย่อมไม่พอ — และ <b>lease-time ที่ยาวเกินไป (3 วัน)</b> ทำให้ IP ของคนที่กลับบ้านไปแล้วยังถูกจองไว้ ไม่คืนเข้า pool สำหรับพื้นที่ที่คนเข้าออกบ่อย (ห้องประชุม, Wi-Fi ผู้มาติดต่อ) ควรตั้ง lease-time สั้น ๆ 1-2 ชั่วโมง และเผื่อขนาด pool ไว้อย่างน้อย 1.5 เท่าของจำนวนคนสูงสุด',
@@ -394,7 +394,7 @@ export const SURVIVAL_LABS_2 = [
       { t: 'drop connection-state invalid', hint: '/ip firewall filter add chain=input connection-state=invalid action=drop', check: s => has(s, 'ip firewall filter', r => r.chain === 'input' && r.action === 'drop' && /invalid/.test(r['connection-state'] || '')) },
       { t: 'ใส่ IP ต้นทางที่โจมตีลง address-list <code>attackers</code>', hint: '/ip firewall address-list add list=attackers address=45.9.148.0/24', check: s => has(s, 'ip firewall address-list', r => r.list === 'attackers') },
       { t: 'drop traffic จาก <code>attackers</code> ตั้งแต่ chain raw (ประหยัด CPU ที่สุด)', hint: '/ip firewall raw add chain=prerouting src-address-list=attackers action=drop', check: s => has(s, 'ip firewall raw', r => r.action === 'drop' && r['src-address-list'] === 'attackers') },
-      { t: 'ตรวจสถานะ CPU อีกครั้งหลังใส่กฎ', hint: '/system resource print', check: (s, h) => h.filter(c => /system\s+resource\s+print/i.test(c)).length >= 2 },
+      { t: 'ตรวจสถานะ CPU อีกครั้งหลังใส่กฎ', hint: '/system resource print', check: (s, h) => times(h, /system\s+resource\s+print/i) >= 2 },
     ],
     debrief: 'สองเรื่องที่ต้องแยกให้ออก: <b>เราเป็นเหยื่อ</b> หรือ <b>เราเป็นเครื่องมือ</b> — router ที่เปิด <code>allow-remote-requests=yes</code> โดยไม่บล็อกพอร์ต 53 จากฝั่ง WAN จะถูกใช้ทำ DNS amplification ยิงคนอื่น และ traffic ที่เห็นคือ traffic ที่วิ่งผ่านเรา การใช้ <b>chain=raw</b> ดักทิ้งตั้งแต่ prerouting ประหยัด CPU กว่า filter มาก เพราะยังไม่เข้า connection tracking ส่วนการโจมตีระดับที่ล้นแบนด์วิดท์ขาเข้าจริง ๆ ต้องให้ ISP หรือบริการ scrubbing ช่วยกรองต้นทาง เพราะแก้ที่ปลายทางไม่ทัน',
   },

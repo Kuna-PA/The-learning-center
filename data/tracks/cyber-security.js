@@ -5,6 +5,7 @@
 // ============================================================
 import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
 import secplus from './cyber/secplus.js';
+import { said, times } from '../said.js';
 
 const node = (s, p) => {
   const parts = String(p).split('/').filter(Boolean);
@@ -15,7 +16,6 @@ const node = (s, p) => {
   }
   return n;
 };
-const said = (h, re) => h.some(c => re.test(c.trim()));
 
 /** ต่อ sections / quiz / labs ของ Security+ เข้าท้ายระดับที่ตรงกัน */
 const withSecPlus = (levels) => {
@@ -588,7 +588,7 @@ sha256sum /mnt/evidence/* &gt; /mnt/evidence/HASHES.txt</pre>
           { t: 'ตั้ง firewall: default deny incoming แล้วอนุญาต SSH', hint: 'sudo ufw default deny incoming → sudo ufw allow 22/tcp', check: s => s.ufw.rules.some(r => /22/.test(r.to)) },
           { t: 'เปิดใช้งาน firewall', hint: 'sudo ufw enable', check: s => s.ufw.active },
           { t: 'ตั้ง timezone เป็น <code>Asia/Bangkok</code> เพื่อให้ log correlate ได้', hint: 'sudo timedatectl set-timezone Asia/Bangkok', check: s => s.timezone === 'Asia/Bangkok' },
-          { t: 'สแกนซ้ำด้วย lynis เพื่อเทียบคะแนนหลังทำ baseline', hint: 'sudo lynis audit system', check: (s, h) => h.filter(c => /lynis/i.test(c)).length >= 2 },
+          { t: 'สแกนซ้ำด้วย lynis เพื่อเทียบคะแนนหลังทำ baseline', hint: 'sudo lynis audit system', check: (s, h) => times(h, /lynis/i) >= 2 },
           { t: 'สร้างรายงานสรุปลง <code>/home/analyst/baseline-report.txt</code>', hint: 'ss -tulpn > /home/analyst/baseline-report.txt', check: s => (node(s, '/home/analyst/baseline-report.txt')?.content || '').length > 10 },
         ],
       }],

@@ -2,6 +2,7 @@ const T = (s, p) => s.tables[p] || [];
 const hasVlan = (s, id) => T(s, 'interface bridge vlan').some(r => String(r['vlan-ids']).split(',').includes(String(id)));
 
 import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
+import { said } from '../said.js';
 
 export default {
   id: 'mikrotik-switch',
@@ -104,7 +105,7 @@ export default {
           { t: 'เพิ่ม <code>ether2</code>, <code>ether3</code>, <code>ether4</code> เข้า <code>bridge1</code>', hint: '/interface bridge port add bridge=bridge1 interface=ether2 → /interface bridge port add bridge=bridge1 interface=ether3 → /interface bridge port add bridge=bridge1 interface=ether4', check: s => ['ether2', 'ether3', 'ether4'].every(i => T(s, 'interface bridge port').some(r => r.bridge === 'bridge1' && r.interface === i)) },
           { t: 'ใส่ IP management <code>192.168.99.20/24</code> ที่ <code>bridge1</code>', hint: '/ip address add address=192.168.99.20/24 interface=bridge1', check: s => T(s, 'ip address').some(r => r.address === '192.168.99.20/24' && r.interface === 'bridge1') },
           { t: 'เพิ่ม default route ไป <code>192.168.99.1</code>', hint: '/ip route add dst-address=0.0.0.0/0 gateway=192.168.99.1', check: s => T(s, 'ip route').some(r => r['dst-address'] === '0.0.0.0/0' && r.gateway === '192.168.99.1') },
-          { t: 'ตรวจสอบสถานะ bridge port', hint: '/interface bridge port print', check: (s, h) => h.some(c => /bridge\s+port\s+print/i.test(c)) },
+          { t: 'ตรวจสอบสถานะ bridge port', hint: '/interface bridge port print', check: (s, h) => said(h, /bridge\s+port\s+print/i) },
         ],
       }],
     },
@@ -406,7 +407,7 @@ set ether2 broadcast-flood=no unknown-unicast-flood=no unknown-multicast-flood=n
           { t: 'เพิ่ม <code>ether3</code> เข้า bridge1', hint: '/interface bridge port add bridge=bridge1 interface=ether3', check: s => T(s, 'interface bridge port').some(r => r.interface === 'ether3' && r.bridge === 'bridge1') },
           { t: 'ตั้ง <code>horizon=1</code> ให้ <code>ether2</code>', hint: '/interface bridge port set [find interface=ether2] horizon=1', check: s => T(s, 'interface bridge port').some(r => r.interface === 'ether2' && String(r.horizon) === '1') },
           { t: 'ตั้ง <code>horizon=1</code> ให้ <code>ether3</code>', hint: '/interface bridge port set [find interface=ether3] horizon=1', check: s => T(s, 'interface bridge port').some(r => r.interface === 'ether3' && String(r.horizon) === '1') },
-          { t: 'ตรวจสอบผลด้วย <code>/interface bridge port print</code>', hint: '/interface bridge port print', check: (s, h) => h.some(c => /bridge\s+port\s+print/i.test(c)) },
+          { t: 'ตรวจสอบผลด้วย <code>/interface bridge port print</code>', hint: '/interface bridge port print', check: (s, h) => said(h, /bridge\s+port\s+print/i) },
         ],
       }],
     },

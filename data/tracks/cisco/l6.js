@@ -2,7 +2,7 @@
 //  CCNA Domain 6 — Automation and Programmability
 //  ทำไมงาน network ถึงกำลังย้ายจาก "พิมพ์ทีละเครื่อง" ไปเป็น "สั่งด้วยโค้ด"
 // ============================================================
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
+import { said } from '../../said.js';
 
 export default {
   title: 'Automation — จากพิมพ์ทีละเครื่องสู่การสั่งด้วยโค้ด',

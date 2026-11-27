@@ -2,7 +2,7 @@
 //  Linux — เนื้อหาและ Lab ที่เขียนเพิ่มให้ครบตามหลักสูตร
 //  แยกตามระดับปลายทาง แล้วให้ ../linux.js เอาไปประกอบกับ legacy.js
 // ============================================================
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
+import { said } from '../../said.js';
 /** เดิน path ใน virtual filesystem ของ emulator (โครงเดียวกับ node() ใน linux.js) */
 const hasFile = (s, path) => {
   let n = s.fs;

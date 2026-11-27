@@ -1,7 +1,7 @@
 // Lab เพิ่มเติมของ MikroTik Router — 2 lab ต่อระดับ
+import { said } from '../said.js';
 const T = (s, p) => s.tables[p] || [];
 const has = (s, p, fn) => T(s, p).some(fn);
-const said = (h, re) => h.some(c => re.test(c.trim()));
 
 export default {
   // ================= LEVEL 1 =================

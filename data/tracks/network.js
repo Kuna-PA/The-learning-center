@@ -21,12 +21,12 @@
 //  แล้วค่อยเข้าสู่ cmd ซึ่งเป็นสิ่งที่ IT support คุ้นมืออยู่แล้ว
 //  ของเดิมที่เป็น Linux ย้ายไปเป็นตัวเสริมใน data/labs/network-linux-extra.js
 // ============================================================
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
 const T = (s, p) => s.tables[p] || [];                 // MikroTik
 const has = (s, p, fn) => T(s, p).some(fn);
 const ifc = (s, n) => (s.ifaces || {})[n] || {};       // Cisco / Linux
 
 import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
+import { said, times } from '../said.js';
 
 export default {
   id: 'network',
@@ -847,7 +847,7 @@ network = <b>192.168.10.64</b> · broadcast = <b>192.168.10.127</b> · host ท�
             { t: 'ทดสอบ loopback ของ IPv6 (เทียบเท่า 127.0.0.1 ของ IPv4)', hint: 'ping ::1', check: (s, h) => said(h, /^ping\s+(-6\s+)?::1/i) },
             { t: 'ping ที่อยู่ link-local ของการ์ดตัวเอง <code>fe80::a9c4:3f21:7b05:11de</code>', hint: 'ping fe80::a9c4:3f21:7b05:11de', check: (s, h) => said(h, /^ping\s+(-6\s+)?fe80::/i) },
             { t: 'ตั้ง global address <code>2001:db8::10</code> ให้การ์ด <code>Ethernet0</code>', hint: 'netsh interface ipv6 add address "Ethernet0" 2001:db8::10/64', check: s => String(s.nics.Ethernet0.ipv6 || '').startsWith('2001:db8::10') },
-            { t: 'ยืนยันว่า global address เข้าไปแล้ว และตอนนี้การ์ดมีทั้ง IPv4 และ IPv6 พร้อมกัน (dual stack)', hint: 'netsh interface ipv6 show address', check: (s, h) => h.filter(c => /^netsh\s+int(erface)?\s+ipv6\s+show\s+addr/i.test(String(c).trim())).length >= 2 },
+            { t: 'ยืนยันว่า global address เข้าไปแล้ว และตอนนี้การ์ดมีทั้ง IPv4 และ IPv6 พร้อมกัน (dual stack)', hint: 'netsh interface ipv6 show address', check: (s, h) => times(h, /^netsh\s+int(erface)?\s+ipv6\s+show\s+addr/i) >= 2 },
             { t: 'ดูตารางเส้นทางของ IPv6', hint: 'netsh interface ipv6 show route', check: (s, h) => said(h, /^netsh\s+int(erface)?\s+ipv6\s+show\s+route/i) },
             { t: 'ถาม DNS หา AAAA record (เรคคอร์ดที่ชี้ไปยัง IPv6) ของโดเมน', hint: 'nslookup -type=AAAA example.com', check: (s, h) => said(h, /nslookup.*(aaaa|-type)/i) },
           ],

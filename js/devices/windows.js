@@ -167,6 +167,31 @@ export function createWindows(init = {}) {
     }
     return n;
   }
+  /** รายชื่อ path ที่ขึ้นต้นด้วย token — ใช้กับปุ่ม Tab (ดูคำอธิบายฉบับเต็มใน linux.js) */
+  function completePath(token) {
+    const t = String(token || '').replace(/\//g, '\\');
+    const cut = t.lastIndexOf('\\');
+    const dirPart = cut === -1 ? '' : t.slice(0, cut + 1);
+    const base = (cut === -1 ? t : t.slice(cut + 1)).toLowerCase();
+    const dir = fsNode(dirPart || '.');
+    if (!dir || !dir.d) return [];
+    return Object.keys(dir.c)
+      .filter(n => n.toLowerCase().startsWith(base))
+      .sort()
+      .map(n => dirPart + n + (dir.c[n].d ? '\\' : ''));
+  }
+
+  /** ขยาย path สัมพัทธ์ให้เป็น path เต็ม เฉพาะ token ที่ชี้ไปยังของที่มีอยู่จริง */
+  function absolutize(cmd) {
+    return String(cmd).split(' ').map((tok, i) => {
+      if (i === 0 || !tok) return tok;
+      if (tok.startsWith('-') || /^[a-z]:/i.test(tok)) return tok;
+      if (!/^[\w.][\w.\\/+-]*$/.test(tok)) return tok;
+      const abs = resolvePath(tok);
+      return abs !== tok && fsNode(abs) ? abs : tok;
+    }).join(' ');
+  }
+
   function fsParent(p) {
     const abs = resolvePath(p).replace(/(.)\\$/, '$1');
     const i = abs.lastIndexOf('\\');
@@ -1320,6 +1345,8 @@ export function createWindows(init = {}) {
       D('พิมพ์ ? เพื่อดูคำสั่งที่ lab นี้รองรับ'),
       '',
     ],
+    completePath,
+    absolutize,
     completions: () => [
       'Get-Service', 'Get-Service -Name Spooler', 'Start-Service -Name W3SVC', 'Restart-Service -Name Spooler',
       'Get-WindowsFeature', 'Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools',

@@ -1,5 +1,5 @@
 // Lab เพิ่มเติมของ Windows Server — 2 lab ต่อระดับ
-const said = (h, re) => h.some(c => re.test(c.trim()));
+import { said } from '../said.js';
 const grp = (s, n) => Object.keys(s.adGroups).find(x => x.toLowerCase() === n.toLowerCase());
 const inGrp = (s, g, m) => { const k = grp(s, g); return k && s.adGroups[k].includes(m); };
 const ou = (s, n) => s.adOUs.some(o => String(o).toLowerCase() === n.toLowerCase());

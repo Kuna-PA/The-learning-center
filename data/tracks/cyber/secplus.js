@@ -9,7 +9,7 @@
 //    L5  Lesson 9, 11, 15, 16, 20, 21  network design · protocols · cloud · privacy ·
 //                              resilience · physical security
 // ============================================================
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
+import { said, times } from '../../said.js';
 
 // ---- ตัวช่วยจัดฉากให้ Lab: สร้างผู้ใช้ / ไฟล์ / service ที่โจทย์อ้างถึง ----
 // ถ้าไม่จัดฉากไว้ คำสั่งจะ error แล้ว terminal จะไม่นับว่าทำ task นั้นแล้ว
@@ -1119,7 +1119,7 @@ checklist offboarding ที่ครอบคลุมทั้งสองด�
           { t: 'ค้นหา secret หรือรหัสผ่านที่อาจฝังอยู่ในไฟล์ตั้งค่า', hint: 'grep -ri password /etc', check: (s, h) => said(h, /grep.*password/i) },
           { t: 'ลองรัน playbook แบบ dry-run ก่อน เพื่อดูว่าจะเปลี่ยนอะไรบ้าง', hint: 'ansible-playbook --check site.yml', check: (s, h) => said(h, /ansible-playbook.*--check/i) },
           { t: 'รัน playbook จริงแล้วอ่าน PLAY RECAP', hint: 'ansible-playbook site.yml', check: (s, h) => said(h, /ansible-playbook(?!\s+--check)/i) },
-          { t: 'รันซ้ำอีกครั้งเพื่อพิสูจน์ว่า playbook เป็น idempotent (changed ต้องเป็น 0)', hint: 'ansible-playbook site.yml', check: (s, h) => h.filter(c => /ansible-playbook(?!\s+--check)/i.test(String(c))).length >= 2 },
+          { t: 'รันซ้ำอีกครั้งเพื่อพิสูจน์ว่า playbook เป็น idempotent (changed ต้องเป็น 0)', hint: 'ansible-playbook site.yml', check: (s, h) => times(h, /ansible-playbook(?!\s+--check)/i) >= 2 },
           { t: 'ตรวจว่า audit log ของเครื่องยังเก็บการเปลี่ยนแปลงไว้ครบ', hint: 'sudo ausearch -m USER_LOGIN', check: (s, h) => said(h, /ausearch|journalctl/i) },
         ],
       },

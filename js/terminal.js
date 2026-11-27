@@ -6,7 +6,12 @@ const esc = s => String(s)
 
 export function createTerminal({ device, initial = {}, onExec, height }) {
   let dev = createDevice(device, initial);
-  const history = [];      // เฉพาะคำสั่งที่ "ทำงานสำเร็จ" — ใช้ตรวจ lab
+  // เฉพาะคำสั่งที่ "ทำงานสำเร็จ" — ใช้ตรวจ lab
+  // history.abs เรียงดัชนีตรงกัน เก็บคำสั่งเดียวกันในรูปที่ขยาย path สัมพัทธ์เป็น path เต็มแล้ว
+  // เพราะตัวตรวจ task เขียน regex ด้วย path เต็ม ผู้เรียนที่ cd เข้าไปก่อนแล้วพิมพ์ชื่อไฟล์
+  // เปล่า ๆ จึงเคยทำ task ไม่ผ่านทั้งที่ทำถูก (ดู said() ใน data/said.js)
+  const history = [];
+  history.abs = [];
   const recall = [];       // ทุกคำสั่งที่พิมพ์ รวมที่ผิด — ใช้กับปุ่มลูกศรขึ้น/ลง
   let hIdx = -1;
 
@@ -56,6 +61,8 @@ export function createTerminal({ device, initial = {}, onExec, height }) {
 
   function run(raw) {
     const cmd = raw;
+    // ต้องแปลงก่อนรัน เพราะคำสั่งอย่าง cd จะเปลี่ยน cwd ไปแล้วถ้ารอหลังรัน
+    const abs = dev.absolutize ? dev.absolutize(cmd.trim()) : cmd.trim();
     writeEcho(cmd);
     if (cmd.trim()) { recall.push(cmd.trim()); hIdx = recall.length; }
     let out = [];
@@ -69,7 +76,7 @@ export function createTerminal({ device, initial = {}, onExec, height }) {
       ? o.trim() !== ''
       : (o && o.c !== 'err' && String(o.s).trim() !== ''));
     const failed = anyErr && !anyOk;
-    if (cmd.trim() && !failed) history.push(cmd.trim());
+    if (cmd.trim() && !failed) { history.push(cmd.trim()); history.abs.push(abs); }
 
     if (out.length === 1 && out[0] === '\x00CLEAR') { clear(); }
     else write(out);
@@ -83,7 +90,7 @@ export function createTerminal({ device, initial = {}, onExec, height }) {
     clear();
     write(dev.banner());
     syncPrompt();
-    history.length = 0; recall.length = 0;
+    history.length = 0; history.abs.length = 0; recall.length = 0;
     if (onExec) onExec({ cmd: '', state: dev.state, history });
   }
 
@@ -104,6 +111,28 @@ export function createTerminal({ device, initial = {}, onExec, height }) {
       e.preventDefault();
       const cur = input.value;
       if (!cur.trim()) return;
+
+      // กำลังพิมพ์ "อาร์กิวเมนต์" อยู่ (มีคำนำหน้าแล้ว) → เติมชื่อไฟล์จากระบบไฟล์จำลองก่อน
+      // ผู้เรียนคาดหวังว่า Tab จะเติมชื่อไฟล์ได้เหมือน shell จริง ไม่ใช่เติมได้แต่ชื่อคำสั่ง
+      const token = (cur.match(/(\S*)$/) || ['', ''])[1];
+      const lead = cur.slice(0, cur.length - token.length);
+      if (lead.trim() && dev.completePath) {
+        const paths = dev.completePath(token);
+        if (paths.length === 1) { input.value = lead + paths[0]; return; }
+        if (paths.length > 1) {
+          const shared = paths.reduce((a, c) => {
+            let i = 0;
+            while (i < a.length && i < c.length && a[i] === c[i]) i++;
+            return a.slice(0, i);
+          });
+          if (shared.length > token.length) { input.value = lead + shared; return; }
+          writeEcho(cur);
+          write(paths.map(x => '  ' + x));
+          body.scrollTop = body.scrollHeight;
+          return;
+        }
+      }
+
       const list = (dev.completions ? dev.completions() : []);
 
       // จับแบบตรงตัวก่อน ถ้าไม่เจอค่อยจับแบบย่อทีละคำ ("sho run" -> "show running-config")

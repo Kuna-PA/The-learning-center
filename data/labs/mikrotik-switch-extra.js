@@ -1,7 +1,7 @@
 // Lab เพิ่มเติมของ MikroTik Switch (CRS/CSS) — 2 lab ต่อระดับ
+import { said, times } from '../said.js';
 const T = (s, p) => s.tables[p] || [];
 const has = (s, p, fn) => T(s, p).some(fn);
-const said = (h, re) => h.some(c => re.test(c.trim()));
 const vlanRow = (s, id) => T(s, 'interface bridge vlan').find(r => String(r['vlan-ids']).split(',').includes(String(id)));
 
 export default {
@@ -184,7 +184,7 @@ export default {
           hint: '/interface bridge port set [find interface=ether3] ingress-filtering=yes',
           check: s => has(s, 'interface bridge port', r => r.interface === 'ether3' && r['ingress-filtering'] === 'yes')
         },
-        { t: 'ตรวจสอบตาราง VLAN อีกครั้งว่าครบแล้ว', hint: '/interface bridge vlan print', check: (s, h) => h.filter(c => /bridge\s+vlan\s+print/i.test(c)).length >= 2 },
+        { t: 'ตรวจสอบตาราง VLAN อีกครั้งว่าครบแล้ว', hint: '/interface bridge vlan print', check: (s, h) => times(h, /bridge\s+vlan\s+print/i) >= 2 },
         { t: 'ดึง config ออกมาตรวจทาน', hint: '/export', check: (s, h) => said(h, /^\/?export/i) },
       ],
     },

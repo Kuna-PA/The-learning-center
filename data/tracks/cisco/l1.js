@@ -2,7 +2,7 @@
 //  CCNA Domain 1 — Network Fundamentals
 //  พื้นฐานที่ต้องแน่นก่อนไปแตะอุปกรณ์จริง: ข้อมูลเดินทางยังไง
 // ============================================================
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
+import { said } from '../../said.js';
 
 export default {
   title: 'พื้นฐานเครือข่าย — ข้อมูลเดินทางอย่างไร',

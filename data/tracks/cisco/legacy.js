@@ -1,3 +1,4 @@
+import { said } from '../../said.js';
 export default {
   id: 'cisco-switch',
   name: 'Cisco Switch',
@@ -102,7 +103,7 @@ SW1# copy running-config startup-config</pre>
           { t: 'ตั้ง hostname เป็น <code>SW-FL3</code>', hint: 'configure terminal → hostname SW-FL3', check: s => s.hostname === 'SW-FL3' },
           { t: 'ใส่ description ที่พอร์ต Fa0/1 ว่า <code>Uplink-to-Core</code>', hint: 'interface fa0/1 → description Uplink-to-Core', check: s => s.ifaces['FastEthernet0/1'].desc === 'Uplink-to-Core' },
           { t: 'ปิดพอร์ต Fa0/24 ที่ยังไม่ได้ใช้งาน (shutdown)', hint: 'interface fa0/24 → shutdown', check: s => s.ifaces['FastEthernet0/24'].shutdown === true },
-          { t: 'เรียกดูสถานะพอร์ตทั้งหมด', hint: 'do show interfaces status', check: (s, h) => h.some(c => /^(do\s+)?sh(ow)?\s+int\w*\s+st/i.test(c.trim())) },
+          { t: 'เรียกดูสถานะพอร์ตทั้งหมด', hint: 'do show interfaces status', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+int\w*\s+st/i) },
           { t: 'บันทึก config ลง NVRAM', hint: 'end → write memory', check: s => !!s.savedConfig },
         ],
       }],
@@ -443,7 +444,7 @@ SW1# show monitor session 1</pre>
             check: s => { const p = s.ifaces['GigabitEthernet0/2']; return p.routed && p.ip === '10.0.0.2' && p.mask === '255.255.255.252'; }
           },
           { t: 'เพิ่ม default route ออก WAN ไปที่ <code>10.0.0.1</code>', hint: 'ip route 0.0.0.0 0.0.0.0 10.0.0.1', check: s => s.routes.some(r => r.net === '0.0.0.0' && r.nh === '10.0.0.1') },
-          { t: 'ตรวจสอบตาราง routing', hint: 'do show ip route', check: (s, h) => h.some(c => /show\s+ip\s+route/i.test(c)) },
+          { t: 'ตรวจสอบตาราง routing', hint: 'do show ip route', check: (s, h) => said(h, /^(do\s+)?sh(ow)?\s+ip\s+ro/i) },
           { t: 'บันทึก config', hint: 'end → write memory', check: s => !!s.savedConfig },
         ],
       }],

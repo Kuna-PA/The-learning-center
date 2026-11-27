@@ -8,7 +8,7 @@
 //  ไฟล์นี้เก็บของเดิมไว้เป็น "ตัวเสริม" สำหรับคนที่ผ่าน Linux มาแล้วหรืออยากลองของยาก
 //  เนื้อหาเหมือนเดิมทุกอย่าง เปลี่ยนแค่ชื่อให้รู้ว่าเป็นทางเลือก
 // ============================================================
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
+import { said, times } from '../said.js';
 const ifc = (s, n) => (s.ifaces || {})[n] || {};
 
 export default {
@@ -89,7 +89,7 @@ export default {
     device: 'linux',
     tasks: [
       { t: 'ดูพอร์ตที่เครื่องเราเปิดฟังอยู่พร้อม process เจ้าของ', hint: 'ss -tulpn', check: (s, h) => said(h, /^(sudo\s+)?(ss|netstat)\s+-\w+/i) },
-      { t: 'ดูว่ามีการเชื่อมต่อ TCP ใดค้างอยู่บ้าง', hint: 'ss -tan', check: (s, h) => h.filter(c => /^(sudo\s+)?(ss|netstat)\s/i.test(String(c))).length >= 2 },
+      { t: 'ดูว่ามีการเชื่อมต่อ TCP ใดค้างอยู่บ้าง', hint: 'ss -tan', check: (s, h) => times(h, /^(sudo\s+)?(ss|netstat)\s/i) >= 2 },
       { t: 'สำรวจว่ามีเครื่องใดออนไลน์ในวง <code>192.168.10.0/24</code>', hint: 'nmap -sn 192.168.10.0/24', check: (s, h) => said(h, /nmap.*-sn/i) },
       { t: 'สแกนพอร์ตและเวอร์ชันบริการของเครื่องเป้าหมาย', hint: 'nmap -sV 192.168.10.20', check: (s, h) => said(h, /nmap.*-sV/i) },
       { t: 'ตรวจว่า DNS ที่เครื่องใช้อยู่คือตัวไหน', hint: 'cat /etc/resolv.conf', check: (s, h) => said(h, /resolv\.conf/i) },

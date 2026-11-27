@@ -9,9 +9,9 @@
 //    L4  Module 4  Routing    ·  Module 7  QoS  ·  Module 8  Tunnels
 //    L5  Module 5  Wireless   ·  Module 9  Misc (tools / monitoring / support)
 // ============================================================
+import { said } from '../../said.js';
 const T = (s, p) => s.tables[p] || [];
 const has = (s, p, fn) => T(s, p).some(fn);
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
 const svc = (s, name) => T(s, 'ip service').find(r => r.name === name);
 
 export default {

@@ -35,12 +35,42 @@ export function execFailed(out) {
 }
 
 /**
+ * แปลงคำสั่งที่ใช้ path เต็ม ให้กลายเป็น "cd เข้าไปก่อน แล้วพิมพ์ชื่อสั้น ๆ"
+ * ซึ่งเป็นวิธีที่คนทำงานจริงพิมพ์กัน — ใช้ทดสอบว่าตัวตรวจ task ยืดหยุ่นพอ
+ * คืนเป็น array ของคำสั่ง (อาจมี cd นำหน้า) · ถ้าแปลงไม่ได้ก็คืนคำสั่งเดิม
+ *
+ * ข้ามกรณีที่การ cd ไม่สมเหตุสมผลกับคนจริง ๆ ด้วย ไม่งั้นจะได้ผลลวง:
+ *   · mkdir — ยัง cd เข้าไปในโฟลเดอร์ที่กำลังจะสร้างไม่ได้
+ *   · โฟลเดอร์ปลายทางที่ยังไม่มีอยู่ ณ ตอนนั้น
+ *   · /dev/sdb และพวก device node — ไม่มีใคร cd /dev แล้วพิมพ์ pvcreate sdb
+ */
+export function viaCd(dev, cmd) {
+  const text = String(cmd);
+  if (!dev.absolutize || !dev.completePath) return [cmd];
+  if (/^\s*(sudo\s+)?mkdir\b/.test(text)) return [cmd];
+  const m = text.match(/(^|\s)(\/[\w.][\w./-]*)(?=\s|$)/g);
+  if (!m) return [cmd];
+  const path = m[m.length - 1].trim();
+  if (path.startsWith('/dev/')) return [cmd];
+  const cut = path.lastIndexOf('/');
+  if (cut <= 0) return [cmd];                       // ของที่อยู่ราก / ไม่ต้องแปลง
+  const dir = path.slice(0, cut), base = path.slice(cut + 1);
+  if (!base) return [cmd];
+  if (!dev.completePath(dir + '/').length) return [cmd];   // โฟลเดอร์ยังไม่มี
+  return [`cd ${dir}`, text.replace(path, base)];
+}
+
+/**
  * เล่น Lab หนึ่งชุดด้วยคำใบ้ของมันเอง แล้วรายงานผลรายข้อ
+ * @param {object} lab
+ * @param {{relative?:boolean}} [opts]  relative = พิมพ์แบบ cd เข้าไปก่อนแล้วใช้ชื่อสั้น
  * @returns {{ok:boolean, done:boolean[], failedTasks:number[], crashes:Array}}
  */
-export function solveLab(lab) {
+export function solveLab(lab, opts = {}) {
   const dev = createDevice(lab.device, lab.init || {});
+  // ต้องมี .abs เหมือน js/terminal.js ไม่งั้นชุดทดสอบจะไม่ได้ทดสอบเส้นทางเดียวกับของจริง
   const history = [];
+  history.abs = [];
   const done = new Array(lab.tasks.length).fill(false);
   const crashes = [];
 
@@ -55,12 +85,15 @@ export function solveLab(lab) {
   evaluate();   // บาง task ผ่านตั้งแต่สถานะเริ่มต้น (เช่น "ตรวจสอบว่ายังไม่ได้ตั้งค่า")
 
   for (let i = 0; i < lab.tasks.length; i++) {
-    for (const cmd of hintCommands(lab.tasks[i].hint)) {
-      let out = [];
-      try { out = dev.exec(cmd) || []; }
-      catch (e) { crashes.push({ where: `task #${i + 1} · ${cmd}`, msg: e.message }); continue; }
-      if (!execFailed(out) && cmd.trim()) history.push(cmd.trim());
-      evaluate();
+    for (const hint of hintCommands(lab.tasks[i].hint)) {
+      for (const cmd of (opts.relative ? viaCd(dev, hint) : [hint])) {
+        let out = [];
+        const abs = dev.absolutize ? dev.absolutize(cmd.trim()) : cmd.trim();
+        try { out = dev.exec(cmd) || []; }
+        catch (e) { crashes.push({ where: `task #${i + 1} · ${cmd}`, msg: e.message }); continue; }
+        if (!execFailed(out) && cmd.trim()) { history.push(cmd.trim()); history.abs.push(abs); }
+        evaluate();
+      }
     }
   }
 

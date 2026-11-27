@@ -1,8 +1,8 @@
 // Lab เพิ่มเติมของ Cisco Switch — 2 lab ต่อระดับ
+import { said, times } from '../said.js';
 const F = n => 'FastEthernet0/' + n;
 const G = n => 'GigabitEthernet0/' + n;
 const ran = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
-const said = (h, re) => h.some(c => re.test(c.trim()));
 
 const BY_OLD_LEVEL = {
   // ================= LEVEL 1 =================
@@ -97,7 +97,7 @@ const BY_OLD_LEVEL = {
         { t: 'เปลี่ยน native vlan ของ trunk เป็น <code>999</code> ตามมาตรฐานองค์กร', hint: 'switchport trunk native vlan 999', check: s => s.ifaces[G(1)].nativeVlan === 999 },
         { t: 'สร้าง VLAN 999 ชื่อ <code>NATIVE-UNUSED</code>', hint: 'exit → vlan 999 → name NATIVE-UNUSED', check: s => s.vlans[999] && /NATIVE/i.test(s.vlans[999].name) },
         { t: 'ปิดการต่อรอง DTP ที่ trunk (nonegotiate)', hint: 'exit → interface gi0/1 → switchport nonegotiate', check: s => s.ifaces[G(1)].nonegotiate === true },
-        { t: 'ตรวจผลอีกครั้งด้วย show interfaces trunk', hint: 'do show interfaces trunk', check: (s, h) => h.filter(c => /sh(ow)?\s+int\w*\s+tr/i.test(c)).length >= 2 },
+        { t: 'ตรวจผลอีกครั้งด้วย show interfaces trunk', hint: 'do show interfaces trunk', check: (s, h) => times(h, /sh(ow)?\s+int\w*\s+tr/i) >= 2 },
         { t: 'บันทึก config', hint: 'end → write memory', check: s => !!s.savedConfig },
       ],
     },

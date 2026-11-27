@@ -2,7 +2,7 @@
 //  CCNA Domain 4 — IP Services
 //  DHCP · NAT · NTP · DNS · SNMP/Syslog · FHRP
 // ============================================================
-const said = (h, re) => h.some(c => re.test(String(c).trim()));
+import { said } from '../../said.js';
 
 export default {
   title: 'IP Services — DHCP, NAT, DNS และการเฝ้าระวัง',
