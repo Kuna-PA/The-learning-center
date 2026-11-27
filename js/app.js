@@ -104,6 +104,18 @@ function toast(msg, kind = '') {
 const DIFF = { 1: ['easy', 'EASY'], 2: ['easy', 'EASY'], 3: ['medium', 'MEDIUM'], 4: ['hard', 'HARD'], 5: ['insane', 'INSANE'], 6: ['insane', 'INSANE'] };
 const diffPill = lv => { const [c, t] = DIFF[lv] || DIFF[1]; return `<span class="diff ${c}">${t}</span>`; };
 
+/** วงแหวนเล็กไว้ใส่ในเหรียญมุมการ์ด — บอกความคืบหน้าโดยไม่กินที่เท่าแถบยาว */
+function miniRing(pct) {
+  const r = 14, C = 2 * Math.PI * r;
+  return `<svg width="34" height="34" viewBox="0 0 34 34" aria-label="ความคืบหน้า ${pct}%">
+    <circle cx="17" cy="17" r="${r}" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="3"></circle>
+    <circle cx="17" cy="17" r="${r}" fill="none" stroke="var(--lc)" stroke-width="3" stroke-linecap="round"
+      stroke-dasharray="${C}" stroke-dashoffset="${C - C * pct / 100}" transform="rotate(-90 17 17)"></circle>
+    <text x="17" y="20.5" text-anchor="middle" font-size="9.5" font-weight="700"
+      fill="currentColor" font-family="var(--mono)">${pct}</text>
+  </svg>`;
+}
+
 function ring(pct, size = 96, color = 'var(--acc)') {
   const r = size / 2 - 7, C = 2 * Math.PI * r;
   return `<div class="ring" style="width:${size}px;height:${size}px">
@@ -486,24 +498,26 @@ function vTrack(id) {
       <div class="room-side">${ring(p, 96)}
         <div class="muted" style="font-size:10.5px;margin-top:6px;font-family:var(--mono)">${t.sub}</div></div>
     </div>
-    <div class="grid g2" id="lvs"></div>`;
+    <div class="grid g4" id="lvs"></div>`;
 
   $('#lvs').innerHTML = levelsOf(id).map(levelOf).map(l => {
     const d = t.levels[l.n], s = levelStatus(id, l.n), pct = levelPct(id, l.n);
-    let badge = '<span class="pill lock">🔒 ล็อก</span>';
-    if (s.unlocked) badge = s.passed ? `<span class="pill ok">✓ ${s.quiz.best}%</span>`
-      : s.quiz ? `<span class="pill warn">${s.quiz.best}%</span>`
-        : s.read ? '<span class="pill">อ่านแล้ว</span>' : '<span class="pill">ยังไม่เริ่ม</span>';
+    const full = s.passed && s.labsDone === s.labsTotal;
+    // เหรียญมุมขวาบนบอกสถานะด้วยสัญลักษณ์เดียว — ยังไม่เริ่มก็ไม่ต้องมีอะไรให้รก
+    const badge = !s.unlocked ? '<span class="lv-badge" title="ยังล็อก">🔒</span>'
+      : full ? '<span class="lv-badge done" title="จบครบแล้ว">✓</span>'
+        : pct > 0 ? `<span class="lv-badge ring" title="ทำไปแล้ว ${pct}%">${miniRing(pct)}</span>` : '';
     return `<div class="lv-card ${s.unlocked ? '' : 'locked'}" style="--lc:${l.color}" data-l="${l.n}">
-      <div class="row" style="justify-content:space-between">
-        <div class="lv-n">LEVEL ${l.n} · ${l.name}</div>${badge}
-      </div>
-      <h3>${l.icon} ${d.title}</h3>
-      <div style="margin-bottom:8px">${diffPill(l.n)}</div>
-      <p>${d.objectives[0]}</p>
-      <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
-      <div class="row" style="margin-top:10px;font-size:11px;color:var(--txt-mute);gap:13px;font-family:var(--mono)">
-        <span>📖 ${d.sections.length}</span><span>📝 ${d.quiz.length}</span><span>🧪 ${s.labsDone}/${s.labsTotal}</span>
+      <div class="lv-cover"><span class="lv-emoji">${l.icon}</span>${badge}</div>
+      <div class="lv-body">
+        <div class="lv-n">${(DIFF[l.n] || DIFF[1])[1]} · ระดับ ${l.n} · ${l.name}</div>
+        <h3>${d.title}</h3>
+        <p>${d.objectives[0]}</p>
+        <div class="lv-foot">
+          <span title="หัวข้อย่อยในบทเรียน">📖 ${d.sections.length}</span>
+          <span title="ข้อสอบในคลัง">📝 ${d.quiz.length}</span>
+          <span title="Lab ที่ทำแล้ว / ทั้งหมด">🧪 ${s.labsDone}/${s.labsTotal}</span>
+        </div>
       </div>
     </div>`;
   }).join('');
