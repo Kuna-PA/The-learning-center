@@ -217,6 +217,52 @@ let serverUsers = null;      // จำนวนบัญชีในระบบ
 let serverUp = true;
 let openRegister = true;     // เซิร์ฟเวอร์อาจปิดรับสมัครเอง (LC_OPEN_REGISTER=0)
 
+/**
+ * ขั้นที่สองของการล็อกอิน — ขอรหัส 6 หลักจากแอป authenticator
+ * ใช้โครงเดียวกับหน้าล็อกอิน (กรอบสองแผงเดิม) เปลี่ยนแค่เนื้อในแผงขวา
+ * pending มีอายุ 5 นาที ถ้าหมดอายุเซิร์ฟเวอร์จะบอกมาแล้วเด้งกลับไปเริ่มใหม่
+ */
+function renderMfaStep(username, pending, err = '') {
+  const lw = $('#login-wrap');
+  lw.hidden = false;
+  $('#app').hidden = true;
+  lw.innerHTML = `
+    <div class="login-shell">
+      <section class="login-hero">
+        <span class="hero-pill">⚡ ศูนย์ฝึกอบรม IT Infrastructure &amp; System Engineering</span>
+        <img class="hero-art" src="assets/levels/lv5.png" alt="" loading="eager" decoding="async">
+      </section>
+      <div class="login-card">
+        <div class="brand"><img class="brand-logo" src="assets/logo-full.png" alt="ASD ACADEMY"></div>
+        <h1>ยืนยันสองขั้นตอน</h1>
+        <p class="sub">บัญชี <b>${esc(username)}</b> เปิดการยืนยันสองขั้นตอนไว้<br>
+          เปิดแอป authenticator แล้วใส่รหัส 6 หลักที่เห็นตอนนี้</p>
+        ${err ? `<div class="login-err">${esc(err)}</div>` : ''}
+        <form id="mfa-form">
+          <div class="fld"><label>รหัส 6 หลัก</label>
+            <input id="f-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+              placeholder="000000" style="letter-spacing:6px;text-align:center;font-family:var(--mono)"></div>
+          <button class="btn primary block" type="submit">ยืนยันและเข้าสู่ระบบ</button>
+        </form>
+        <button class="btn ghost block" id="mfa-back" style="margin-top:9px">← กลับไปหน้าเข้าสู่ระบบ</button>
+      </div>
+    </div>`;
+
+  $('#f-code').focus();
+  $('#mfa-back').addEventListener('click', () => renderLogin());
+  $('#mfa-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('#mfa-form button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'กำลังยืนยัน...';
+    const r = await auth.loginMfa(pending, $('#f-code').value.trim());
+    if (!r.ok) {
+      // pending หมดอายุแล้วย้อนไปใส่รหัสซ้ำก็ไม่มีประโยชน์ ต้องเริ่มจากหน้าล็อกอินใหม่
+      return r.expired ? renderLogin(r.msg) : renderMfaStep(username, pending, r.msg);
+    }
+    await startSession();
+  });
+}
+
 function renderLogin(err = '') {
   if (!openRegister) loginMode = 'login';   // ปิดรับสมัครแล้วก็ไม่ต้องมีแท็บให้กดค้างไว้
   $('#app').hidden = true;
@@ -291,6 +337,7 @@ function renderLogin(err = '') {
     if (loginMode === 'login') {
       const r = await auth.login(u, p);
       if (!r.ok) return renderLogin(r.msg);
+      if (r.mfaRequired) return renderMfaStep(u, r.pending);
       await startSession();
     } else {
       if (p !== $('#f-pass2').value) return renderLogin('รหัสผ่านทั้งสองช่องไม่ตรงกัน');
@@ -1796,7 +1843,7 @@ function vAccount() {
   const u = auth.current;
   view().innerHTML = `
     <div class="page-head"><h1>บัญชีของฉัน</h1>
-      <p>แก้ชื่อที่แสดง (ใช้พิมพ์บนใบประกาศ) และเปลี่ยนรหัสผ่าน</p></div>
+      <p>แก้ข้อมูลประจำตัว เปลี่ยนรหัสผ่าน และตั้งการยืนยันสองขั้นตอน</p></div>
 
     <div class="grid g2">
       <div class="card">
@@ -1807,7 +1854,11 @@ function vAccount() {
         <tr><th>เข้าล่าสุด</th><td>${u.lastLogin ? new Date(u.lastLogin).toLocaleString('th-TH') : '—'}</td></tr></table>
         <div class="fld" style="margin-top:12px"><label>ชื่อที่แสดง / ชื่อบนใบประกาศ</label>
           <input id="a-display" value="${esc(u.display || '')}"></div>
-        <button class="btn primary sm" id="a-save">บันทึกชื่อ</button>
+        <div class="fld"><label>อีเมล</label>
+          <input id="a-email" type="email" value="${esc(u.email || '')}" placeholder="name@company.co.th"></div>
+        <div class="fld"><label>รหัสพนักงาน</label>
+          <input id="a-emp" value="${esc(u.empId || '')}" placeholder="เช่น EMP-00123"></div>
+        <button class="btn primary sm" id="a-save">บันทึกข้อมูล</button>
       </div>
 
       <div class="card">
@@ -1818,11 +1869,75 @@ function vAccount() {
         <div class="fld"><label>ยืนยันรหัสผ่านใหม่</label><input id="p-new2" type="password"></div>
         <button class="btn primary sm" id="p-save">เปลี่ยนรหัสผ่าน</button>
       </div>
+    </div>
+
+    <h2 class="sec">🔐 การยืนยันสองขั้นตอน (MFA)</h2>
+    <div class="card" id="mfa-card">
+      ${serverUp ? (u.mfaEnabled ? `
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:14px">
+          <div style="flex:1;min-width:240px">
+            <div style="font-weight:700;color:var(--ok)">✅ เปิดใช้งานอยู่</div>
+            <div class="muted" style="font-size:12.6px;line-height:1.7;margin-top:4px">
+              ทุกครั้งที่เข้าสู่ระบบจะต้องใส่รหัส 6 หลักจากแอป authenticator เพิ่มอีกขั้น
+              ถ้าทำมือถือหายให้แจ้งผู้ดูแลระบบปิดให้</div>
+          </div>
+        </div>
+        <div class="fld" style="margin-top:14px;max-width:320px"><label>ยืนยันด้วยรหัสผ่านของคุณเพื่อปิด</label>
+          <input id="mfa-pass" type="password" autocomplete="current-password"></div>
+        <button class="btn sm danger" id="mfa-off">ปิดการยืนยันสองขั้นตอน</button>
+      ` : `
+        <div class="muted" style="font-size:12.8px;line-height:1.75;margin-bottom:14px">
+          เพิ่มอีกชั้นนอกเหนือจากรหัสผ่าน — ต้องใส่รหัส 6 หลักที่เปลี่ยนทุก 30 วินาทีจากแอปในมือถือด้วย
+          ใช้ได้กับ Google Authenticator, Microsoft Authenticator, Authy, 2FAS และแอปที่รองรับ TOTP ทั่วไป</div>
+        <button class="btn primary sm" id="mfa-start">เริ่มตั้งค่า</button>
+        <div id="mfa-steps"></div>
+      `) : `<div class="muted" style="font-size:12.8px">
+        โหมดออฟไลน์ไม่มีเซิร์ฟเวอร์ยืนยันตัวตน จึงใช้การยืนยันสองขั้นตอนไม่ได้</div>`}
     </div>`;
 
   $('#a-save').addEventListener('click', async () => {
-    await auth.setDisplay(u.username, $('#a-display').value.trim());
-    refreshChrome(); toast('บันทึกชื่อแล้ว', 'ok');
+    const r = await auth.updateProfile({
+      display: $('#a-display').value.trim(),
+      email: $('#a-email').value.trim(),
+      empId: $('#a-emp').value.trim(),
+    });
+    if (!r.ok) return toast(r.msg, 'bad');
+    refreshChrome(); toast('บันทึกข้อมูลแล้ว', 'ok');
+  });
+
+  // ---------- ยืนยันสองขั้นตอน ----------
+  $('#mfa-start')?.addEventListener('click', async () => {
+    const r = await auth.mfaSetup();
+    if (!r.ok) return toast(r.msg, 'bad');
+    $('#mfa-start').hidden = true;
+    $('#mfa-steps').innerHTML = `
+      <ol class="bul" style="font-size:13px;line-height:1.9">
+        <li>เปิดแอป authenticator ในมือถือ แล้วเลือก <b>เพิ่มบัญชีแบบใส่กุญแจเอง</b>
+            (Enter a setup key / Enter key manually)</li>
+        <li>ชื่อบัญชีใส่อะไรก็ได้ เช่น <code>ASD ACADEMY (${esc(u.username)})</code>
+            ประเภทเลือก <b>Time based</b></li>
+        <li>กุญแจคือชุดนี้ — พิมพ์ให้ครบทุกตัว (เว้นวรรคไม่ต้องพิมพ์ก็ได้)
+          <div class="mfa-key">${esc(r.pretty)}</div></li>
+        <li>แอปจะขึ้นรหัส 6 หลักที่เปลี่ยนทุก 30 วินาที — พิมพ์รหัสที่เห็นตอนนี้ลงช่องข้างล่าง</li>
+      </ol>
+      <div class="fld" style="max-width:220px"><label>รหัส 6 หลักจากแอป</label>
+        <input id="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
+      <button class="btn primary sm" id="mfa-on">เปิดใช้งาน</button>`;
+    $('#mfa-code').focus();
+    $('#mfa-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#mfa-on').click(); });
+    $('#mfa-on').addEventListener('click', async () => {
+      const got = await auth.mfaEnable($('#mfa-code').value.trim());
+      if (!got.ok) return toast(got.msg, 'bad');
+      toast('เปิดการยืนยันสองขั้นตอนแล้ว', 'ok');
+      vAccount();
+    });
+  });
+
+  $('#mfa-off')?.addEventListener('click', async () => {
+    const r = await auth.mfaDisable($('#mfa-pass').value);
+    if (!r.ok) return toast(r.msg, 'bad');
+    toast('ปิดการยืนยันสองขั้นตอนแล้ว');
+    vAccount();
   });
   $('#p-save').addEventListener('click', async () => {
     if ($('#p-new').value !== $('#p-new2').value) return toast('รหัสผ่านใหม่ไม่ตรงกัน', 'bad');
@@ -2042,6 +2157,8 @@ function vAdminUsers() {
       <div class="row" style="align-items:flex-end;gap:12px">
         <div class="fld" style="margin:0;flex:1;min-width:140px"><label>ชื่อผู้ใช้</label><input id="n-user" placeholder="a-z 0-9"></div>
         <div class="fld" style="margin:0;flex:1;min-width:140px"><label>ชื่อที่แสดง</label><input id="n-display" placeholder="ชื่อ-นามสกุล"></div>
+        <div class="fld" style="margin:0;flex:1;min-width:160px"><label>อีเมล</label><input id="n-email" type="email" placeholder="name@company.co.th"></div>
+        <div class="fld" style="margin:0;flex:1;min-width:120px"><label>รหัสพนักงาน</label><input id="n-emp" placeholder="EMP-00123"></div>
         <div class="fld" style="margin:0;flex:1;min-width:130px"><label>รหัสผ่าน</label><input id="n-pass" type="text" placeholder="อย่างน้อย 8 ตัว"></div>
         <div class="fld" style="margin:0;min-width:110px"><label>บทบาท</label>
           <select id="n-role"><option value="user">user</option><option value="admin">admin</option></select></div>
@@ -2052,7 +2169,7 @@ function vAdminUsers() {
     <h2 class="sec">ผู้ใช้ทั้งหมด (${users.length})</h2>
     <div class="card" style="padding:0;overflow:hidden">
       <table class="adm">
-        <tr><th>ผู้ใช้</th><th>บทบาท</th><th>XP</th><th>แบบทดสอบ</th><th>Lab</th><th>ใบประกาศ</th><th>เข้าล่าสุด</th><th>จัดการ</th></tr>
+        <tr><th>ผู้ใช้</th><th>อีเมล / รหัสพนักงาน</th><th>บทบาท</th><th>MFA</th><th>XP</th><th>แบบทดสอบ</th><th>Lab</th><th>เข้าล่าสุด</th><th>จัดการ</th></tr>
         ${users.map(u => {
     const s = summary(u.username);
     return `<tr>
@@ -2060,18 +2177,46 @@ function vAdminUsers() {
         <div class="avatar ${u.role === 'admin' ? 'adm' : ''}" style="width:28px;height:28px;flex:0 0 28px;font-size:12px">${esc((u.display || u.username)[0].toUpperCase())}</div>
         <div><div style="font-size:13px;font-weight:600">${esc(u.display || u.username)}</div>
         <div class="muted" style="font-size:10.5px;font-family:var(--mono)">${esc(u.username)}${u.disabled ? ' · ระงับ' : ''}</div></div></div></td>
+      <td style="font-size:11.8px;line-height:1.5">
+        ${u.email ? esc(u.email) : '<span class="muted">— ยังไม่ได้ใส่ —</span>'}
+        <div class="muted" style="font-family:var(--mono);font-size:10.5px">${u.empId ? esc(u.empId) : '—'}</div></td>
       <td><span class="pill ${u.role === 'admin' ? 'acc' : ''}">${u.role}</span></td>
+      <td>${u.mfaEnabled ? '<span class="pill ok" title="เปิดการยืนยันสองขั้นตอนอยู่">🔐 เปิด</span>'
+        : '<span class="muted" style="font-size:11.5px">ปิด</span>'}</td>
       <td style="font-family:var(--mono)">${s.xp}</td>
       <td style="font-family:var(--mono)">${s.quiz}/${quizTotal()}</td>
-      <td style="font-family:var(--mono)">${s.labs}</td>
-      <td style="font-family:var(--mono)">${s.certs ? '🏅 ' + s.certs : '—'}</td>
+      <td style="font-family:var(--mono)">${s.labs}${s.certs ? ` · 🏅${s.certs}` : ''}</td>
       <td class="muted" style="font-size:11.5px">${u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('th-TH') : '—'}</td>
       <td><div class="row" style="gap:5px;flex-wrap:nowrap">
-        <button class="btn sm ghost" data-act="role" data-u="${u.username}">สลับบทบาท</button>
+        <button class="btn sm primary" data-act="edit" data-u="${u.username}">แก้ไข</button>
         <button class="btn sm ghost" data-act="pass" data-u="${u.username}">รีเซ็ตรหัส</button>
         <button class="btn sm ghost" data-act="prog" data-u="${u.username}">ล้างคืบหน้า</button>
         <button class="btn sm danger" data-act="del" data-u="${u.username}">ลบ</button>
-      </div></td></tr>`;
+      </div></td></tr>
+      <tr class="adm-edit" id="edit-${u.username}" hidden><td colspan="9">
+        <div class="row" style="align-items:flex-end;gap:12px">
+          <div class="fld" style="margin:0;flex:1;min-width:150px"><label>ชื่อที่แสดง</label>
+            <input data-f="display" data-u="${u.username}" value="${esc(u.display || '')}"></div>
+          <div class="fld" style="margin:0;flex:1;min-width:180px"><label>อีเมล</label>
+            <input data-f="email" data-u="${u.username}" type="email" value="${esc(u.email || '')}" placeholder="name@company.co.th"></div>
+          <div class="fld" style="margin:0;flex:1;min-width:130px"><label>รหัสพนักงาน</label>
+            <input data-f="empId" data-u="${u.username}" value="${esc(u.empId || '')}" placeholder="EMP-00123"></div>
+          <div class="fld" style="margin:0;min-width:110px"><label>บทบาท</label>
+            <select data-f="role" data-u="${u.username}" ${u.username === 'admin' ? 'disabled' : ''}>
+              <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option></select></div>
+          <label class="row" style="margin:0;gap:6px;cursor:pointer;white-space:nowrap">
+            <input type="checkbox" data-f="disabled" data-u="${u.username}" ${u.disabled ? 'checked' : ''}
+              ${u.username === 'admin' ? 'disabled' : ''} style="width:16px;height:16px">
+            <span style="font-size:12.5px">ระงับการใช้งาน</span></label>
+          <button class="btn primary" data-act="save" data-u="${u.username}">บันทึก</button>
+          <button class="btn ghost" data-act="cancel" data-u="${u.username}">ยกเลิก</button>
+        </div>
+        ${u.mfaEnabled ? `<div class="row" style="margin-top:10px;gap:10px;align-items:center">
+          <span class="muted" style="font-size:12.3px">🔐 เปิดการยืนยันสองขั้นตอนอยู่ — ใช้ตอนผู้เรียนทำมือถือหาย</span>
+          <button class="btn sm danger" data-act="mfaoff" data-u="${u.username}">ปิด MFA ให้</button>
+        </div>` : ''}
+      </td></tr>`;
   }).join('')}
       </table>
     </div>
@@ -2089,18 +2234,49 @@ function vAdminUsers() {
   goHooks();      // แท็บด้านบน (ภาพรวม / จัดการผู้ใช้ / จัดการเนื้อหา) ใช้ [data-go] เหมือนหน้าอื่น
 
   $('#n-add').addEventListener('click', async () => {
-    const r = await auth.register($('#n-user').value, $('#n-pass').value, $('#n-display').value.trim(), $('#n-role').value);
+    const un = String($('#n-user').value || '').trim().toLowerCase();
+    const r = await auth.register(un, $('#n-pass').value, $('#n-display').value.trim(), $('#n-role').value);
     if (!r.ok) return toast(r.msg, 'bad');
+    // อีเมลกับรหัสพนักงานตั้งต่อจากตอนสร้างเสร็จ เพราะเส้นทางสมัครรับแค่สามอย่างหลัก
+    const email = $('#n-email').value.trim(), empId = $('#n-emp').value.trim();
+    if (email || empId) {
+      const p = await auth.adminUpdateProfile(un, { email, empId });
+      if (!p.ok) toast(`สร้างบัญชีแล้ว แต่บันทึกอีเมล/รหัสพนักงานไม่สำเร็จ: ${p.msg}`, 'bad');
+    }
     toast('เพิ่มผู้ใช้แล้ว', 'ok'); vAdminUsers();
   });
 
+  const editRow = (un) => $(`#edit-${CSS.escape(un)}`);
+  const field = (un, f) => view().querySelector(`[data-f="${f}"][data-u="${un}"]`);
+
   view().querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', async () => {
     const un = b.dataset.u, act = b.dataset.act;
-    if (act === 'role') {
-      const cur = auth.users[un].role;
-      const r = await auth.setRole(un, cur === 'admin' ? 'user' : 'admin');
+    if (act === 'edit') { const r = editRow(un); r.hidden = !r.hidden; if (!r.hidden) field(un, 'display').focus(); return; }
+    if (act === 'cancel') { editRow(un).hidden = true; return; }
+    if (act === 'save') {
+      b.disabled = true;
+      const patch = {
+        display: field(un, 'display').value.trim(),
+        email: field(un, 'email').value.trim(),
+        empId: field(un, 'empId').value.trim(),
+      };
+      // บทบาทกับการระงับของบัญชี admin หลักถูกล็อกไว้ ส่งไปก็โดนปฏิเสธ จึงไม่ส่ง
+      if (un !== 'admin') {
+        patch.role = field(un, 'role').value;
+        patch.disabled = field(un, 'disabled').checked;
+      }
+      const r = await auth.adminUpdateProfile(un, patch);
+      b.disabled = false;
       if (!r.ok) return toast(r.msg, 'bad');
-      toast(`เปลี่ยนบทบาทของ ${un} แล้ว`, 'ok');
+      toast(`บันทึกข้อมูลของ ${un} แล้ว`, 'ok');
+      return vAdminUsers();
+    }
+    if (act === 'mfaoff') {
+      if (!confirm(`ปิดการยืนยันสองขั้นตอนของ ${un} ใช่หรือไม่?\nเจ้าตัวจะเข้าสู่ระบบด้วยรหัสผ่านอย่างเดียวได้ทันที`)) return;
+      const r = await auth.adminUpdateProfile(un, { mfaEnabled: false });
+      if (!r.ok) return toast(r.msg, 'bad');
+      toast(`ปิด MFA ของ ${un} แล้ว`, 'ok');
+      return vAdminUsers();
     }
     if (act === 'pass') {
       const np = prompt(`ตั้งรหัสผ่านใหม่ให้ ${un} (อย่างน้อย 8 ตัว)`);

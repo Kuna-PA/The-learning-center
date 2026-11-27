@@ -5,6 +5,7 @@
 // ============================================================
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { users, sessions, progress } from './db.js';
+import { newSecret, verifyTotp, otpauthUri, prettySecret } from './totp.js';
 
 const SESSION_TTL = 30 * 24 * 3600 * 1000;   // 30 วัน
 const COOKIE = 'lc_session';
@@ -100,10 +101,101 @@ export function login({ username, password, ip = null }) {
 
   failures.delete(uname);
   if (ip) ipFailures.delete(ip);
+
+  // เปิด MFA ไว้ → ยังไม่ออกเซสชัน ต้องผ่านรหัสจากแอปอีกขั้นก่อน
+  if (row.mfa_enabled && row.mfa_secret) {
+    purgeMfaPending();
+    const pending = newToken();
+    mfaPending.set(pending, { username: uname, at: Date.now() });
+    return { ok: true, mfaRequired: true, pending };
+  }
+  return startSession(uname);
+}
+
+/** ออกเซสชันให้ผู้ใช้ที่ผ่านการยืนยันครบแล้ว */
+function startSession(uname) {
   users.touchLogin(uname);
   const token = newToken();
   sessions.create(token, uname, SESSION_TTL);
   return { ok: true, token, ttl: SESSION_TTL, user: publicUser(users.get(uname)) };
+}
+
+// ---------- ขั้นที่สองของการล็อกอิน (MFA) ----------
+// เก็บในหน่วยความจำ ไม่ลงฐาน เพราะมีอายุแค่ไม่กี่นาทีและหายไปตอนรีสตาร์ตก็ไม่เสียหาย
+// (ผู้ใช้แค่ล็อกอินใหม่) · ตัวที่หมดอายุถูกกวาดทิ้งทุกครั้งที่มีคนล็อกอิน
+const mfaPending = new Map();
+const MFA_PENDING_MS = 5 * 60 * 1000;
+/** รหัสที่เพิ่งใช้ไปของแต่ละคน — กันเอารหัสเดิมมาใช้ซ้ำภายในช่วงที่ยังไม่หมดอายุ */
+const mfaUsed = new Map();
+
+export function purgeMfaPending(now = Date.now()) {
+  for (const [k, v] of mfaPending) if (now - v.at > MFA_PENDING_MS) mfaPending.delete(k);
+  for (const [k, v] of mfaUsed) if (now - v.at > 2 * 60 * 1000) mfaUsed.delete(k);
+}
+
+/** ขั้นที่สอง: ยืนยันด้วยรหัส 6 หลักจากแอป */
+export function loginMfa({ pending, code, ip = null }) {
+  purgeMfaPending();
+  const p = mfaPending.get(String(pending || ''));
+  if (!p) return { ok: false, msg: 'ขั้นตอนยืนยันหมดอายุแล้ว — กรุณาเข้าสู่ระบบใหม่', expired: true };
+
+  const wait = locked(failures, p.username, LOCK_AFTER, LOCK_MS);
+  if (wait) return { ok: false, msg: `ใส่รหัสผิดหลายครั้งเกินไป ลองใหม่ใน ${wait} วินาที` };
+
+  const row = users.get(p.username);
+  if (!row || !row.mfa_enabled) { mfaPending.delete(pending); return { ok: false, msg: 'บัญชีนี้ไม่ได้เปิดการยืนยันสองขั้นตอน' }; }
+
+  const given = String(code || '').replace(/\s/g, '');
+  const used = mfaUsed.get(p.username);
+  if (used && used.code === given) {
+    return { ok: false, msg: 'รหัสนี้ถูกใช้ไปแล้ว — รอรหัสชุดถัดไปจากแอป' };
+  }
+  if (!verifyTotp(row.mfa_secret, given)) {
+    noteFail(failures, p.username);
+    noteFail(ipFailures, ip);
+    return { ok: false, msg: 'รหัสยืนยันไม่ถูกต้อง' };
+  }
+
+  mfaPending.delete(pending);
+  mfaUsed.set(p.username, { code: given, at: Date.now() });
+  failures.delete(p.username);
+  if (ip) ipFailures.delete(ip);
+  return startSession(p.username);
+}
+
+// ---------- ตั้งค่า MFA ----------
+/** ขอกุญแจใหม่ — เก็บไว้ก่อนแต่ยังไม่เปิดใช้ จนกว่าจะยืนยันด้วยรหัสจากแอปได้จริง */
+export function startMfaSetup(username) {
+  const row = users.get(username);
+  if (!row) return { ok: false, msg: 'ไม่พบผู้ใช้' };
+  if (row.mfa_enabled) return { ok: false, msg: 'บัญชีนี้เปิดการยืนยันสองขั้นตอนอยู่แล้ว' };
+  const secret = newSecret();
+  users.setMfa(username, secret, 0);
+  return { ok: true, secret, pretty: prettySecret(secret), uri: otpauthUri({ user: username, secret }) };
+}
+
+/** ยืนยันว่าแอปตั้งถูกจริงแล้วค่อยเปิดใช้ ไม่งั้นผู้ใช้จะล็อกตัวเองออกจากระบบ */
+export function enableMfa(username, code) {
+  const row = users.get(username);
+  if (!row) return { ok: false, msg: 'ไม่พบผู้ใช้' };
+  if (row.mfa_enabled) return { ok: false, msg: 'เปิดอยู่แล้ว' };
+  if (!row.mfa_secret) return { ok: false, msg: 'ยังไม่ได้ขอกุญแจ — กดเริ่มตั้งค่าก่อน' };
+  if (!verifyTotp(row.mfa_secret, code)) return { ok: false, msg: 'รหัสยืนยันไม่ถูกต้อง — ตรวจว่านาฬิกาของมือถือตรงกับเวลาจริง' };
+  users.setMfa(username, row.mfa_secret, 1);
+  return { ok: true };
+}
+
+/**
+ * ปิดการยืนยันสองขั้นตอนและลบกุญแจทิ้ง
+ * เจ้าของบัญชีต้องยืนยันด้วยรหัสผ่านของตัวเอง ส่วนผู้ดูแลปิดให้ได้เลย
+ * (ไว้ใช้ตอนผู้เรียนทำมือถือหาย ซึ่งเป็นเหตุผลหลักที่ต้องมีทางออกนี้)
+ */
+export function disableMfa(username, { password = null, byAdmin = false } = {}) {
+  const row = users.get(username);
+  if (!row) return { ok: false, msg: 'ไม่พบผู้ใช้' };
+  if (!byAdmin && !samePassword(password, row)) return { ok: false, msg: 'รหัสผ่านไม่ถูกต้อง' };
+  users.setMfa(username, '', 0);
+  return { ok: true };
 }
 
 export function changePassword({ username, newPass, oldPass = null, mustChange = 0 }) {
@@ -133,7 +225,29 @@ export const publicUser = (row) => (row ? {
   mustChange: !!row.must_change,
   createdAt: row.created_at,
   lastLogin: row.last_login,
+  email: row.email || '',
+  empId: row.emp_id || '',
+  mfaEnabled: !!row.mfa_enabled,
+  // ไม่ส่ง mfa_secret ออกไปเด็ดขาด — ส่งเฉพาะตอนขอตั้งค่าครั้งแรกเท่านั้น
 } : null);
+
+/** รูปแบบอีเมลแบบหลวม ๆ พอกันพิมพ์ผิด ไม่ได้ตั้งใจบังคับตาม RFC */
+export const EMAIL_RE = /^[^\s@]+@[^\s@.]+\.[^\s@]{2,}$/;
+
+/** แก้ข้อมูลประจำตัว — ใช้ทั้งฝั่งผู้ดูแลและเจ้าของบัญชีเอง */
+export function updateProfile(username, { display, email, empId }) {
+  const row = users.get(username);
+  if (!row) return { ok: false, msg: 'ไม่พบผู้ใช้' };
+  const name = display === undefined ? row.display : String(display).trim();
+  const mail = email === undefined ? (row.email || '') : String(email).trim();
+  const emp = empId === undefined ? (row.emp_id || '') : String(empId).trim();
+  if (!name) return { ok: false, msg: 'ชื่อที่แสดงห้ามว่าง' };
+  if (name.length > 60) return { ok: false, msg: 'ชื่อที่แสดงยาวเกินไป' };
+  if (mail && !EMAIL_RE.test(mail)) return { ok: false, msg: 'รูปแบบอีเมลไม่ถูกต้อง' };
+  if (emp.length > 30) return { ok: false, msg: 'รหัสพนักงานยาวเกินไป' };
+  users.setProfile(username, { display: name, email: mail, empId: emp });
+  return { ok: true, user: publicUser(users.get(username)) };
+}
 
 // ---------- cookie ----------
 export function readCookie(req, name = COOKIE) {

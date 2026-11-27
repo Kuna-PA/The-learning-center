@@ -27,7 +27,11 @@ db.exec(`
     disabled    INTEGER NOT NULL DEFAULT 0,
     must_change INTEGER NOT NULL DEFAULT 0,
     created_at  INTEGER NOT NULL,
-    last_login  INTEGER
+    last_login  INTEGER,
+    email       TEXT NOT NULL DEFAULT '',
+    emp_id      TEXT NOT NULL DEFAULT '',
+    mfa_secret  TEXT NOT NULL DEFAULT '',
+    mfa_enabled INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS sessions (
@@ -54,12 +58,27 @@ db.exec(`
   );
 `);
 
+/**
+ * เติมคอลัมน์ที่เพิ่มมาทีหลังให้ฐานเดิมที่สร้างไว้ก่อน
+ * CREATE TABLE IF NOT EXISTS ไม่แตะตารางที่มีอยู่แล้ว ฐานเก่าจึงไม่ได้คอลัมน์ใหม่
+ * และ ALTER TABLE จะพังถ้าคอลัมน์มีอยู่แล้ว ต้องถามก่อนทุกครั้ง
+ */
+function addColumnIfMissing(table, column, decl) {
+  const has = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+  if (!has) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`);
+}
+addColumnIfMissing('users', 'email', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('users', 'emp_id', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('users', 'mfa_secret', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('users', 'mfa_enabled', 'INTEGER NOT NULL DEFAULT 0');
+
 const q = (sql) => db.prepare(sql);
 
 // ---------- users ----------
 const S = {
   getUser: q('SELECT * FROM users WHERE username = ?'),
-  allUsers: q('SELECT username, display, role, disabled, must_change, created_at, last_login FROM users ORDER BY created_at'),
+  allUsers: q(`SELECT username, display, role, disabled, must_change, created_at, last_login,
+                      email, emp_id, mfa_enabled FROM users ORDER BY created_at`),
   countUsers: q('SELECT COUNT(*) AS n FROM users'),
   insertUser: q(`INSERT INTO users (username, display, role, salt, hash, disabled, must_change, created_at)
                  VALUES (?, ?, ?, ?, ?, 0, ?, ?)`),
@@ -67,6 +86,8 @@ const S = {
   updateRole: q('UPDATE users SET role = ? WHERE username = ?'),
   updateDisabled: q('UPDATE users SET disabled = ? WHERE username = ?'),
   updateDisplay: q('UPDATE users SET display = ? WHERE username = ?'),
+  updateProfile: q('UPDATE users SET display = ?, email = ?, emp_id = ? WHERE username = ?'),
+  updateMfa: q('UPDATE users SET mfa_secret = ?, mfa_enabled = ? WHERE username = ?'),
   touchLogin: q('UPDATE users SET last_login = ? WHERE username = ?'),
   deleteUser: q('DELETE FROM users WHERE username = ?'),
 
@@ -97,6 +118,11 @@ export const users = {
   setRole: (username, role) => S.updateRole.run(role, username),
   setDisabled: (username, v) => S.updateDisabled.run(v ? 1 : 0, username),
   setDisplay: (username, display) => S.updateDisplay.run(display, username),
+  /** แก้ข้อมูลประจำตัว — ผู้ดูแลใช้จากหน้าจัดการผู้ใช้ */
+  setProfile: (username, { display, email, empId }) =>
+    S.updateProfile.run(String(display), String(email ?? ''), String(empId ?? ''), username),
+  /** เก็บกุญแจ MFA · enabled = 0 คือยังตั้งค้างไว้ ยังไม่ได้ยืนยันด้วยรหัสจากแอป */
+  setMfa: (username, secret, enabled) => S.updateMfa.run(String(secret || ''), enabled ? 1 : 0, username),
   touchLogin: (username) => S.touchLogin.run(Date.now(), username),
   remove: (username) => S.deleteUser.run(username),
 };

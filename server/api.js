@@ -4,8 +4,9 @@
 // ============================================================
 import { users, sessions, progress, content } from './db.js';
 import {
-  register, login, changePassword, removeUser, publicUser,
+  register, login, loginMfa, changePassword, removeUser, publicUser,
   currentUser, sessionCookie, clearCookie, isSecureRequest,
+  updateProfile, startMfaSetup, enableMfa, disableMfa,
   SESSION_TTL, USERNAME_RE, MIN_PASSWORD,
 } from './auth.js';
 
@@ -161,6 +162,14 @@ export default async function api(req, res, pathname) {
     if (parts[1] === 'login' && method === 'POST') {
       const r = login({ username: body.username, password: body.password, ip: clientIp(req) });
       if (!r.ok) return json(res, 401, { error: r.msg });
+      // เปิด MFA ไว้ → ยังไม่ตั้ง cookie ต้องผ่านขั้นที่สองก่อน
+      if (r.mfaRequired) return json(res, 200, { mfaRequired: true, pending: r.pending });
+      return json(res, 200, { user: r.user }, { 'Set-Cookie': sessionCookie(r.token, r.ttl, isSecureRequest(req)) });
+    }
+    // ขั้นที่สองของการล็อกอิน — ส่ง pending ที่ได้จากขั้นแรกมาพร้อมรหัส 6 หลัก
+    if (parts[1] === 'login-mfa' && method === 'POST') {
+      const r = loginMfa({ pending: body.pending, code: body.code, ip: clientIp(req) });
+      if (!r.ok) return json(res, 401, { error: r.msg, expired: !!r.expired });
       return json(res, 200, { user: r.user }, { 'Set-Cookie': sessionCookie(r.token, r.ttl, isSecureRequest(req)) });
     }
     if (parts[1] === 'logout' && method === 'POST') {
@@ -179,6 +188,30 @@ export default async function api(req, res, pathname) {
       const d = String(body.display || '').trim().slice(0, 40) || me.username;
       users.setDisplay(me.username, d);
       return json(res, 200, { ok: true, display: d });
+    }
+    // แก้ข้อมูลประจำตัวของตัวเอง — ชื่อที่แสดง อีเมล รหัสพนักงาน
+    if (parts[1] === 'profile' && (method === 'PATCH' || method === 'POST')) {
+      if (!me) return needAuth();
+      const r = updateProfile(me.username, body);
+      return r.ok ? json(res, 200, { user: r.user }) : json(res, 400, { error: r.msg });
+    }
+    // ---------- ยืนยันสองขั้นตอนของบัญชีตัวเอง ----------
+    if (parts[1] === 'mfa') {
+      if (!me) return needAuth();
+      // ขอกุญแจใหม่ — ยังไม่เปิดใช้จนกว่าจะยืนยันด้วยรหัสจากแอปได้จริง
+      if (parts[2] === 'setup' && method === 'POST') {
+        const r = startMfaSetup(me.username);
+        return r.ok ? json(res, 200, r) : json(res, 400, { error: r.msg });
+      }
+      if (parts[2] === 'enable' && method === 'POST') {
+        const r = enableMfa(me.username, body.code);
+        return r.ok ? json(res, 200, { ok: true }) : json(res, 400, { error: r.msg });
+      }
+      if (parts[2] === 'disable' && method === 'POST') {
+        const r = disableMfa(me.username, { password: String(body.password ?? '') });
+        return r.ok ? json(res, 200, { ok: true }) : json(res, 400, { error: r.msg });
+      }
+      return json(res, 404, { error: 'ไม่พบเส้นทางนี้' });
     }
     return json(res, 404, { error: 'ไม่พบเส้นทางนี้' });
   }
@@ -248,7 +281,12 @@ export default async function api(req, res, pathname) {
           users.setDisabled(target, !!body.disabled);
           if (body.disabled) sessions.destroyUser(target);
         }
-        if ('display' in body) users.setDisplay(target, String(body.display || '').trim().slice(0, 40) || target);
+        if ('display' in body || 'email' in body || 'empId' in body) {
+          const r = updateProfile(target, body);
+          if (!r.ok) return json(res, 400, { error: r.msg });
+        }
+        // ปิดการยืนยันสองขั้นตอนให้ — ใช้ตอนผู้เรียนทำมือถือหาย ซึ่งเป็นทางออกเดียวที่มี
+        if ('mfaEnabled' in body && !body.mfaEnabled) disableMfa(target, { byAdmin: true });
         if ('password' in body) {
           const r = changePassword({ username: target, newPass: body.password, mustChange: 1 });
           if (!r.ok) return json(res, 400, { error: r.msg });

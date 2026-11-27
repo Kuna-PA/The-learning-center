@@ -3,7 +3,8 @@
 //  cookie เซสชันเป็น httpOnly — เบราว์เซอร์ส่งให้เอง สคริปต์อ่านไม่ได้
 // ============================================================
 export class ApiError extends Error {
-  constructor(msg, status) { super(msg); this.status = status; }
+  /** body เก็บ JSON ทั้งก้อนที่เซิร์ฟเวอร์ตอบมา — บางเส้นทางส่งธงเพิ่มมาด้วย เช่น expired */
+  constructor(msg, status, body = null) { super(msg); this.status = status; this.body = body; }
 }
 
 async function call(method, path, body) {
@@ -15,7 +16,7 @@ async function call(method, path, body) {
   });
   let data = null;
   try { data = await res.json(); } catch { /* บางเส้นทางไม่ส่ง body */ }
-  if (!res.ok) throw new ApiError((data && data.error) || `ผิดพลาด ${res.status}`, res.status);
+  if (!res.ok) throw new ApiError((data && data.error) || `ผิดพลาด ${res.status}`, res.status, data);
   return data;
 }
 
