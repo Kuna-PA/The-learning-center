@@ -9,6 +9,7 @@ import { TRACKS, ALL_LABS, labById } from '../data/tracks/index.js';
 import { LEVELS } from '../data/levels.js';
 import { LAB_CMD_TITLE } from '../data/tracks/lab-commands.js';
 import { levelArt } from '../data/level-art.js';
+import { XP_TIERS, XP_RATE, maxXp, tierOf, tierProgress } from '../data/xp.js';
 
 test('เนื้อหาทั้งระบบผ่านการตรวจโครงสร้าง', () => {
   assert.deepEqual(validateContent(), []);
@@ -198,4 +199,59 @@ test('levelArt รับระดับที่ยังไม่มีภา�
     assert.match(levelArt(n), /<img class="lv-art" src="assets\/levels\/lv\d\.png"/,
       `levelArt(${n}) ต้องยังคืนภาพสำรอง ไม่ใช่ปล่อยการ์ดโบ๋`);
   }
+});
+
+// ============================================================
+//  เกณฑ์ RANK ต้องสมดุลกับปริมาณเนื้อหาเสมอ
+//
+//  เดิมเกณฑ์เป็นเลขตายตัวที่คิดไว้ตอนเนื้อหาให้ XP ได้ราว 13,200
+//  พอเพิ่ม Lab กับข้อสอบจนได้ถึง ~19,000 เกณฑ์เดิมก็เตี้ยเกินไป — เรียนจบ
+//  หัวข้อเดียวไต่ได้หลายขั้น และจบ 4 หัวข้อก็ตัน Expert ทั้งที่เหลืออีกครึ่งเว็บ
+//  (ผู้เรียนถามเข้ามาตรง ๆ ว่า "เป็น Expert แล้วจะเก็บอะไรต่อ")
+//  ตอนนี้คิดจากเนื้อหาจริง เทสต์ชุดนี้กันไม่ให้มันเพี้ยนอีก
+// ============================================================
+test('เพดาน XP ตรงกับสูตรที่ store.js จ่ายจริง', () => {
+  const s = contentStats();
+  const expected = s.levels * (XP_RATE.read + XP_RATE.quizBest + XP_RATE.quizPass)
+    + (s.labs + s.survival) * XP_RATE.lab
+    + XP_RATE.finalPass + XP_RATE.finalBest;
+  assert.equal(maxXp(), expected);
+  console.log(`   เพดาน XP = ${maxXp().toLocaleString('en-US')}`);
+});
+
+test('เกณฑ์ RANK มีครบทุกขั้น เรียงจากน้อยไปมาก และขั้นแรกเริ่มที่ 0', () => {
+  assert.equal(XP_TIERS.length, LEVELS.length,
+    'จำนวนเกณฑ์ต้องเท่ากับจำนวนระดับใน data/levels.js ไม่งั้นจะมีระดับที่ไต่ไปไม่ถึง');
+  assert.equal(XP_TIERS[0], 0);
+  for (let i = 1; i < XP_TIERS.length; i++) {
+    assert.ok(XP_TIERS[i] > XP_TIERS[i - 1], `เกณฑ์ขั้น ${i + 1} ไม่ได้มากกว่าขั้นก่อนหน้า`);
+  }
+  assert.ok(XP_TIERS.at(-1) < maxXp(),
+    'ขั้นสูงสุดต้องไต่ถึงได้จริง — ตั้งไว้สูงกว่าเพดาน XP ก็ไม่มีใครได้');
+});
+
+test('ขั้นสูงสุดต้องกวาดเกือบทั้งเว็บ ไม่ใช่จบไม่กี่หัวข้อก็ตัน', () => {
+  const ceiling = maxXp();
+  assert.ok(XP_TIERS.at(-1) / ceiling >= 0.8,
+    `ขั้นสูงสุดอยู่ที่ ${Math.round(XP_TIERS.at(-1) / ceiling * 100)}% ของ XP ทั้งหมด — ต่ำเกินไป`);
+  // เรียนจบหัวข้อที่ให้ XP เยอะที่สุดหัวข้อเดียว ต้องไม่กระโดดเกินหนึ่งขั้น
+  const best = Math.max(...TRACKS.map((t) => {
+    const lv = Object.keys(t.levels).length;
+    const labs = ALL_LABS.filter(l => l.track === t.id).length;
+    return lv * (XP_RATE.read + XP_RATE.quizBest + XP_RATE.quizPass) + labs * XP_RATE.lab;
+  }));
+  assert.ok(tierOf(best) <= 2,
+    `จบหัวข้อเดียวได้ ${best} XP แล้วขึ้นไปถึง RANK ${tierOf(best)} — เร็วเกินไป`);
+});
+
+test('tierProgress บอกขั้น ความคืบหน้า และจุดที่ตันได้ถูก', () => {
+  assert.equal(tierProgress(0).t, 1);
+  assert.equal(tierProgress(0).pct, 0);
+  assert.equal(tierProgress(XP_TIERS[1] - 1).t, 1, 'ขาดอีกแต้มเดียวต้องยังไม่ขึ้นขั้น');
+  assert.equal(tierProgress(XP_TIERS[1]).t, 2, 'ถึงเกณฑ์พอดีต้องขึ้นขั้น');
+  const top = tierProgress(XP_TIERS.at(-1));
+  assert.equal(top.t, XP_TIERS.length);
+  assert.equal(top.max, true, 'ขั้นสูงสุดต้องบอกว่าตันแล้ว');
+  assert.equal(top.pct, 100);
+  assert.equal(tierProgress(maxXp() * 10).t, XP_TIERS.length, 'XP เกินเพดานต้องไม่ทะลุขั้น');
 });

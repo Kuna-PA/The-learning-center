@@ -1,7 +1,7 @@
 import { TRACKS, trackById, ALL_LABS, labById } from '../data/tracks/index.js';
 import { SURVIVAL_LABS, severityLabel, difficultyLabel } from '../data/labs/survival.js';
-import { LEVELS, DREYFUS, levelOf, PASS_SCORE } from '../data/levels.js';
-import { store, tierProgress, setStoreUser, progressOf, clearProgressOf } from './store.js';
+import { LEVELS, levelOf, PASS_SCORE } from '../data/levels.js';
+import { store, tierProgress, XP_TIERS, maxXp, setStoreUser, progressOf, clearProgressOf } from './store.js';
 import { auth } from './auth.js';
 import { createTerminal } from './terminal.js';
 import { createWindowsGui } from './gui/windows-gui.js';
@@ -369,7 +369,7 @@ function renderSide() {
   $('#side-level').innerHTML = `<span class="rank-ico">${levelArt(lv.n)}</span>${esc(lv.name)}`;
   $('#side-bar').style.width = tp.pct + '%';
   $('#side-xp').textContent = `${store.xp} XP`;
-  $('#side-next').textContent = tp.t < 5 ? `→ ${tp.hi}` : 'MAX';
+  $('#side-next').textContent = tp.max ? 'MAX' : `→ ${tp.hi}`;
   renderRankBadge(tp, lv);
 }
 
@@ -385,7 +385,7 @@ function renderRankBadge(tp, lv) {
     <span class="rb-ico">${levelArt(lv.n)}</span>
     <span style="min-width:96px">
       <span class="rb-name">${lv.name}</span>
-      <span class="rb-xp" style="display:block">${store.xp} XP ${tp.t < 5 ? `· → ${tp.hi}` : '· MAX'}</span>
+      <span class="rb-xp" style="display:block">${store.xp} XP ${tp.max ? '· MAX' : `· → ${tp.hi}`}</span>
       <span class="rb-bar" style="display:block"><i style="width:${tp.pct}%"></i></span>
     </span>`;
   el.hidden = false;
@@ -480,14 +480,54 @@ function vLevels() {
   crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: 'ระดับความรู้' }]);
   view().innerHTML = `
     <div class="page-head">
-      <h1>ระดับความรู้ 5 ขั้น</h1>
-      <p>อ้างอิงโมเดล Dreyfus — ทุกหัวข้อแบ่งเนื้อหาตาม 5 ระดับนี้
+      <h1>ระดับความรู้</h1>
+      <p>อ้างอิงโมเดล Dreyfus — ทุกหัวข้อแบ่งเนื้อหาตามระดับเหล่านี้
       ปลดล็อกระดับถัดไปเมื่อ<b>สอบได้ ${PASS_SCORE}% ขึ้นไปและทำ Lab ของระดับนั้นครบทุกชุด</b></p>
     </div>
-    ${DREYFUS.map(l => `
+
+    <div class="card" style="margin-bottom:18px;border-color:var(--acc-2)">
+      <h3 style="margin:0 0 10px;font-size:15px">ชื่อชุดนี้ใช้สองที่ ซึ่งเป็นคนละบันไดกัน</h3>
+      <div class="grid g2" style="gap:12px">
+        <div>
+          <div style="font-weight:700;margin-bottom:4px">🪜 ระดับ "ในหัวข้อ"</div>
+          <div class="muted" style="font-size:12.6px;line-height:1.7">
+            ปลดล็อกทีละขั้น<b>ภายในหัวข้อนั้น</b> ด้วยการสอบผ่านและทำ Lab ครบ ·
+            เริ่มหัวข้อใหม่ก็เริ่มที่<b>ระดับ 1 ของหัวข้อนั้น</b>เสมอ ไม่ว่า RANK จะสูงแค่ไหน
+            เพราะคนที่เก่ง Network อาจยังไม่เคยแตะ MikroTik มาก่อนเลย</div>
+        </div>
+        <div>
+          <div style="font-weight:700;margin-bottom:4px">⚡ RANK ของบัญชี</div>
+          <div class="muted" style="font-size:12.6px;line-height:1.7">
+            ภาพรวม<b>ทั้งเว็บ</b> คิดจาก XP ที่สะสมได้จากทุกหัวข้อรวมกัน ·
+            เรียนจบหนึ่งหัวข้อขยับได้ราวหนึ่งขั้น ส่วนขั้นสูงสุดต้องกวาดเกือบทั้งเว็บ
+            รวมหมวดเอาชีวิตรอดและข้อสอบรวบยอด</div>
+        </div>
+      </div>
+      <table class="tbl" style="margin-top:4px">
+        <tr><th>RANK</th><th style="text-align:right">ต้องมี XP</th><th>ประมาณว่าเท่ากับ</th></tr>
+        ${LEVELS.map((l, i) => `<tr>
+          <td><b style="color:${l.color}">${l.icon} ${l.name}</b> <span class="muted">${l.th}</span></td>
+          <td style="text-align:right;font-family:var(--mono)">${XP_TIERS[i].toLocaleString('en-US')}</td>
+          <td class="muted" style="font-size:12.3px">${[
+          'เพิ่งเปิดบัญชี',
+          'เรียนจบครบหนึ่งหัวข้อ',
+          'จบราวสองหัวข้อ',
+          'จบราวสี่หัวข้อ',
+          'จบเกือบทุกหัวข้อ',
+          'กวาดครบทั้งเว็บ รวมเอาชีวิตรอดและข้อสอบรวบยอด',
+        ][i]}</td></tr>`).join('')}
+      </table>
+      <div class="muted" style="font-size:11.6px">
+        เกณฑ์คิดเป็นสัดส่วนของ XP ทั้งหมดที่เนื้อหาชุดปัจจุบันให้ได้ (${maxXp().toLocaleString('en-US')} XP)
+        — เพิ่ม Lab หรือข้อสอบเมื่อไร เกณฑ์ขยับตามเอง</div>
+    </div>
+    ${LEVELS.map(l => `
       <div class="sect" style="border-left:3px solid ${l.color}">
         <h3><span class="num" style="color:${l.color};border-color:${l.color}">LEVEL ${l.n}</span>
           ${l.icon} ${l.name} — ${l.th} ${diffPill(l.n)}</h3>
+        ${l.extra ? `<div class="note" style="margin:0 0 10px">
+          <b>ไม่ใช่ขั้นของ Dreyfus</b> — เป็นระดับต่อยอดที่มีเฉพาะหัวข้อซึ่งเนื้อหายาวกว่า 5 ระดับ
+          (${TRACKS.filter(t => t.levels[l.n]).length} หัวข้อ) และใช้เป็น RANK สูงสุดของบัญชีด้วย</div>` : ''}
         <p>${l.desc}</p>
         <div class="muted" style="font-size:12.3px;margin-bottom:6px">สิ่งที่คนระดับนี้ทำได้:</div>
         <ul>${l.can.map(c => `<li>${c}</li>`).join('')}</ul>
@@ -1581,7 +1621,7 @@ function vProgress() {
         <div class="muted" style="font-size:12.3px;margin-bottom:8px">${cur.desc}</div>
         <div class="bar"><div class="bar-fill" style="width:${tp.pct}%"></div></div>
         <div class="row" style="justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--txt-mute);margin-top:5px">
-          <span>${store.xp} XP</span><span>${tp.t < 5 ? tp.hi + ' XP' : 'สูงสุดแล้ว'}</span></div>
+          <span>${store.xp} XP</span><span>${tp.max ? 'สูงสุดแล้ว' : tp.hi + ' XP'}</span></div>
       </div>
     </div>
 

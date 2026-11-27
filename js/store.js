@@ -285,19 +285,7 @@ export async function clearProgressOf(user) {
 }
 
 // ---------- ระดับ / XP ----------
-// เกณฑ์ RANK — คิดจาก XP ทั้งเว็บที่หาได้จริง (~13,200)
-// เทียบเป็นสัดส่วน: 7% / 20% / 40% / 67%
-// ตั้งให้ "เรียนจบหัวข้อเดียว" ยังไม่พอขึ้น Advanced Beginner
-export const XP_TIERS = [0, 900, 2600, 5300, 8800];
-
-export function tierOf(xp) {
-  let t = 1;
-  XP_TIERS.forEach((v, i) => { if (xp >= v) t = i + 1; });
-  return t;
-}
-export function tierProgress(xp) {
-  const t = tierOf(xp);
-  const lo = XP_TIERS[t - 1];
-  const hi = XP_TIERS[t] ?? lo + 1000;
-  return { t, lo, hi, pct: Math.min(100, Math.round(((xp - lo) / (hi - lo)) * 100)) };
-}
+// เกณฑ์ RANK ย้ายไปอยู่ที่ data/xp.js แล้ว เพราะต้องคิดจากเนื้อหาจริง
+// (เพิ่ม Lab หรือข้อสอบเมื่อไร เกณฑ์ขยับตามเอง) ส่วนที่นี่ re-export ไว้เฉย ๆ
+// เพื่อไม่ให้ที่อื่นต้องตามไปแก้ import
+export { XP_TIERS, tierOf, tierProgress, maxXp, XP_RATE } from '../data/xp.js';

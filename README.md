@@ -620,6 +620,7 @@ data/
     cisco/  mikrotik/  linux/  cyber/      บทเรียนที่แยกไฟล์ย่อยเพราะยาวมาก
     lab-commands.js   สรุปคำสั่งท้ายบท — ปิดช่องว่างระหว่างบทเรียนกับ Lab
   level-art.js        ภาพประจำระดับ — ใช้บนการ์ดบทเรียน ป้ายอันดับ และแถบวิ่งหน้าล็อกอิน
+  xp.js               เพดาน XP และเกณฑ์ขึ้น RANK (คิดจากเนื้อหาจริง)
   quiz/               คลังข้อสอบแยกตามหัวข้อ (ข้อสอบรวบยอดดึงจากคลังเดียวกันนี้)
   labs/               lab เพิ่มเติม + หมวดเอาชีวิตรอด
     cisco-extra.js  mikrotik-router-extra.js  mikrotik-switch-extra.js
