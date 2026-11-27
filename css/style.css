@@ -483,6 +483,11 @@ table.tbl.cmd-tbl td code{white-space:pre-wrap;word-break:break-word;line-height
 .review{text-align:left;max-width:640px;margin:22px auto 0}
 .review .ri{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:13.2px}
 .review .ri:last-child{border:0}
+/* บรรทัดเทียบคำตอบในหน้าสรุปผล — ไม่เฉลยระหว่างทำแล้ว ตรงนี้จึงต้องบอกให้ครบ */
+.review .ri-ans{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:5px;font-size:12.4px}
+.review .ri-ans .ok{color:var(--ok)}
+.review .ri-ans .bad{color:var(--bad)}
+.review .ri-ans code{font-size:12px}
 
 /* ที่มาของคำถามในข้อสอบรวบยอด — บอกว่าข้อนี้มาจากหัวข้อและระดับไหน
    ท้ายบทไม่ต้องมี เพราะหัวหน้าข้อสอบบอกอยู่แล้ว */

@@ -660,55 +660,105 @@ function vLearn(id, level) {
 }
 
 // ---------------- QUIZ ----------------
+/** ตอบข้อนี้ไปหรือยัง — ใช้นับความคืบหน้าและเตือนตอนกดส่ง */
+function answered(q, a) {
+  if (q.type === 'cmd') return String(a ?? '').trim() !== '';
+  if (q.type === 'multi') return Array.isArray(a) && a.length > 0;
+  return a !== null && a !== undefined;
+}
+
+/** คำตอบที่ผู้เรียนเลือก เขียนเป็นข้อความ — ใช้ในหน้าสรุปผล */
+function myAnswerText(q, a) {
+  if (!answered(q, a)) return '<i class="muted">ไม่ได้ตอบ</i>';
+  if (q.type === 'cmd') return `<code>${esc(a)}</code>`;
+  if (q.type === 'multi') return a.slice().sort((x, y) => x - y).map(i => q.opts[i]).join(' · ');
+  return q.opts[a];
+}
+
+/** คำตอบที่ถูก เขียนเป็นข้อความ */
+function rightAnswerText(q) {
+  if (q.type === 'cmd') return `<code>${esc(q.ans[0])}</code>`;
+  if (q.type === 'multi') return q.a.slice().sort((x, y) => x - y).map(i => q.opts[i]).join(' · ');
+  return q.opts[q.a];
+}
+
+/**
+ * สรุปรายข้อหลังส่งคำตอบ — ตอนนี้เป็น**ที่เดียว**ที่ผู้เรียนเห็นเฉลย
+ * จึงต้องบอกครบว่าตอบอะไรไป คำตอบที่ถูกคืออะไร และทำไม
+ */
+function reviewList(items, st, { source = false } = {}) {
+  return items.map((q, i) => {
+    const ok = st.correct[i];
+    return `<div class="ri"><span>${ok ? '✅' : '❌'}</span>
+      <div>
+        ${source && q.trackName ? `<div class="muted" style="font-size:11.5px;margin-bottom:2px">${q.icon} ${esc(q.trackName)} · ระดับ ${q.level}</div>` : ''}
+        <div>${q.q}</div>
+        <div class="ri-ans">
+          <span class="${ok ? 'ok' : 'bad'}">ตอบไป: ${myAnswerText(q, st.ans[i])}</span>
+          ${ok ? '' : `<span class="ok">ที่ถูกคือ: ${rightAnswerText(q)}</span>`}
+        </div>
+        <div class="muted" style="font-size:12.2px;margin-top:4px">${q.why}</div>
+      </div></div>`;
+  }).join('');
+}
+
 /**
  * เครื่องเล่นข้อสอบ — ใช้ร่วมกันระหว่างแบบทดสอบท้ายบทและข้อสอบรวบยอด
  * ผู้เรียกเป็นคนวาดหัวข้อสอบกับหน้าสรุปผลเอง ส่วนตัวนี้ดูแลการเดินข้อ
- * ตรวจคำตอบ และแสดงเฉลย · ต้องมี #qbar #qcount #qbox อยู่ในหน้าก่อนเรียก start()
+ * ต้องมี #qbar #qcount #qbox อยู่ในหน้าก่อนเรียก start()
+ *
+ * **ไม่เฉลยระหว่างทำ** — ทำให้ครบทุกข้อก่อน แล้วค่อยตรวจทีเดียวตอนกดส่ง
+ * เหมือนสอบจริง · ระหว่างทำจึงเดินหน้า–ถอยหลังแก้คำตอบได้อิสระ
  * จบชุดแล้วจะเรียก onDone(st) โดย st.correct คือผลรายข้อเรียงตาม items
  */
 function quizEngine(items, onDone) {
   const st = {
     i: 0,
     ans: new Array(items.length).fill(null),
-    checked: new Array(items.length).fill(false),
     correct: new Array(items.length).fill(false),
   };
+  const doneCount = () => items.filter((q, i) => answered(q, st.ans[i])).length;
 
   function renderQ() {
     const q = items[st.i];
-    $('#qbar').style.width = (st.i / items.length * 100) + '%';
-    $('#qcount').textContent = `${st.i + 1} / ${items.length}`;
+    const n = doneCount();
+    $('#qbar').style.width = (n / items.length * 100) + '%';
+    $('#qcount').textContent = `ข้อ ${st.i + 1} / ${items.length} · ตอบแล้ว ${n}`;
     const typeLabel = { mcq: 'เลือกคำตอบที่ถูกที่สุด', multi: 'เลือกได้มากกว่า 1 ข้อ', cmd: 'พิมพ์คำสั่ง' }[q.type];
+    const last = st.i === items.length - 1;
 
     $('#qbox').innerHTML = `<div class="q-card">
       <div class="q-type">${typeLabel}</div>
       ${q.trackName ? `<div class="q-src">${q.icon} ${esc(q.trackName)} · ระดับ ${q.level}</div>` : ''}
       <div class="q-text">${q.q}</div>
       ${q.img ? `<img class="q-img" src="${esc(q.img)}" alt="ภาพประกอบคำถาม" loading="lazy">` : ''}
-      <div id="opts"></div><div id="expl"></div>
-      <div class="q-foot"><button class="btn ghost" id="skip">ข้าม</button>
-      <button class="btn primary" id="act">ตรวจคำตอบ</button></div></div>`;
+      <div id="opts"></div>
+      <div class="q-foot">
+        <button class="btn ghost" id="prev"${st.i === 0 ? ' disabled' : ''}>← ข้อก่อนหน้า</button>
+        <button class="btn primary" id="act">${last ? '📩 ส่งคำตอบ' : 'ข้อถัดไป →'}</button>
+      </div></div>`;
 
     const optsEl = $('#opts');
     if (q.type === 'cmd') {
       optsEl.innerHTML = `<input class="q-input" id="cmdin" placeholder="พิมพ์คำสั่งที่นี่..." autocomplete="off" spellcheck="false">`;
       const inp = $('#cmdin');
       inp.value = st.ans[st.i] ?? '';
-      inp.disabled = st.checked[st.i];
       inp.focus();
+      // เก็บทุกตัวอักษรที่พิมพ์ ไม่ใช่เก็บตอนกดตรวจ — เดินข้อไปมาแล้วคำตอบต้องยังอยู่
+      inp.addEventListener('input', () => {
+        st.ans[st.i] = inp.value;
+        $('#qcount').textContent = `ข้อ ${st.i + 1} / ${items.length} · ตอบแล้ว ${doneCount()}`;
+        $('#qbar').style.width = (doneCount() / items.length * 100) + '%';
+      });
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') $('#act').click(); });
     } else {
       const sel = st.ans[st.i];
       optsEl.innerHTML = q.opts.map((o, i) => {
         const isSel = q.type === 'multi' ? (sel || []).includes(i) : sel === i;
-        const isCorrect = q.type === 'multi' ? q.a.includes(i) : q.a === i;
-        let cls = '';
-        if (st.checked[st.i]) cls = isCorrect ? 'correct' : (isSel ? 'wrong' : '');
-        else if (isSel) cls = 'sel';
-        const mark = st.checked[st.i] ? (isCorrect ? '✓' : (isSel ? '✕' : String.fromCharCode(65 + i))) : String.fromCharCode(65 + i);
-        return `<div class="opt ${cls}" data-i="${i}"><div class="mk">${mark}</div><div class="ot">${o}</div></div>`;
+        return `<div class="opt ${isSel ? 'sel' : ''}" data-i="${i}">
+          <div class="mk">${String.fromCharCode(65 + i)}</div><div class="ot">${o}</div></div>`;
       }).join('');
-      if (!st.checked[st.i]) optsEl.querySelectorAll('.opt').forEach(o => o.addEventListener('click', () => {
+      optsEl.querySelectorAll('.opt').forEach(o => o.addEventListener('click', () => {
         const i = +o.dataset.i;
         if (q.type === 'multi') {
           const cur = new Set(st.ans[st.i] || []);
@@ -718,40 +768,30 @@ function quizEngine(items, onDone) {
         renderQ();
       }));
     }
-    if (st.checked[st.i]) showExpl();
-    $('#skip').addEventListener('click', next);
-    $('#act').textContent = st.checked[st.i] ? (st.i === items.length - 1 ? 'ดูผลลัพธ์' : 'ข้อถัดไป →') : 'ตรวจคำตอบ';
-    $('#act').addEventListener('click', () => st.checked[st.i] ? next() : check());
+
+    $('#prev').addEventListener('click', () => { if (st.i > 0) { st.i--; renderQ(); top(); } });
+    $('#act').addEventListener('click', () => (last ? submit() : (st.i++, renderQ(), top())));
   }
 
-  function check() {
-    const q = items[st.i];
-    let ok = false;
-    if (q.type === 'cmd') {
-      const v = normCmd($('#cmdin').value);
-      st.ans[st.i] = $('#cmdin').value;
-      ok = q.ans.some(a => normCmd(a) === v);
-    } else if (q.type === 'multi') {
-      const a = (st.ans[st.i] || []).slice().sort().join(',');
-      ok = a === q.a.slice().sort().join(',') && a !== '';
-    } else {
-      if (st.ans[st.i] === null) return toast('เลือกคำตอบก่อนนะ', 'bad');
-      ok = st.ans[st.i] === q.a;
-    }
-    st.checked[st.i] = true; st.correct[st.i] = ok;
-    renderQ();
+  const top = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  /** ตรวจทุกข้อทีเดียวตอนจบ */
+  function grade() {
+    items.forEach((q, i) => {
+      const a = st.ans[i];
+      if (q.type === 'cmd') st.correct[i] = answered(q, a) && q.ans.some(x => normCmd(x) === normCmd(a));
+      else if (q.type === 'multi') {
+        const picked = (a || []).slice().sort().join(',');
+        st.correct[i] = picked !== '' && picked === q.a.slice().sort().join(',');
+      } else st.correct[i] = a === q.a;
+    });
   }
 
-  function showExpl() {
-    const q = items[st.i], ok = st.correct[st.i];
-    const extra = (q.type === 'cmd' && !ok) ? `<div style="margin-top:6px">คำตอบที่ถูก: <code>${esc(q.ans[0])}</code></div>` : '';
-    $('#expl').innerHTML = `<div class="expl ${ok ? 'ok' : 'bad'}">
-      <div class="t">${ok ? '✅ ถูกต้อง' : '❌ ยังไม่ถูก'}</div><div>${q.why}</div>${extra}</div>`;
-  }
-
-  function next() {
-    if (st.i < items.length - 1) { st.i++; renderQ(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-    else onDone(st);
+  function submit() {
+    const left = items.length - doneCount();
+    if (left && !confirm(`ยังไม่ได้ตอบอีก ${left} ข้อ — ข้อที่ไม่ได้ตอบจะถือว่าผิด\nส่งคำตอบเลยไหม?`)) return;
+    grade();
+    onDone(st);
   }
 
   return { st, start: renderQ };
@@ -812,7 +852,7 @@ function vQuiz(id, level) {
         ${before ? `<span class="pill" title="ทำซ้ำได้ไม่จำกัด ระบบเก็บคะแนนทุกครั้งไว้ให้">ครั้งที่ ${before.attempts + 1} · ดีที่สุด ${before.best}%</span>` : ''}</div>
       <div class="q-prog"><div id="qbar" style="width:0"></div></div>
       <div class="row" style="justify-content:space-between;align-items:center">
-        <span class="muted" style="font-size:11.5px">🎲 สุ่ม ${items.length} ข้อจากคลัง ${d.quiz.length} ข้อ · ข้อที่เคยตอบผิดจะถูกถามซ้ำ</span>
+        <span class="muted" style="font-size:11.5px">🎲 สุ่ม ${items.length} ข้อจากคลัง ${d.quiz.length} ข้อ · เฉลยทั้งหมดหลังส่งคำตอบ</span>
         <span class="muted" style="font-family:var(--mono);font-size:12px" id="qcount"></span>
       </div>
     </div><div id="qbox"></div></div>`;
@@ -848,9 +888,8 @@ function vQuiz(id, level) {
         ${(t.levels[level].labs || []).length ? `<button class="btn ok" id="dolab">🧪 ทำ Lab</button>` : ''}
       </div>
       ${attemptsTable(rec, PASS_SCORE)}
-      <div class="review"><h4 style="margin:0 0 8px;font-size:12px;color:var(--txt-mute);font-family:var(--mono)">สรุปรายข้อ</h4>
-        ${items.map((q, i) => `<div class="ri"><span>${st.correct[i] ? '✅' : '❌'}</span>
-        <div><div>${q.q}</div><div class="muted" style="font-size:12.2px;margin-top:3px">${q.why}</div></div></div>`).join('')}
+      <div class="review"><h4 style="margin:0 0 8px;font-size:12px;color:var(--txt-mute);font-family:var(--mono)">สรุปรายข้อพร้อมเฉลย</h4>
+        ${reviewList(items, st)}
       </div></div></div>`;
     $('#again').addEventListener('click', () => vQuiz(id, level));
     $('#back').addEventListener('click', () => location.hash = `#/learn/${id}/${level}`);
@@ -941,7 +980,7 @@ function runFinal() {
         ${before ? `<span class="pill">ครั้งที่ ${before.attempts + 1} · ดีที่สุด ${before.best}%</span>` : ''}</div>
       <div class="q-prog"><div id="qbar" style="width:0"></div></div>
       <div class="row" style="justify-content:space-between;align-items:center">
-        <span class="muted" style="font-size:11.5px">🎲 ${items.length} ข้อ กระจายครบทุกหัวข้อทุกระดับ · เกณฑ์ผ่าน ${FINAL_PASS_SCORE}%</span>
+        <span class="muted" style="font-size:11.5px">🎲 ${items.length} ข้อ กระจายครบทุกหัวข้อทุกระดับ · เกณฑ์ผ่าน ${FINAL_PASS_SCORE}% · เฉลยหลังส่งคำตอบ</span>
         <span class="muted" style="font-family:var(--mono);font-size:12px" id="qcount"></span>
       </div>
     </div><div id="qbox"></div></div>`;
@@ -996,10 +1035,8 @@ function runFinal() {
       </div>
 
       ${attemptsTable(rec, FINAL_PASS_SCORE)}
-      <div class="review"><h4 style="margin:0 0 8px;font-size:12px;color:var(--txt-mute);font-family:var(--mono)">สรุปรายข้อ</h4>
-        ${items.map((q, i) => `<div class="ri"><span>${st.correct[i] ? '✅' : '❌'}</span>
-        <div><div class="muted" style="font-size:11.5px;margin-bottom:2px">${q.icon} ${esc(q.trackName)} · ระดับ ${q.level}</div>
-        <div>${q.q}</div><div class="muted" style="font-size:12.2px;margin-top:3px">${q.why}</div></div></div>`).join('')}
+      <div class="review"><h4 style="margin:0 0 8px;font-size:12px;color:var(--txt-mute);font-family:var(--mono)">สรุปรายข้อพร้อมเฉลย</h4>
+        ${reviewList(items, st, { source: true })}
       </div></div></div>`;
     $('#again').addEventListener('click', runFinal);
     $('#back').addEventListener('click', () => { location.hash = '#/final'; vFinal(); });
