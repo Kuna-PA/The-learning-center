@@ -104,6 +104,69 @@ function checkQuestion(q, where, problems) {
   }
 }
 
+
+// ============================================================
+//  Lab ต้องไม่บังคับให้พิมพ์คำสั่งที่บทเรียนไม่เคยพูดถึง
+//
+//  มีผู้เรียนรายงานเข้ามาจริงว่า Network ระดับ 3 สอนเรื่อง subnet กับ routing ครบถ้วน
+//  แต่พอเข้า Lab กลับต้องใช้ netsh ตั้ง IP ซึ่งไม่มีที่ไหนในบทเรียนเอ่ยถึงเลย — ไปต่อไม่ได้
+//  ตัวตรวจนี้กันไม่ให้เกิดซ้ำ: ทุกคำสั่งที่ Lab บังคับพิมพ์ ต้องเคยโผล่ในบทเรียน
+//  ของหัวข้อนั้น ที่ระดับเดียวกันหรือก่อนหน้า (คิดสะสม เพราะผู้เรียนไล่จากระดับ 1 ขึ้นมา)
+//
+//  ตรวจที่ระดับ "ชื่อคำสั่ง" เท่านั้น ไม่ลงไปถึงพารามิเตอร์ — ตั้งใจให้หลวมไว้
+//  เพราะสิ่งที่อยากจับคือ "มีเครื่องมือทั้งตัวที่ไม่เคยสอน" ไม่ใช่ "ตัวอย่างไม่ตรงเป๊ะ"
+//  ถ้าตรวจลึกกว่านี้จะฟ้องผิดเต็มไปหมด เช่น cat /etc/passwd ที่บทเรียนสอน cat ไว้แล้ว
+// ============================================================
+
+/** คำนำหน้าที่ไม่ใช่ตัวคำสั่งเอง — ข้ามไปดูคำถัดไป */
+const CMD_PREFIX = new Set(['sudo', 'do']);
+
+/** ตัวคั่นที่ใช้ร้อยหลายคำสั่งไว้ใน hint เดียว เช่น "conf t → interface fa0/1" */
+const CMD_SPLIT = /→|\|\||;|\(|\bหรือ\b/;
+
+/** ชื่อคำสั่งทุกตัวที่ hint หนึ่งบรรทัดสั่งให้พิมพ์ */
+export function commandHeads(hint) {
+  const plain = String(hint).replace(/<[^>]*>/g, ' ')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').toLowerCase();
+  const out = [];
+  for (const part of plain.split(CMD_SPLIT)) {
+    const words = part.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+    let i = 0;
+    while (i < words.length && CMD_PREFIX.has(words[i])) i++;
+    const w = words[i];
+    if (w && /^[a-z/][a-z0-9/_.-]*$/.test(w)) out.push(w);
+  }
+  return out;
+}
+
+/** ข้อความบทเรียนทั้งหมดของระดับหนึ่ง แปลงเป็นตัวพิมพ์เล็กไว้ค้น */
+const lessonText = (level) => (level.sections || [])
+  .map(s => `${s.t} ${s.h}`.replace(/<[^>]*>/g, ' ')).join(' ').toLowerCase();
+
+function checkLabCommands(problems) {
+  for (const t of TRACKS) {
+    let taught = '';
+    for (const lv of Object.keys(t.levels).map(Number).sort((a, b) => a - b)) {
+      taught += ' ' + lessonText(t.levels[lv]);
+      for (const lab of (t.levels[lv].labs || [])) {
+        // Lab แบบ GUI ใช้การคลิก คำใบ้จึงไม่ใช่คำสั่ง ไม่ต้องตรวจ
+        if (lab.device === 'windows-gui') continue;
+        const missing = new Set();
+        for (const task of lab.tasks) {
+          for (const h of commandHeads(task.hint)) {
+            if (!taught.includes(h)) missing.add(h);
+          }
+        }
+        if (missing.size) {
+          problems.push(`track ${t.id} L${lv} · lab ${lab.id} บังคับให้พิมพ์ `
+            + `${[...missing].map(m => `"${m}"`).join(' ')} ซึ่งบทเรียนระดับ 1-${lv} ไม่เคยพูดถึง `
+            + '— ผู้เรียนที่อ่านบทเรียนครบแล้วจะไปต่อไม่ได้ ให้เติมลง data/tracks/lab-commands.js');
+        }
+      }
+    }
+  }
+}
+
 /** @returns {string[]} รายการปัญหาที่เจอ — ว่าง = เนื้อหาผ่านหมด */
 export function validateContent() {
   const problems = [];
@@ -150,6 +213,8 @@ export function validateContent() {
       });
     }
   }
+
+  checkLabCommands(problems);
 
   SURVIVAL_LABS.forEach(lab => {
     const w = 'เอาชีวิตรอด';

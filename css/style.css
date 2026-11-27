@@ -320,6 +320,9 @@ table.tbl th,table.tbl td{border:1px solid var(--line);padding:8px 11px;text-ali
 table.tbl th{background:var(--panel-2);font-size:11.5px;color:var(--txt-dim);white-space:nowrap;
   text-transform:uppercase;letter-spacing:.5px;font-family:var(--mono)}
 table.tbl td code{white-space:nowrap}
+/* ตารางสรุปคำสั่งท้ายบท — คำสั่งจริงยาวเกินกว่าจะห้ามตัดบรรทัดได้
+   ถ้าปล่อยให้ nowrap ตารางจะเลื่อนแนวนอนจนคอลัมน์คำอธิบายหลุดออกนอกจอ */
+table.tbl.cmd-tbl td code{white-space:pre-wrap;word-break:break-word;line-height:1.55;display:inline-block}
 
 /* ---------- quiz ---------- */
 .q-wrap{max-width:830px}

@@ -4,9 +4,10 @@
 // ============================================================
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateContent, contentStats } from './helpers/validate-content.js';
+import { validateContent, contentStats, commandHeads } from './helpers/validate-content.js';
 import { TRACKS, ALL_LABS, labById } from '../data/tracks/index.js';
 import { LEVELS } from '../data/levels.js';
+import { LAB_CMD_TITLE } from '../data/tracks/lab-commands.js';
 
 test('เนื้อหาทั้งระบบผ่านการตรวจโครงสร้าง', () => {
   assert.deepEqual(validateContent(), []);
@@ -112,4 +113,64 @@ test('จำนวน Lab แบบหน้าจอ GUI ใน README ตร�
   assert.ok(m, 'หาจำนวน Lab GUI ใน README ไม่เจอ');
   const real = ALL_LABS.filter(l => l.device === 'windows-gui').length;
   assert.equal(Number(m[1].replace(/,/g, '')), real, `ของจริงมี Lab GUI ${real} ชุด`);
+});
+
+// ============================================================
+//  Lab ต้องทำตามบทเรียนได้จริง
+//
+//  ผู้เรียนรายงานเข้ามาว่า "เรียนจบ Network บท 3 แล้ว แต่ตอนทำ Lab ไม่มีสอน
+//  คำสั่ง add ip บน Windows เลย ทำให้ไปต่อไม่ได้" — เทสต์ชุดนี้คือสิ่งที่กันเรื่องนั้น
+//  validateContent() ตรวจทั้งระบบอยู่แล้ว ส่วนตรงนี้ปักหมุดเคสที่ถูกรายงานไว้โดยเฉพาะ
+//  จะได้รู้ทันทีถ้าวันหนึ่งมีคนลบเนื้อหาส่วนนี้ทิ้ง
+// ============================================================
+const lessonsUpTo = (trackId, level) => {
+  const t = TRACKS.find(x => x.id === trackId);
+  return Object.keys(t.levels).map(Number).filter(n => n <= level)
+    .flatMap(n => t.levels[n].sections)
+    .map(s => `${s.t} ${s.h}`).join(' ').toLowerCase();
+};
+
+test('commandHeads อ่านชื่อคำสั่งออกถูก แม้ hint จะมี sudo หรือหลายคำสั่งต่อกัน', () => {
+  assert.deepEqual(commandHeads('ipconfig /all'), ['ipconfig']);
+  assert.deepEqual(commandHeads('sudo ip addr add 192.168.10.65/26 dev ens33'), ['ip']);
+  assert.deepEqual(commandHeads('configure terminal → interface FastEthernet0/1'), ['configure', 'interface']);
+  assert.deepEqual(commandHeads('end → write memory'), ['end', 'write']);
+  assert.deepEqual(commandHeads('<code>/system identity set name=X</code>'), ['/system']);
+  assert.deepEqual(commandHeads('do show vlan'), ['show']);
+  assert.deepEqual(commandHeads('192.168.1.1'), [], 'ค่าที่ไม่ใช่คำสั่งต้องไม่ถูกนับ');
+});
+
+test('เคสที่ถูกรายงาน: Network ระดับ 3 ต้องสอนวิธีตั้ง IP จริงทั้ง Windows และ Linux', () => {
+  const text = lessonsUpTo('network', 3);
+  for (const cmd of [
+    'netsh interface ip set address',      // ตั้ง IP/mask/gateway บน Windows
+    'netsh interface ip set dns',          // ตั้ง DNS บน Windows
+    'netsh interface ipv6 add address',    // ตั้ง IPv6 บน Windows
+    'route add',                           // static route บน Windows
+    'ip addr add',                         // ตั้ง IP บน Linux
+    'ip route add',                        // static route บน Linux
+  ]) {
+    assert.ok(text.includes(cmd.toLowerCase()),
+      `บทเรียน Network ระดับ 1-3 ไม่มี "${cmd}" ทั้งที่ Lab ระดับ 3 บังคับให้พิมพ์`);
+  }
+});
+
+test('ทุก Lab ที่ใช้คำสั่ง มีบทเรียนรองรับครบ — ไม่มีใครต้องเดาเอาเอง', () => {
+  const problems = validateContent().filter(p => p.includes('บังคับให้พิมพ์'));
+  assert.deepEqual(problems, []);
+});
+
+test('ตารางสรุปคำสั่งอยู่ท้ายบทเสมอ — ผู้เรียนต้องอ่านเนื้อหาก่อนจึงเจอ', () => {
+  let found = 0;
+  for (const t of TRACKS) {
+    for (const lv of Object.keys(t.levels)) {
+      const secs = t.levels[lv].sections;
+      const i = secs.findIndex(s => s.t === LAB_CMD_TITLE);
+      if (i === -1) continue;
+      found++;
+      assert.equal(i, secs.length - 1, `${t.id} L${lv}: ตารางสรุปคำสั่งไม่ได้อยู่ท้ายสุด`);
+      assert.ok(secs.length > 1, `${t.id} L${lv}: มีแต่ตารางคำสั่ง ไม่มีเนื้อหา`);
+    }
+  }
+  assert.ok(found >= 15, `มีตารางสรุปคำสั่งแค่ ${found} ระดับ — น้อยผิดปกติ`);
 });
