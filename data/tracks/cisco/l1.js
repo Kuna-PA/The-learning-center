@@ -5,7 +5,7 @@
 import { said } from '../../said.js';
 
 export default {
-  title: 'พื้นฐานเครือข่าย — ข้อมูลเดินทางอย่างไร',
+  title: 'Network Fundamentals',
   objectives: [
     'อธิบาย OSI 7 ชั้นและจับคู่กับ TCP/IP ได้ว่าอะไรอยู่ชั้นไหน',
     'บอกความต่างของ TCP กับ UDP และเลือกใช้ให้ถูกงาน',

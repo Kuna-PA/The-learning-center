@@ -41,7 +41,7 @@ export default {
   levels: withSecPlus({
     // =========================================================
     1: {
-      title: 'พื้นฐานความปลอดภัยที่ทุกคนต้องรู้',
+      title: 'Security Essentials',
       objectives: [
         'อธิบาย CIA Triad และนำมาใช้ตัดสินใจในงานจริงได้',
         'แยกประเภทภัยคุกคามที่เจอบ่อยในองค์กรไทย',
@@ -137,7 +137,7 @@ grep "Accepted"        /var/log/auth.log</pre>
 
     // =========================================================
     2: {
-      title: 'Hardening และการควบคุมการเข้าถึง',
+      title: 'Hardening & Access',
       objectives: [
         'ลดพื้นผิวการโจมตี (attack surface) อย่างเป็นระบบ',
         'ตั้งค่า SSH และ firewall ให้ปลอดภัยตามมาตรฐาน',
@@ -252,7 +252,7 @@ sudo lynis audit system                       <span style="color:#5b6b8c"># ส�
 
     // =========================================================
     3: {
-      title: 'ตรวจจับการบุกรุกและวิเคราะห์ Log',
+      title: 'Detection & Log Analysis',
       objectives: [
         'อ่าน log อย่างเป็นระบบเพื่อหาสิ่งผิดปกติ',
         'ใช้ pipeline ของคำสั่งวิเคราะห์ข้อมูลจำนวนมาก',
@@ -364,7 +364,7 @@ sudo rkhunter --check            <span style="color:#5b6b8c"># สแกนห�
 
     // =========================================================
     4: {
-      title: 'Incident Response และ Forensics',
+      title: 'Incident Response',
       objectives: [
         'ทำตามกระบวนการ IR 6 ขั้นตอนได้อย่างเป็นระบบ',
         'ตัดสินใจถูกว่าเมื่อไรควรถอดสายและเมื่อไรไม่ควร',
@@ -482,7 +482,7 @@ sha256sum /mnt/evidence/* &gt; /mnt/evidence/HASHES.txt</pre>
 
     // =========================================================
     5: {
-      title: 'ออกแบบระบบความปลอดภัยทั้งองค์กร',
+      title: 'Security Architecture',
       objectives: [
         'ออกแบบสถาปัตยกรรมแบบ Defense in Depth และ Zero Trust',
         'วางระบบ SOC / SIEM และเลือกสิ่งที่ควร monitor',

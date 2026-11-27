@@ -16,7 +16,7 @@ export default {
   levels: {
     // =========================================================
     1: {
-      title: 'รู้จักสวิตช์ MikroTik และการเข้าถึง',
+      title: 'Switch Basics & Access',
       objectives: [
         'แยกความต่างระหว่าง CSS / CRS / RouterOS / SwOS ได้',
         'เข้าใจบทบาทของ switch chip และผลต่อประสิทธิภาพ',
@@ -112,7 +112,7 @@ export default {
 
     // =========================================================
     2: {
-      title: 'Bridge, RSTP และ Management VLAN',
+      title: 'Bridge, RSTP & Mgmt VLAN',
       objectives: [
         'สร้าง bridge และเข้าใจ bridge port parameter ที่สำคัญ',
         'เปิดและปรับแต่ง RSTP ให้ทำงานตามที่ออกแบบ',
@@ -210,7 +210,7 @@ set [find interface=ether5] edge=yes bpdu-guard=yes</pre>`,
 
     // =========================================================
     3: {
-      title: 'VLAN Filtering เต็มรูปแบบ และเชื่อมกับยี่ห้ออื่น',
+      title: 'Full VLAN Filtering',
       objectives: [
         'ออกแบบตาราง tagged/untagged ให้ถูกต้องทุกพอร์ต',
         'ตั้ง trunk เชื่อมกับ Cisco / HP ได้อย่างถูกต้อง',
@@ -312,7 +312,7 @@ Cisco ตั้ง <code>native vlan 1</code> (ค่าปริยาย) แ�
 
     // =========================================================
     4: {
-      title: 'Bonding, Port Isolation และ Hardware Offload',
+      title: 'Bonding & Offload',
       objectives: [
         'รวมลิงก์ด้วย bonding (LACP) และเลือก mode ให้เหมาะกับงาน',
         'ทำ port isolation ด้วย bridge horizon',
@@ -414,7 +414,7 @@ set ether2 broadcast-flood=no unknown-unicast-flood=no unknown-multicast-flood=n
 
     // =========================================================
     5: {
-      title: 'ออกแบบเครือข่าย L2 และ Operations',
+      title: 'L2 Design & Operations',
       objectives: [
         'ออกแบบ topology L2 ที่ converge เร็วและ debug ง่าย',
         'วางแผน VLAN, MTU และ QoS ในระดับองค์กร',

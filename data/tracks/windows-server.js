@@ -13,7 +13,7 @@ export default {
   levels: {
     // =========================================================
     1: {
-      title: 'พื้นฐาน Windows Server และ PowerShell',
+      title: 'Server & PowerShell',
       objectives: [
         'แยก edition และ installation option ของ Windows Server ได้',
         'เข้าใจความต่างระหว่าง Role และ Feature',
@@ -220,7 +220,7 @@ netsh winsock reset</pre>
 
     // =========================================================
     2: {
-      title: 'Active Directory, DNS และ DHCP',
+      title: 'AD, DNS & DHCP',
       objectives: [
         'สร้าง AD forest/domain และเข้าใจโครงสร้าง OU',
         'สร้างและจัดการ user / group ด้วย PowerShell',
@@ -340,7 +340,7 @@ Get-DhcpServerv4Scope</pre>
 
     // =========================================================
     3: {
-      title: 'Group Policy, File Server และการสำรองข้อมูล',
+      title: 'GPO & File Server',
       objectives: [
         'เข้าใจลำดับการ apply GPO และการแก้ปัญหา',
         'ตั้ง File Server พร้อมสิทธิ์ Share และ NTFS ให้ถูกต้อง',
@@ -457,7 +457,7 @@ Restore-ADObject -Identity "&lt;DistinguishedName&gt;"</pre>
 
     // =========================================================
     4: {
-      title: 'Hyper-V, High Availability และความปลอดภัย',
+      title: 'Hyper-V & HA',
       objectives: [
         'สร้างและจัดการ VM ด้วย Hyper-V',
         'เข้าใจ Failover Cluster และ quorum',
@@ -570,7 +570,7 @@ Get-Counter '\\PhysicalDisk(_Total)\\Avg. Disk sec/Read'   <span style="color:#5
 
     // =========================================================
     5: {
-      title: 'ออกแบบ AD ระดับองค์กรและ Automation',
+      title: 'AD Design & Automation',
       objectives: [
         'ออกแบบ forest/domain/site ให้เหมาะกับองค์กร',
         'วางระบบ Tiered Administration ป้องกัน credential theft',

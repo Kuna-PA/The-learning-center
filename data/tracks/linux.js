@@ -33,7 +33,7 @@ export default {
   levels: {
     // ---------- 1: Introducing / Installing / File Management / Authoring Text ----------
     1: build(
-      'รู้จัก Linux — ติดตั้ง จัดการไฟล์ และแก้ไฟล์ข้อความ',
+      'Linux Basics & Files',
       [
         'อธิบายโครงสร้างไดเรกทอรีมาตรฐานและบอกได้ว่าไฟล์อะไรอยู่ที่ไหน',
         'ใช้คำสั่งจัดการไฟล์และค้นหาข้อมูลได้คล่อง',
@@ -47,7 +47,7 @@ export default {
 
     // ---------- 2: Users, Groups, Permissions ----------
     2: build(
-      'ผู้ใช้ กลุ่ม และสิทธิ์',
+      'Users & Permissions',
       [
         'อ่านและตั้งสิทธิ์ไฟล์ทั้งแบบตัวเลขและตัวอักษรได้',
         'สร้างและจัดการผู้ใช้/กลุ่ม พร้อมเข้าใจไฟล์ /etc/passwd และ /etc/group',
@@ -61,7 +61,7 @@ export default {
 
     // ---------- 3: Software, Services, Devices/Processes/Memory/Kernel ----------
     3: build(
-      'แพ็กเกจ, Service และการจัดการทรัพยากรระบบ',
+      'Packages & Services',
       [
         'ติดตั้ง อัปเดต และถอนแพ็กเกจด้วย apt/dnf ได้',
         'จัดการ service ด้วย systemd: start, enable, status, journalctl',
@@ -75,7 +75,7 @@ export default {
 
     // ---------- 4: Storage and Containers ----------
     4: build(
-      'Storage และ Containers',
+      'Storage & Containers',
       [
         'อ่านโครงสร้างดิสก์ พาร์ทิชัน และจุด mount ได้',
         'สร้างและขยายพื้นที่ด้วย LVM โดยไม่ต้องหยุดระบบ',
@@ -88,7 +88,7 @@ export default {
 
     // ---------- 5: Network Settings, Network Security, Linux Security ----------
     5: build(
-      'เครือข่าย ไฟร์วอลล์ และความปลอดภัยของระบบ',
+      'Networking & Security',
       [
         'ตั้งค่าและตรวจสอบเครือข่ายด้วย ip, ss และ nmcli ได้',
         'กำหนดกฎ firewall ให้เปิดเฉพาะที่จำเป็น',
@@ -102,7 +102,7 @@ export default {
 
     // ---------- 6: Simple Scripts and Infrastructure as Code ----------
     6: build(
-      'Scripts และ Infrastructure as Code',
+      'Scripting & IaC',
       [
         'เขียน shell script ที่ทำงานซ้ำได้และตั้งให้รันอัตโนมัติด้วย cron',
         'อธิบายความต่างระหว่างสคริปต์กับ Infrastructure as Code',

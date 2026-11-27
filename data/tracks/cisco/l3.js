@@ -5,7 +5,7 @@
 import { said } from '../../said.js';
 
 export default {
-  title: 'IP Connectivity — Routing และ OSPF',
+  title: 'IP Connectivity',
   objectives: [
     'อ่าน routing table เป็น และบอกได้ว่าอุปกรณ์จะเลือกเส้นทางไหน',
     'ตั้ง static route และ default route ได้',

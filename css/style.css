@@ -317,9 +317,12 @@ pre code,pre.code code{background:none;border:0;padding:0;color:inherit;white-sp
 .lv-badge svg{display:block}
 
 .lv-body{padding:13px 15px 14px;display:flex;flex-direction:column;flex:1}
-.lv-n{font-family:var(--mono);font-size:10.5px;color:var(--lc);letter-spacing:1.3px;font-weight:700}
-/* กันหัวข้อยาวสองบรรทัดบ้างบรรทัดเดียวบ้าง จนการ์ดสูงไม่เท่ากัน */
-.lv-card h3{margin:5px 0 5px;font-size:15.5px;line-height:1.35;min-height:2.7em;
+/* บรรทัดกำกับต้องจบในบรรทัดเดียวเสมอ ไม่งั้นการ์ดแต่ละใบจะสูงไม่เท่ากัน */
+.lv-n{font-family:var(--mono);font-size:10.5px;color:var(--lc);letter-spacing:.9px;font-weight:700;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ชื่อบทเป็นภาษาอังกฤษสั้น ๆ จบบรรทัดเดียวอยู่แล้ว — ตัดที่สองบรรทัดไว้เผื่อจอแคบมาก
+   ความสูงที่ต่างกันระหว่างแถวปล่อยให้ grid ยืดให้เท่ากันเอง */
+.lv-card h3{margin:5px 0 5px;font-size:15.5px;line-height:1.35;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 /* ตัดคำอธิบายที่สองบรรทัด — การ์ดทุกใบจะได้สูงเท่ากันไม่ว่าเนื้อหาจะยาวแค่ไหน */
 .lv-card p{margin:0 0 12px;font-size:12.4px;color:var(--txt-mute);line-height:1.6;
@@ -588,7 +591,17 @@ table.adm tr:hover td{background:var(--panel-2)}
   animation:rankGlow 2.2s ease-in-out infinite;
 }
 .rank-badge:hover{transform:translateY(-2px);transition:transform .15s}
-.rank-badge .rb-ico{font-size:19px;line-height:1;animation:rankBlink 2.2s ease-in-out infinite}
+/* ไอคอนป้ายอันดับ — ใช้ภาพประจำระดับชุดเดียวกับการ์ดบทเรียน ครอบเป็นวงกลมเหมือนรูปโปรไฟล์
+   ตัดด้วย cover และเลื่อนจุดกึ่งกลางขึ้นเล็กน้อย เพื่อให้ได้ช่วงตัวคนไม่ใช่ขอบล่างของภาพ */
+.rank-badge .rb-ico{width:38px;height:38px;flex:none;border-radius:50%;overflow:hidden;
+  display:grid;place-items:center;background:var(--bg-2);border:1px solid var(--rb,var(--acc));
+  animation:rankBlink 2.2s ease-in-out infinite}
+.rank-badge .rb-ico .lv-art,.rank-ico .lv-art{
+  width:100%;height:100%;max-width:none;max-height:none;
+  object-fit:cover;object-position:50% 32%;filter:none}
+/* ตัวเดียวกันแต่ย่อลง สำหรับแถบ RANK ในเมนูข้าง */
+.rank-ico{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;
+  overflow:hidden;background:var(--bg-2);vertical-align:-5px;margin-right:6px}
 .rank-badge .rb-name{font-size:12.5px;font-weight:600;color:var(--rb,var(--acc));line-height:1.25}
 .rank-badge .rb-xp{font-size:11px;font-family:var(--mono);color:var(--txt-dim);line-height:1.3}
 .rank-badge .rb-bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:5px}

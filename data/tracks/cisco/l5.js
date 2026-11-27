@@ -6,7 +6,7 @@
 import { said } from '../../said.js';
 
 export default {
-  title: 'Security Fundamentals — ปกป้องเครือข่ายจากผู้ไม่หวังดี',
+  title: 'Security Fundamentals',
   objectives: [
     'อธิบายหลัก CIA และยกตัวอย่างภัยที่กระทบแต่ละด้านได้',
     'แยกแยะภัยคุกคามที่พบบ่อย เช่น phishing, malware, MITM',

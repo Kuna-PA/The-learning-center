@@ -33,7 +33,7 @@ export default {
   levels: withMtcna({
     // =========================================================
     1: {
-      title: 'รู้จัก RouterOS และโครงสร้างคำสั่ง',
+      title: 'RouterOS Basics',
       objectives: [
         'เข้าใจว่า RouterOS ต่างจาก IOS อย่างไร และเข้าถึงได้กี่ทาง',
         'เดินเมนูแบบ hierarchy และอ่านผล print เป็น',
@@ -141,7 +141,7 @@ export default {
 
     // =========================================================
     2: {
-      title: 'WAN, NAT, DHCP และ DNS',
+      title: 'WAN, NAT, DHCP & DNS',
       objectives: [
         'ตั้งค่า WAN ทั้งแบบ DHCP client และ static',
         'เข้าใจ NAT (srcnat/masquerade) และเมื่อไหร่ต้องใช้ dst-nat',
@@ -231,7 +231,7 @@ export default {
 
     // =========================================================
     3: {
-      title: 'Firewall, Bridge และ VLAN',
+      title: 'Firewall, Bridge & VLAN',
       objectives: [
         'เข้าใจ chain input / forward / output และ connection state',
         'เขียน firewall filter ที่ปลอดภัยและมีลำดับถูกต้อง',
@@ -345,7 +345,7 @@ add list=blocked address=45.9.148.0/24
 
     // =========================================================
     4: {
-      title: 'Routing, QoS, VPN และการดูแลระบบ',
+      title: 'Routing, QoS & VPN',
       objectives: [
         'ตั้ง static route แบบมี failover และเข้าใจ OSPF พื้นฐาน',
         'จัดการแบนด์วิดท์ด้วย Simple Queue และ Queue Tree',
@@ -455,7 +455,7 @@ Queue Tree — ทำงานร่วมกับ mangle packet-mark ยืด
 
     // =========================================================
     5: {
-      title: 'ออกแบบระดับ ISP/Enterprise และ Automation',
+      title: 'ISP Design & Automation',
       objectives: [
         'ออกแบบ high availability ด้วย VRRP และ dual-homing',
         'เข้าใจ BGP เบื้องต้นสำหรับงาน multi-homing',

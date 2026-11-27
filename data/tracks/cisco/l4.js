@@ -5,7 +5,7 @@
 import { said } from '../../said.js';
 
 export default {
-  title: 'IP Services — DHCP, NAT, DNS และการเฝ้าระวัง',
+  title: 'IP Services',
   objectives: [
     'ตั้ง DHCP server บนอุปกรณ์ Cisco และเข้าใจ DORA',
     'อธิบายและตั้งค่า NAT/PAT ให้วงภายในออกอินเทอร์เน็ตได้',

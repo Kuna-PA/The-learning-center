@@ -5,7 +5,7 @@
 import { said } from '../../said.js';
 
 export default {
-  title: 'Automation — จากพิมพ์ทีละเครื่องสู่การสั่งด้วยโค้ด',
+  title: 'Automation & APIs',
   objectives: [
     'อธิบายได้ว่า network automation แก้ปัญหาอะไรที่การพิมพ์มือแก้ไม่ได้',
     'อ่านและเขียนโครงสร้าง JSON ที่ใช้กับ REST API ได้',

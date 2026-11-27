@@ -48,7 +48,7 @@ export default {
     // ---------- Domain 2: Network Access ----------
     // แกนหลักมาจากเนื้อหาเดิมเรื่อง VLAN/Trunk (เดิม L2) และ STP/EtherChannel (เดิม L3)
     2: merge(
-      'Network Access — สวิตช์, VLAN, Trunk, STP และ Wireless',
+      'Network Access',
       [
         'อธิบายการทำงานของ switch: learning, forwarding, flooding',
         'สร้าง VLAN, ตั้ง access port และ trunk 802.1Q ได้',

@@ -346,7 +346,7 @@ function renderSide() {
     </div>`;
   const tp = tierProgress(store.xp);
   const lv = LEVELS[tp.t - 1];
-  $('#side-level').textContent = `${lv.icon} ${lv.name}`;
+  $('#side-level').innerHTML = `<span class="rank-ico">${levelArt(lv.n)}</span>${esc(lv.name)}`;
   $('#side-bar').style.width = tp.pct + '%';
   $('#side-xp').textContent = `${store.xp} XP`;
   $('#side-next').textContent = tp.t < 5 ? `→ ${tp.hi}` : 'MAX';
@@ -362,7 +362,7 @@ function renderRankBadge(tp, lv) {
   // เงาเรืองใช้สีเดียวกับ tier แต่จาง — ใช้ color-mix เพื่อไม่ต้องแปลงค่าเอง
   el.style.setProperty('--rb-glow', `color-mix(in srgb, ${color} 45%, transparent)`);
   el.innerHTML = `
-    <span class="rb-ico">${lv.icon}</span>
+    <span class="rb-ico">${levelArt(lv.n)}</span>
     <span style="min-width:96px">
       <span class="rb-name">${lv.name}</span>
       <span class="rb-xp" style="display:block">${store.xp} XP ${tp.t < 5 ? `· → ${tp.hi}` : '· MAX'}</span>
@@ -511,7 +511,7 @@ function vTrack(id) {
     return `<div class="lv-card ${s.unlocked ? '' : 'locked'}" style="--lc:${l.color}" data-l="${l.n}">
       <div class="lv-cover" style="color:${l.color}">${levelArt(l.n)}${badge}</div>
       <div class="lv-body">
-        <div class="lv-n">${(DIFF[l.n] || DIFF[1])[1]} · ระดับ ${l.n} · ${l.name}</div>
+        <div class="lv-n">${(DIFF[l.n] || DIFF[1])[1]} · L${l.n} · ${l.name}</div>
         <h3>${d.title}</h3>
         <p>${d.objectives[0]}</p>
         <div class="lv-foot">
