@@ -241,7 +241,6 @@ function renderLogin(err = '') {
     <div class="login-shell">
       <section class="login-hero">
         <span class="hero-pill">⚡ ศูนย์ฝึกอบรม IT &amp; SysEng</span>
-        <h2 class="hero-title"><span class="ghost">Hands-on</span><b>IT Training.</b></h2>
         <img class="hero-art" src="assets/levels/lv5.png" alt="" loading="eager" decoding="async">
         <div class="hero-stat a"><b>${nLabs} Labs</b><span>ลงมือทำบนเครื่องจำลองจริง</span></div>
         <div class="hero-stat b"><b>${nQuiz.toLocaleString('en-US')} ข้อสอบ</b><span>สุ่มใหม่ทุกครั้งที่ทำ</span></div>
