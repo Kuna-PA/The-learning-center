@@ -33,8 +33,14 @@ const LEVELS_WITH_ART = [1, 2, 3, 4, 5, 6];
 /**
  * ภาพของระดับที่ขอ — ระดับที่ยังไม่มีภาพจะใช้ของระดับ 1 แทนเพื่อไม่ให้การ์ดว่าง
  * คืนเป็น <img> ไม่ใช่ <svg> จึงต้องกำหนดขนาดจาก CSS ของที่ที่เอาไปวาง (.lv-art)
+ *
+ * @param {number} n
+ * @param {{eager?:boolean}} [opt] eager = โหลดทันทีไม่ต้องรอเลื่อนมาถึง
+ *        ใช้กับแถบไอคอนวิ่งหน้าล็อกอิน ซึ่งภาพชุดที่สองอยู่นอกจอตั้งแต่แรก
+ *        ถ้าปล่อยเป็น lazy แถบจะมีช่องโหว่ตอนวนรอบ
  */
-export function levelArt(n) {
+export function levelArt(n, opt = {}) {
   const lv = LEVELS_WITH_ART.includes(+n) ? +n : 1;
-  return `<img class="lv-art" src="assets/levels/lv${lv}.png" alt="${ALT[lv]}" loading="lazy" decoding="async">`;
+  const load = opt.eager ? 'eager' : 'lazy';
+  return `<img class="lv-art" src="assets/levels/lv${lv}.png" alt="${ALT[lv]}" loading="${load}" decoding="async">`;
 }

@@ -227,7 +227,13 @@ function renderLogin(err = '') {
   // หัวข้อตรงกลางจึงกลายเป็นคำเดิมซ้ำสองบรรทัดติดกัน ทำให้หัวการ์ดดูหนักและไม่ได้สัดส่วน
   // ตอนมีแท็บจึงซ่อนไว้ให้เฉพาะโปรแกรมอ่านหน้าจอ ส่วนตอนปิดรับสมัคร (ไม่มีแท็บ) ยังแสดงตามปกติ
   const titleCls = openRegister ? ' class="sr-only"' : '';
+  // แถบไอคอนวิ่งด้านบน — ใช้ภาพประจำระดับชุดเดียวกับการ์ดบทเรียน
+  // วางสองชุดต่อกัน แล้วเลื่อนไป -50% พอดีหนึ่งชุด ภาพจึงวนได้ไม่มีรอยต่อ
+  const runStrip = `<div class="lv-run" aria-hidden="true"><div class="lv-run-track">${
+    [...LEVELS, ...LEVELS].map(l => levelArt(l.n, { eager: true })).join('')}</div></div>`;
+
   lw.innerHTML = `
+    ${runStrip}
     <div class="login-card">
       <div class="brand">
         <img class="brand-logo" src="assets/logo-full.png" alt="ASD ACADEMY">
