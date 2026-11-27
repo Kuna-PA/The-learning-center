@@ -310,3 +310,49 @@ test('ผลข้อสอบรวบยอดและประวัติ�
     }
   });
 });
+
+// ============================================================
+//  "ปลดล็อกทุกระดับ" ต้องเป็นสิทธิ์ของผู้ดูแลเท่านั้น
+//
+//  เดิมผู้เรียนติ๊กช่องนี้ให้ตัวเองได้จากหน้าความคืบหน้า ซึ่งทำให้ด่านที่ต้อง
+//  สอบผ่านและทำ Lab ให้ครบก่อนไร้ความหมายไปเลย — ย้ายมาเป็นสิทธิ์ของผู้ดูแล
+// ============================================================
+test('ปลดล็อกทุกระดับให้ผู้เรียนได้เฉพาะผู้ดูแลระบบ', async (t) => {
+  const srv = await startServer();
+  t.after(() => srv.stop());
+
+  const u = client(srv.base);
+  await u.req('POST', '/api/auth/register', { username: 'patchme', password: 'pass12345' });
+  await u.req('PUT', '/api/progress', { data: { xp: 10 } });
+
+  await t.test('ผู้เรียนปลดล็อกให้ตัวเองไม่ได้', async () => {
+    assert.equal((await u.req('PATCH', '/api/admin/progress/patchme', { unlockAll: true })).status, 403);
+    assert.equal((await u.req('GET', '/api/progress')).data.data.unlockAll, false);
+  });
+
+  await t.test('คนที่ยังไม่ล็อกอินก็ทำไม่ได้', async () => {
+    const anon = client(srv.base);
+    assert.equal((await anon.req('PATCH', '/api/admin/progress/patchme', { unlockAll: true })).status, 401);
+  });
+
+  const admin = client(srv.base);
+  await admin.req('POST', '/api/auth/login', { username: 'admin', password: srv.adminPass });
+  // บัญชี admin ที่เพิ่ง seed ติดธง mustChange ต้องเปลี่ยนรหัสก่อนจึงใช้เส้นทาง admin ได้
+  await admin.req('POST', '/api/auth/password', { oldPass: srv.adminPass, newPass: 'admin-new-98765' });
+
+  await t.test('ผู้ดูแลปลดล็อกและยกเลิกได้ โดยไม่แตะความคืบหน้าอื่น', async () => {
+    assert.equal((await admin.req('PATCH', '/api/admin/progress/patchme', { unlockAll: true })).status, 200);
+    let got = (await u.req('GET', '/api/progress')).data.data;
+    assert.equal(got.unlockAll, true);
+    assert.equal(got.xp, 10, 'XP เดิมต้องไม่หาย');
+
+    assert.equal((await admin.req('PATCH', '/api/admin/progress/patchme', { unlockAll: false })).status, 200);
+    got = (await u.req('GET', '/api/progress')).data.data;
+    assert.equal(got.unlockAll, false);
+    assert.equal(got.xp, 10);
+  });
+
+  await t.test('ผู้ใช้ที่ไม่มีอยู่จริงต้องตอบ 404 ไม่ใช่สร้างแถวเปล่าทิ้งไว้', async () => {
+    assert.equal((await admin.req('PATCH', '/api/admin/progress/ghost', { unlockAll: true })).status, 404);
+  });
+});

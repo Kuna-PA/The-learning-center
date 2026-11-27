@@ -1,7 +1,7 @@
 import { TRACKS, trackById, ALL_LABS, labById } from '../data/tracks/index.js';
 import { SURVIVAL_LABS, severityLabel, difficultyLabel } from '../data/labs/survival.js';
 import { LEVELS, levelOf, PASS_SCORE } from '../data/levels.js';
-import { store, tierProgress, XP_TIERS, maxXp, setStoreUser, progressOf, clearProgressOf } from './store.js';
+import { store, tierProgress, XP_TIERS, maxXp, setStoreUser, progressOf, clearProgressOf, setUnlockAllOf } from './store.js';
 import { auth } from './auth.js';
 import { createTerminal } from './terminal.js';
 import { createWindowsGui } from './gui/windows-gui.js';
@@ -1667,25 +1667,29 @@ function vProgress() {
   }).join('')}
     </div>
 
-    <h2 class="sec">ตั้งค่า</h2>
+    ${store.all.unlockAll ? `<div class="note" style="margin-top:18px">
+      🔓 <b>บัญชีนี้ถูกปลดล็อกทุกระดับโดยผู้ดูแลระบบ</b> — เข้าบทเรียนได้ทุกระดับโดยไม่ต้องไล่สอบตามลำดับ
+      แต่<b>ใบประกาศยังต้องผ่านแบบทดสอบและ Lab จริง</b>เท่านั้น</div>` : ''}
+
+    ${serverUp ? '' : `<h2 class="sec">สำรองข้อมูล</h2>
     <div class="card">
-      <label class="row" style="cursor:pointer;margin-bottom:14px">
-        <input type="checkbox" id="unlock" ${store.all.unlockAll ? 'checked' : ''} style="width:17px;height:17px">
-        <div><b>ปลดล็อกทุกระดับ</b>
-          <div class="muted" style="font-size:12.3px">ข้ามเงื่อนไขการทำแบบทดสอบให้ผ่านก่อน — เหมาะกับคนที่มีพื้นฐานแล้ว
-          (หมายเหตุ: ใบประกาศยังต้องผ่านแบบทดสอบและ lab จริงเท่านั้น)</div>
-          ${auth.isAdmin ? '<div class="muted" style="font-size:12.3px;color:var(--ok)">บัญชีผู้ดูแลระบบเข้าได้ทุกระดับอยู่แล้ว ไม่ต้องติ๊กช่องนี้</div>' : ''}</div>
-      </label>
+      <div class="muted" style="font-size:12.5px;margin-bottom:12px">
+        โหมดออฟไลน์ไม่มีเซิร์ฟเวอร์เก็บความคืบหน้าให้ และไม่มีผู้ดูแลระบบมาช่วยกู้
+        จึงต้องดาวน์โหลดเก็บไว้เอง ถ้าล้างข้อมูลเบราว์เซอร์แล้วจะหายถาวร</div>
       <div class="row">
         <button class="btn sm" id="exp">ดาวน์โหลดความคืบหน้า (.json)</button>
         <button class="btn sm" id="imp">นำเข้าไฟล์</button>
         <button class="btn sm danger" id="rst">ล้างความคืบหน้าของฉัน</button>
         <input type="file" id="impf" accept="application/json" hidden>
       </div>
-    </div>`;
+    </div>`}`;
 
   view().querySelectorAll('[data-go]').forEach(c => c.addEventListener('click', () => location.hash = c.dataset.go));
-  $('#unlock').addEventListener('change', e => { store.setUnlockAll(e.target.checked); refreshChrome(); vProgress(); });
+  if (!serverUp) bindBackupButtons();
+}
+
+/** ปุ่มสำรอง/นำเข้า/ล้าง — ใช้เฉพาะโหมดออฟไลน์ที่ไม่มีผู้ดูแลระบบมาช่วย */
+function bindBackupButtons() {
   $('#exp').addEventListener('click', () => {
     const blob = new Blob([store.export()], { type: 'application/json' });
     const a = document.createElement('a');
@@ -1938,6 +1942,7 @@ function vAdminUser(username) {
   if (!u) { toast('ไม่พบผู้ใช้นี้', 'bad'); location.hash = '#/admin'; return; }
   crumbs([{ t: 'หน้าหลัก', href: '#/' }, { t: 'ผู้ดูแลระบบ', href: '#/admin' }, { t: esc(u.display || u.username) }]);
   const stats = summarise(u.progress, CONTENT);
+  const unlocked = !!(u.progress && u.progress.unlockAll);
 
   const mark = (ok) => (ok ? '<span style="color:var(--ok)">✓</span>' : '<span class="muted">—</span>');
 
@@ -1975,10 +1980,35 @@ function vAdminUser(username) {
         </table>
       </div>`).join('')}
 
+    <h2 class="sec">สิทธิ์การเข้าบทเรียน</h2>
+    <div class="card">
+      <label class="row" style="cursor:pointer;align-items:flex-start">
+        <input type="checkbox" id="adm-unlock" ${unlocked ? 'checked' : ''} style="width:17px;height:17px;margin-top:3px">
+        <div style="flex:1;min-width:220px"><b>ปลดล็อกทุกระดับให้ผู้เรียนคนนี้</b>
+          <div class="muted" style="font-size:12.3px;line-height:1.65">
+            ข้ามเงื่อนไขที่ต้องสอบผ่านและทำ Lab ของระดับก่อนหน้าให้ครบ — ใช้กับคนที่มีพื้นฐานมาแล้ว
+            หรือคนที่ต้องข้ามไปเรียนเรื่องใดเรื่องหนึ่งก่อน<br>
+            <b>ใบประกาศยังต้องผ่านแบบทดสอบและ Lab จริงเท่านั้น</b> การปลดล็อกไม่ได้ทำให้ได้ใบประกาศฟรี</div>
+        </div>
+      </label>
+    </div>
+
     <div class="row" style="gap:8px;margin-top:16px">
       <button class="btn ghost" data-go="#/admin">← กลับไปภาพรวม</button>
       <button class="btn ghost" data-go="#/admin/users">จัดการผู้ใช้</button>
     </div>`;
+
+  // ติ๊กแล้วบันทึกทันที ถ้าเซิร์ฟเวอร์ไม่รับก็ดีดกลับ จะได้ไม่เข้าใจผิดว่าบันทึกแล้ว
+  $('#adm-unlock').addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    e.target.disabled = true;
+    const ok = await setUnlockAllOf(username, on);
+    e.target.disabled = false;
+    if (!ok) { e.target.checked = !on; return toast('บันทึกไม่สำเร็จ', 'bad'); }
+    if (u.progress) u.progress.unlockAll = on;    // ให้หน้าเดิมแสดงค่าที่เพิ่งตั้งได้ถูก
+    toast(on ? `ปลดล็อกทุกระดับให้ ${username} แล้ว` : `ยกเลิกการปลดล็อกของ ${username} แล้ว`, 'ok');
+    refreshChrome();
+  });
 
   goHooks();
 }

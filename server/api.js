@@ -268,6 +268,15 @@ export default async function api(req, res, pathname) {
         return json(res, 200, { data: row ? row.data : null, updatedAt: row ? row.updatedAt : null });
       }
       if (method === 'DELETE') { progress.clear(target); return json(res, 200, { ok: true }); }
+      // ปลดล็อกทุกระดับให้ผู้เรียน — เดิมผู้เรียนติ๊กเองได้ซึ่งทำให้ด่านทั้งหมดไร้ความหมาย
+      // ย้ายมาเป็นสิทธิ์ของผู้ดูแล แก้เฉพาะช่อง unlockAll ช่องเดียว ไม่แตะความคืบหน้าอื่น
+      if (method === 'PATCH') {
+        if (!users.get(target)) return json(res, 404, { error: 'ไม่พบผู้ใช้นี้' });
+        const row = progress.get(target);
+        const data = row ? row.data : {};
+        progress.save(target, sanitiseProgress({ ...data, unlockAll: !!body.unlockAll }));
+        return json(res, 200, { ok: true, unlockAll: !!body.unlockAll });
+      }
     }
   }
 

@@ -251,8 +251,6 @@ export const store = {
     if (data.labs[k]) { data.labs[k].history = []; save(); }
   },
 
-  setUnlockAll(v) { data.unlockAll = !!v; save(); },
-
   reset() { data = blank(); save(); },
 
   export() { return JSON.stringify(data, null, 2); },
@@ -269,6 +267,23 @@ export async function progressOf(user) {
     const r = await api.get(`/api/admin/progress/${encodeURIComponent(user)}`);
     return r.data;
   } catch { return null; }
+}
+
+/**
+ * ผู้ดูแลปลดล็อก (หรือล็อกกลับ) ทุกระดับให้ผู้เรียนคนหนึ่ง
+ * ถ้าเป็นบัญชีตัวเองก็อัปเดตในหน่วยความจำให้ด้วย จะได้เห็นผลทันทีโดยไม่ต้องโหลดใหม่
+ */
+export async function setUnlockAllOf(user, on) {
+  if (offline()) {
+    const ok = localAuth.setUnlockAllOf?.(user, on);
+    if (user === username) { data.unlockAll = !!on; writeCache(); window.dispatchEvent(new CustomEvent('progress-changed')); }
+    return ok !== false;
+  }
+  try {
+    await api.patch(`/api/admin/progress/${encodeURIComponent(user)}`, { unlockAll: !!on });
+    if (user === username) { data.unlockAll = !!on; writeCache(); window.dispatchEvent(new CustomEvent('progress-changed')); }
+    return true;
+  } catch { return false; }
 }
 
 export async function clearProgressOf(user) {

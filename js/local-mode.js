@@ -166,6 +166,14 @@ export const localAuth = {
     try { localStorage.removeItem(`sysengLC.v1:${username}`); } catch { /* ไม่มีก็ข้าม */ }
     return true;
   },
+  /** ปลดล็อกทุกระดับให้ผู้เรียน — โหมดออฟไลน์เขียนลง localStorage ตรง ๆ */
+  setUnlockAllOf(username, on) {
+    const key = `sysengLC.v1:${username}`;
+    const cur = load(key, null);
+    if (!cur) return false;                     // ยังไม่เคยมีความคืบหน้าให้แก้
+    save(key, { ...cur, unlockAll: !!on });
+    return true;
+  },
 };
 
 const publicUser = (u) => ({
