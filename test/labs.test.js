@@ -7,6 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cliLabs, guiLabs, solveLab, hintCommands, viaCd } from './helpers/lab-runner.js';
 import { createDevice } from '../js/devices/index.js';
+import { tabComplete } from '../js/terminal.js';
 import { said, times } from '../data/said.js';
 import { runGuiScript } from './helpers/gui-runner.js';
 import { GUI_SOLUTIONS } from './helpers/gui-solutions.js';
@@ -178,4 +179,53 @@ test('Lab ของ Cisco ต้องผ่านแม้พิมพ์คำ
     if (!r.ok) broken.push(`${lab.id}: task ${r.failedTasks.map(i => i + 1).join(',')}`);
   }
   assert.deepEqual(broken, [], 'พิมพ์คำสั่งย่อแล้ว task ไม่ผ่าน — ตัวตรวจต้องรับทั้งรูปเต็มและรูปย่อ');
+});
+
+// ============================================================
+//  ปุ่ม Tab ต้องเติมให้ถูกบริบท
+//
+//  เคยหลุดไปแล้วสองรอบเพราะตรรกะอยู่ใน event handler ล้วน ๆ ทดสอบไม่ได้
+//  รอบแรก: Tab เติมได้แต่ชื่อคำสั่ง ไม่รู้จักชื่อไฟล์เลย
+//  รอบสอง: พิมพ์ `cat` แล้วกด Tab ตอนอยู่ /tmp กลับได้ `cat /etc/`
+//          เพราะไปหยิบ path จากตัวอย่าง `cat /etc/passwd` ในรายการคำสั่งมาเติม
+//  ตอนนี้ตรรกะอยู่ใน tabComplete() ซึ่งเป็นฟังก์ชันบริสุทธิ์
+// ============================================================
+const tmpDev = () => {
+  const d = createDevice('linux-sec', {
+    apply: st => {
+      st.fs.children.tmp.children['README_RESTORE.txt'] =
+        { t: 'f', mode: '644', owner: 'root', group: 'root', content: 'x' };
+      st.fs.children.tmp.children['.hidden'] =
+        { t: 'f', mode: '755', owner: 'root', group: 'root', content: 'y' };
+    },
+  });
+  d.exec('cd /tmp');
+  return d;
+};
+
+test('Tab: พิมพ์ชื่อคำสั่งแล้วต้องได้ชื่อคำสั่ง ไม่ใช่ path จากตัวอย่างคำสั่งอื่น', () => {
+  const d = tmpDev();
+  assert.deepEqual(tabComplete('ca', d), { value: 'cat ' });
+  assert.deepEqual(tabComplete('cat', d), { value: 'cat ' },
+    'เคสที่ถูกรายงาน — ห้ามได้ "cat /etc/" ทั้งที่อยู่ /tmp');
+  assert.deepEqual(tabComplete('p', d), { list: ['ping', 'ps', 'pwd'] },
+    'เติมต่อไม่ได้แล้วต้องโชว์ตัวเลือก ไม่ใช่เดาเอาเอง');
+});
+
+test('Tab: พิมพ์อาร์กิวเมนต์แล้วต้องได้ชื่อไฟล์ในไดเรกทอรีปัจจุบัน', () => {
+  const d = tmpDev();
+  assert.deepEqual(tabComplete('cat ', d), { value: 'cat README_RESTORE.txt' });
+  assert.deepEqual(tabComplete('cat R', d), { value: 'cat README_RESTORE.txt' });
+  assert.deepEqual(tabComplete('ls ', d), { value: 'ls README_RESTORE.txt' });
+  assert.deepEqual(tabComplete('cat x', d), {}, 'ไม่มีไฟล์ที่ตรง ต้องไม่เติมอะไรมั่ว ๆ');
+  assert.deepEqual(tabComplete('cat /etc/os', d), { value: 'cat /etc/os-release' },
+    'พิมพ์ path เต็มมาเองก็ยังต้องเติมได้');
+  assert.deepEqual(tabComplete('', d), {}, 'ยังไม่พิมพ์อะไรต้องไม่พัง');
+});
+
+test('Tab: อุปกรณ์ที่ไม่มีระบบไฟล์ (Cisco) ยังเติมคำสั่งย่อได้เหมือนเดิม', () => {
+  const c = createDevice('cisco', {});
+  c.exec('enable');
+  assert.deepEqual(tabComplete('sh', c), { value: 'show ' });
+  assert.deepEqual(tabComplete('sho run', c), { value: 'show running-config' });
 });

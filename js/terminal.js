@@ -4,6 +4,69 @@ import { createDevice, DEVICE_LABELS } from './devices/index.js';
 const esc = s => String(s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+/** ส่วนที่ยาวที่สุดที่ทุกตัวเลือกยังตรงกัน — ใช้เติมแบบ Tab */
+const sharedPrefix = (hits, caseless = false) => hits.reduce((a, c) => {
+  const eq = (x, y) => (caseless ? x.toLowerCase() === y.toLowerCase() : x === y);
+  let i = 0;
+  while (i < a.length && i < c.length && eq(a[i], c[i])) i++;
+  return a.slice(0, i);
+});
+
+/**
+ * ตัดสินว่ากด Tab แล้วควรเกิดอะไร — แยกออกมาเป็นฟังก์ชันบริสุทธิ์เพื่อให้ทดสอบได้
+ * โดยไม่ต้องมี DOM (เคยมีบั๊กหลุดเพราะตรรกะนี้อยู่ใน event handler ล้วน ๆ)
+ *
+ * @param {string} cur  ข้อความที่พิมพ์อยู่ตอนนี้
+ * @param {{completePath?:Function, completions?:Function}} dev
+ * @returns {{value?:string, list?:string[]}}  value = เติมให้เลย · list = โชว์ตัวเลือก
+ */
+export function tabComplete(cur, dev) {
+  if (!cur || !cur.trim()) return {};
+  const token = (cur.match(/(\S*)$/) || ['', ''])[1];
+  const lead = cur.slice(0, cur.length - token.length);
+  const all = () => (dev.completions ? dev.completions() : []);
+
+  /** เติมส่วนที่ตรงกัน ถ้าเติมต่อไม่ได้ก็คืนรายการให้ไปโชว์ */
+  const offer = (hits, prefix, suffix = '', caseless = false) => {
+    if (!hits.length) return {};
+    if (hits.length === 1) return { value: prefix + hits[0] + suffix };
+    const shared = sharedPrefix(hits, caseless);
+    if (shared && prefix + shared !== cur) return { value: prefix + shared };
+    return { list: hits };
+  };
+
+  // Linux กับ Windows มีระบบไฟล์จำลองจริง จึงเติมแบบ shell ได้
+  if (typeof dev.completePath === 'function') {
+    // กำลังพิมพ์อาร์กิวเมนต์ → เติมได้เฉพาะชื่อไฟล์ในไดเรกทอรีปัจจุบัน
+    // **ห้ามตกไปใช้รายการตัวอย่างคำสั่ง** เพราะตัวอย่างมี path เต็มติดมาด้วย
+    // (เคยทำให้พิมพ์ `cat` แล้วกด Tab ตอนอยู่ /tmp กลับได้ `cat /etc/`
+    //  ซึ่งมาจากตัวอย่าง `cat /etc/passwd` กับ `cat /etc/os-release` ในรายการ)
+    if (lead.trim()) return offer(dev.completePath(token), lead);
+
+    // กำลังพิมพ์ชื่อคำสั่ง → เอาเฉพาะคำแรกของตัวอย่างแต่ละอัน แล้วเติมเว้นวรรคให้
+    const names = [...new Set(all().map(c => c.trim().split(/\s+/)[0]))].sort();
+    return offer(names.filter(n => n.toLowerCase().startsWith(token.toLowerCase())), lead, ' ');
+  }
+
+  // Cisco / MikroTik เป็นภาษาคำสั่งเป็นชั้น ๆ — เติมทั้งบรรทัดจากรายการตัวอย่าง
+  // จับแบบตรงตัวก่อน ถ้าไม่เจอค่อยจับแบบย่อทีละคำ ("sho run" -> "show running-config")
+  const list = all();
+  let hits = list.filter(c => c.toLowerCase().startsWith(cur.toLowerCase()));
+  if (!hits.length) {
+    const words = cur.trim().split(/\s+/);
+    hits = list.filter(c => {
+      const cw = c.trim().split(/\s+/);
+      return cw.length >= words.length
+        && words.every((w, i) => cw[i].toLowerCase().startsWith(w.toLowerCase()));
+    });
+  }
+  if (!hits.length) return {};
+  if (hits.length === 1) return { value: hits[0] };
+  const common = sharedPrefix(hits, true);
+  if (common.length && common.toLowerCase() !== cur.toLowerCase()) return { value: common };
+  return { list: hits };
+}
+
 export function createTerminal({ device, initial = {}, onExec, height }) {
   let dev = createDevice(device, initial);
   // เฉพาะคำสั่งที่ "ทำงานสำเร็จ" — ใช้ตรวจ lab
@@ -112,55 +175,14 @@ export function createTerminal({ device, initial = {}, onExec, height }) {
       const cur = input.value;
       if (!cur.trim()) return;
 
-      // กำลังพิมพ์ "อาร์กิวเมนต์" อยู่ (มีคำนำหน้าแล้ว) → เติมชื่อไฟล์จากระบบไฟล์จำลองก่อน
-      // ผู้เรียนคาดหวังว่า Tab จะเติมชื่อไฟล์ได้เหมือน shell จริง ไม่ใช่เติมได้แต่ชื่อคำสั่ง
-      const token = (cur.match(/(\S*)$/) || ['', ''])[1];
-      const lead = cur.slice(0, cur.length - token.length);
-      if (lead.trim() && dev.completePath) {
-        const paths = dev.completePath(token);
-        if (paths.length === 1) { input.value = lead + paths[0]; return; }
-        if (paths.length > 1) {
-          const shared = paths.reduce((a, c) => {
-            let i = 0;
-            while (i < a.length && i < c.length && a[i] === c[i]) i++;
-            return a.slice(0, i);
-          });
-          if (shared.length > token.length) { input.value = lead + shared; return; }
-          writeEcho(cur);
-          write(paths.map(x => '  ' + x));
-          body.scrollTop = body.scrollHeight;
-          return;
-        }
+      const r = tabComplete(cur, dev);
+      if (r.value !== undefined) { input.value = r.value; return; }
+      if (r.list) {
+        // เติมต่อไม่ได้แล้ว — โชว์ตัวเลือกที่เหลือให้เลือกเอง
+        writeEcho(cur);
+        write(r.list.map(x => '  ' + x));
+        body.scrollTop = body.scrollHeight;
       }
-
-      const list = (dev.completions ? dev.completions() : []);
-
-      // จับแบบตรงตัวก่อน ถ้าไม่เจอค่อยจับแบบย่อทีละคำ ("sho run" -> "show running-config")
-      let hits = list.filter(c => c.toLowerCase().startsWith(cur.toLowerCase()));
-      if (!hits.length) {
-        const words = cur.trim().split(/\s+/);
-        hits = list.filter(c => {
-          const cw = c.trim().split(/\s+/);
-          return cw.length >= words.length
-            && words.every((w, i) => cw[i].toLowerCase().startsWith(w.toLowerCase()));
-        });
-      }
-      if (!hits.length) return;
-      if (hits.length === 1) { input.value = hits[0]; return; }
-
-      // เติมให้ไกลที่สุดเท่าที่ทุกตัวเลือกยังตรงกัน เหมือน Tab ของ IOS จริง
-      // เช่น "sh" -> "show " และ "show int" -> "show interfaces "
-      const common = hits.reduce((a, c) => {
-        let i = 0;
-        while (i < a.length && i < c.length && a[i].toLowerCase() === c[i].toLowerCase()) i++;
-        return a.slice(0, i);
-      });
-      if (common.length && common.toLowerCase() !== cur.toLowerCase()) { input.value = common; return; }
-
-      // เติมต่อไม่ได้แล้ว — โชว์ตัวเลือกที่เหลือให้เลือกเอง
-      writeEcho(cur);
-      write(hits.map(h => '  ' + h));
-      body.scrollTop = body.scrollHeight;
     } else if (e.key === 'l' && e.ctrlKey) {
       e.preventDefault(); clear();
     } else if (e.key === 'c' && e.ctrlKey) {
