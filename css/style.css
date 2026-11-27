@@ -451,7 +451,12 @@ table.tbl td code{white-space:nowrap}
 table.tbl.cmd-tbl td code{white-space:pre-wrap;word-break:break-word;line-height:1.55;display:inline-block}
 
 /* ---------- quiz ---------- */
-.q-wrap{max-width:830px}
+/* หน้าข้อสอบวางกลางจอทั้งแนวนอนและแนวตั้ง — เนื้อหาต่อข้อสั้น ถ้าชิดซ้ายบน
+   จะเหลือที่ว่างใต้การ์ดทั้งหน้าจนดูไม่สมมาตร
+   min-height หักส่วนหัว (breadcrumb + padding ของ #view) ออกไปราว 150px
+   หน้าสรุปผลที่เนื้อหายาวกว่านั้นจะดันให้กล่องสูงขึ้นเอง justify-content จึงไม่มีผล */
+.q-wrap{max-width:830px;margin:0 auto;display:flex;flex-direction:column;justify-content:center;
+  min-height:calc(100vh - 150px)}
 .q-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap}
 .q-prog{flex:1;height:6px;background:#0d1119;border-radius:99px;overflow:hidden;min-width:120px}
 .q-prog>div{height:100%;background:linear-gradient(90deg,var(--acc),var(--acc-2));transition:width .3s}

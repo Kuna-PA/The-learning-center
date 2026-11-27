@@ -63,7 +63,9 @@ export function viaCd(dev, cmd) {
 /**
  * เล่น Lab หนึ่งชุดด้วยคำใบ้ของมันเอง แล้วรายงานผลรายข้อ
  * @param {object} lab
- * @param {{relative?:boolean}} [opts]  relative = พิมพ์แบบ cd เข้าไปก่อนแล้วใช้ชื่อสั้น
+ * @param {{relative?:boolean, clobber?:number}} [opts]
+ *        relative = พิมพ์แบบ cd เข้าไปก่อนแล้วใช้ชื่อสั้น
+ *        clobber  = ดัชนี task ที่จะเปลี่ยน >> เป็น > (จำลองคนที่เขียนทับแทนต่อท้าย)
  * @returns {{ok:boolean, done:boolean[], failedTasks:number[], crashes:Array}}
  */
 export function solveLab(lab, opts = {}) {
@@ -85,7 +87,10 @@ export function solveLab(lab, opts = {}) {
   evaluate();   // บาง task ผ่านตั้งแต่สถานะเริ่มต้น (เช่น "ตรวจสอบว่ายังไม่ได้ตั้งค่า")
 
   for (let i = 0; i < lab.tasks.length; i++) {
-    for (const hint of hintCommands(lab.tasks[i].hint)) {
+    const raw = opts.clobber === i
+      ? String(lab.tasks[i].hint).replace(/>>/g, '>')     // จำลองการใช้ > เขียนทับ
+      : lab.tasks[i].hint;
+    for (const hint of hintCommands(raw)) {
       for (const cmd of (opts.relative ? viaCd(dev, hint) : [hint])) {
         let out = [];
         const abs = dev.absolutize ? dev.absolutize(cmd.trim()) : cmd.trim();

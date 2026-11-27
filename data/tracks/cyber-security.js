@@ -5,7 +5,7 @@
 // ============================================================
 import { TRACK_ICONS, TRACK_EMOJI } from './icons.js';
 import secplus from './cyber/secplus.js';
-import { said, times } from '../said.js';
+import { said, times, hasLines } from '../said.js';
 
 const node = (s, p) => {
   const parts = String(p).split('/').filter(Boolean);
@@ -580,7 +580,8 @@ sha256sum /mnt/evidence/* &gt; /mnt/evidence/HASHES.txt</pre>
           { t: 'สแกนสถานะปัจจุบันด้วย lynis เพื่อเก็บคะแนนตั้งต้น', hint: 'sudo lynis audit system', check: (s, h) => said(h, /lynis/i) },
           { t: 'สร้างโฟลเดอร์ <code>/etc/sysctl.d</code>', hint: 'sudo mkdir -p /etc/sysctl.d', check: s => !!node(s, '/etc/sysctl.d') },
           { t: 'เขียนค่า <code>net.ipv4.tcp_syncookies = 1</code> ลง <code>99-hardening.conf</code>', hint: 'echo "net.ipv4.tcp_syncookies = 1" > /etc/sysctl.d/99-hardening.conf', check: s => /tcp_syncookies/.test(node(s, '/etc/sysctl.d/99-hardening.conf')?.content || '') },
-          { t: 'เพิ่ม <code>kernel.randomize_va_space = 2</code> (ASLR) ต่อท้ายไฟล์', hint: 'echo "kernel.randomize_va_space = 2" >> /etc/sysctl.d/99-hardening.conf', check: s => /randomize_va_space/.test(node(s, '/etc/sysctl.d/99-hardening.conf')?.content || '') },
+          { t: 'เพิ่ม <code>kernel.randomize_va_space = 2</code> (ASLR) ต่อท้ายไฟล์', hint: 'echo "kernel.randomize_va_space = 2" >> /etc/sysctl.d/99-hardening.conf', check: s => hasLines(node(s, '/etc/sysctl.d/99-hardening.conf')?.content,
+          /tcp_syncookies\s*=\s*1/, /randomize_va_space\s*=\s*2/) },
           { t: 'โหลดค่า sysctl ใหม่ทั้งระบบ', hint: 'sudo sysctl --system', check: s => s.sysctl['kernel.randomize_va_space'] === '2' },
           { t: 'เปิด <code>auditd</code> และตั้งให้เริ่มตอนบูต', hint: 'sudo systemctl start auditd → sudo systemctl enable auditd', check: s => s.services.auditd.active && s.services.auditd.enabled },
           { t: 'เพิ่ม audit rule เฝ้าไฟล์ <code>/etc/passwd</code>', hint: 'sudo auditctl -w /etc/passwd -p wa -k identity', check: (s, h) => said(h, /auditctl\s+-w/i) },

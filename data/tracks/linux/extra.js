@@ -2,7 +2,7 @@
 //  Linux — เนื้อหาและ Lab ที่เขียนเพิ่มให้ครบตามหลักสูตร
 //  แยกตามระดับปลายทาง แล้วให้ ../linux.js เอาไปประกอบกับ legacy.js
 // ============================================================
-import { said } from '../../said.js';
+import { said, hasLines } from '../../said.js';
 /** เดิน path ใน virtual filesystem ของ emulator (โครงเดียวกับ node() ใน linux.js) */
 const hasFile = (s, path) => {
   let n = s.fs;
@@ -121,7 +121,10 @@ sort | uniq -c | sort -rn                # นับซ้ำแล้วเร�
           {
             t: 'ต่อท้ายอีกบรรทัดว่า <code>port = 8080</code>',
             hint: 'echo "port = 8080" >> /home/student/conf/app.conf',
-            check: s => /port\s*=\s*8080/.test(String((hasFile(s, '/home/student/conf/app.conf') || {}).content || '')),
+            // ต้องมีครบทั้งสองบรรทัด — ใช้ > เขียนทับแล้วบรรทัดแรกหาย ถือว่ายังไม่ได้ "ต่อท้าย"
+            // ยอมทั้ง debug และ production เพราะขั้น sed ด้านล่างจะเปลี่ยนคำนี้ทีหลัง
+            check: s => hasLines((hasFile(s, '/home/student/conf/app.conf') || {}).content,
+              /^mode\s*=\s*(debug|production)$/, /^port\s*=\s*8080$/),
           },
           { t: 'อ่านไฟล์ออกมาดูว่าครบสองบรรทัดแล้ว', hint: 'cat /home/student/conf/app.conf', check: (s, h) => said(h, /^cat\s+.*app\.conf/) },
           {
@@ -336,17 +339,21 @@ echo "backup done: $DEST/etc-$DATE.tar.gz"</code></pre>
           {
             t: 'เพิ่มบรรทัดสร้างโฟลเดอร์ปลายทาง <code>mkdir -p /backup</code>',
             hint: 'echo "mkdir -p /backup" >> /home/student/scripts/backup.sh',
-            check: s => /mkdir\s+-p\s+\/backup/.test(String((hasFile(s, '/home/student/scripts/backup.sh') || {}).content || '')),
+            // สคริปต์ต้องสะสมบรรทัดขึ้นเรื่อย ๆ ไม่ใช่ถูก > เขียนทับจนเหลือบรรทัดเดียว
+            check: s => hasLines((hasFile(s, '/home/student/scripts/backup.sh') || {}).content,
+              /^#!\/bin\/bash$/, /^mkdir\s+-p\s+\/backup$/),
           },
           {
             t: 'เพิ่มบรรทัดที่บีบอัด <code>/etc</code> เก็บไว้ที่ <code>/backup/etc.tar.gz</code>',
             hint: 'echo "tar -czf /backup/etc.tar.gz /etc" >> /home/student/scripts/backup.sh',
-            check: s => /tar\s+-czf\s+\/backup\/etc\.tar\.gz/.test(String((hasFile(s, '/home/student/scripts/backup.sh') || {}).content || '')),
+            check: s => hasLines((hasFile(s, '/home/student/scripts/backup.sh') || {}).content,
+              /^#!\/bin\/bash$/, /^mkdir\s+-p\s+\/backup$/, /^tar\s+-czf\s+\/backup\/etc\.tar\.gz/),
           },
           {
             t: 'เพิ่มบรรทัดสุดท้ายให้บอกว่าทำเสร็จแล้ว <code>echo backup done</code>',
             hint: 'echo "echo backup done" >> /home/student/scripts/backup.sh',
-            check: s => /echo\s+backup\s+done/.test(String((hasFile(s, '/home/student/scripts/backup.sh') || {}).content || '')),
+            check: s => hasLines((hasFile(s, '/home/student/scripts/backup.sh') || {}).content,
+              /^#!\/bin\/bash$/, /^mkdir\s+-p\s+\/backup$/, /^tar\s+-czf/, /^echo\s+backup\s+done$/),
           },
           { t: 'ดูเนื้อไฟล์ทั้งหมดเพื่อตรวจก่อนรัน', hint: 'cat /home/student/scripts/backup.sh', check: (s, h) => said(h, /^cat\s+.*backup\.sh/) },
           {
@@ -384,7 +391,8 @@ echo "backup done: $DEST/etc-$DATE.tar.gz"</code></pre>
           {
             t: 'เพิ่มเครื่อง <code>web01</code> เข้าไปใน inventory',
             hint: 'echo "web01" >> /home/student/iac/hosts.ini',
-            check: s => /web01/.test(String((hasFile(s, '/home/student/iac/hosts.ini') || {}).content || '')),
+            check: s => hasLines((hasFile(s, '/home/student/iac/hosts.ini') || {}).content,
+              /^\[webservers\]$/, /^web01$/),
           },
           {
             t: 'เริ่ม playbook <code>site.yml</code> ด้วยบรรทัด <code>- hosts: webservers</code>',
@@ -394,17 +402,20 @@ echo "backup done: $DEST/etc-$DATE.tar.gz"</code></pre>
           {
             t: 'เพิ่มบรรทัด <code>  tasks:</code>',
             hint: 'echo "  tasks:" >> /home/student/iac/site.yml',
-            check: s => /tasks:/.test(String((hasFile(s, '/home/student/iac/site.yml') || {}).content || '')),
+            check: s => hasLines((hasFile(s, '/home/student/iac/site.yml') || {}).content,
+              /^-\s*hosts:\s*webservers$/, /^tasks:$/),
           },
           {
             t: 'เพิ่ม task แรก <code>    - name: install nginx</code>',
             hint: 'echo "    - name: install nginx" >> /home/student/iac/site.yml',
-            check: s => /-\s+name:\s*install nginx/.test(String((hasFile(s, '/home/student/iac/site.yml') || {}).content || '')),
+            check: s => hasLines((hasFile(s, '/home/student/iac/site.yml') || {}).content,
+              /^-\s*hosts:\s*webservers$/, /^tasks:$/, /^-\s+name:\s*install nginx$/),
           },
           {
             t: 'เพิ่ม task ที่สอง <code>    - name: start nginx</code>',
             hint: 'echo "    - name: start nginx" >> /home/student/iac/site.yml',
-            check: s => /-\s+name:\s*start nginx/.test(String((hasFile(s, '/home/student/iac/site.yml') || {}).content || '')),
+            check: s => hasLines((hasFile(s, '/home/student/iac/site.yml') || {}).content,
+              /^-\s*hosts:\s*webservers$/, /^tasks:$/, /^-\s+name:\s*install nginx$/, /^-\s+name:\s*start nginx$/),
           },
           { t: 'ตรวจไฟล์ playbook ทั้งก้อนก่อนรัน', hint: 'cat /home/student/iac/site.yml', check: (s, h) => said(h, /^cat\s+.*site\.yml/) },
           {

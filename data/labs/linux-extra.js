@@ -1,5 +1,5 @@
 // Lab เพิ่มเติมของ Linux — 2 lab ต่อระดับ
-import { said, times } from '../said.js';
+import { said, times, hasLines } from '../said.js';
 const node = (s, p) => {
   const parts = String(p).split('/').filter(Boolean);
   let n = s.fs;
@@ -182,7 +182,8 @@ const BY_OLD_LEVEL = {
         { t: 'ดูค่า sysctl ปัจจุบันทั้งหมด', hint: 'sysctl -a', check: (s, h) => said(h, /sysctl\s+-a/i) },
         { t: 'สร้างโฟลเดอร์ <code>/etc/sysctl.d</code>', hint: 'sudo mkdir -p /etc/sysctl.d', check: s => !!node(s, '/etc/sysctl.d') },
         { t: 'เขียนค่า <code>net.ipv4.tcp_syncookies = 1</code> ลงไฟล์ <code>99-hardening.conf</code>', hint: 'echo "net.ipv4.tcp_syncookies = 1" > /etc/sysctl.d/99-hardening.conf', check: s => { const f = node(s, '/etc/sysctl.d/99-hardening.conf'); return f && /tcp_syncookies/.test(f.content); } },
-        { t: 'เพิ่มค่า <code>net.ipv4.ip_forward = 0</code> ต่อท้ายไฟล์เดิม', hint: 'echo "net.ipv4.ip_forward = 0" >> /etc/sysctl.d/99-hardening.conf', check: s => { const f = node(s, '/etc/sysctl.d/99-hardening.conf'); return f && /ip_forward/.test(f.content); } },
+        { t: 'เพิ่มค่า <code>net.ipv4.ip_forward = 0</code> ต่อท้ายไฟล์เดิม', hint: 'echo "net.ipv4.ip_forward = 0" >> /etc/sysctl.d/99-hardening.conf', check: s => hasLines(node(s, '/etc/sysctl.d/99-hardening.conf')?.content,
+          /tcp_syncookies\s*=\s*1/, /ip_forward\s*=\s*0/) },
         { t: 'โหลดค่า sysctl ใหม่ทั้งระบบ', hint: 'sudo sysctl --system', check: (s, h) => said(h, /sysctl\s+--system/i) },
         { t: 'ตั้งค่าชั่วคราว <code>kernel.randomize_va_space=2</code> (ASLR)', hint: 'sudo sysctl -w kernel.randomize_va_space=2', check: s => s.sysctl['kernel.randomize_va_space'] === '2' },
         { t: 'ติดตั้ง <code>fail2ban</code>', hint: 'sudo apt install fail2ban', check: (s, h) => said(h, /apt\s+(install|-y\s+install).*fail2ban/i) },
@@ -207,7 +208,7 @@ const BY_OLD_LEVEL = {
         { t: 'ให้สิทธิ์รันแก่สคริปต์ (<code>750</code>)', hint: 'sudo chmod 750 /opt/ops/scripts/health.sh', check: s => { const f = node(s, '/opt/ops/scripts/health.sh'); return f && f.mode === '750'; } },
         { t: 'ดู cron job ที่มีอยู่', hint: 'crontab -l', check: (s, h) => said(h, /crontab\s+-l/i) },
         { t: 'เก็บรายงานสถานะดิสก์ลง <code>/opt/ops/report.txt</code>', hint: 'df -h > /opt/ops/report.txt', check: s => { const f = node(s, '/opt/ops/report.txt'); return f && f.content.length > 10; } },
-        { t: 'เพิ่มข้อมูลหน่วยความจำต่อท้ายรายงาน', hint: 'free -h >> /opt/ops/report.txt', check: s => { const f = node(s, '/opt/ops/report.txt'); return f && /Mem:/.test(f.content); } },
+        { t: 'เพิ่มข้อมูลหน่วยความจำต่อท้ายรายงาน', hint: 'free -h >> /opt/ops/report.txt', check: s => hasLines(node(s, '/opt/ops/report.txt')?.content, /^Filesystem/, /^Mem:/) },
         { t: 'ตรวจสอบว่า service สำคัญยังทำงาน', hint: 'systemctl is-active sshd', check: (s, h) => said(h, /systemctl\s+is-active/i) },
         { t: 'ตรวจสอบการเชื่อมต่อ DNS ด้วย dig', hint: 'dig example.com', check: (s, h) => said(h, /^dig\s/i) },
       ],

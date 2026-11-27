@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { cliLabs, guiLabs, solveLab, hintCommands, viaCd } from './helpers/lab-runner.js';
 import { createDevice } from '../js/devices/index.js';
 import { tabComplete } from '../js/terminal.js';
-import { said, times } from '../data/said.js';
+import { said, times, hasLines, linesOf } from '../data/said.js';
 import { runGuiScript } from './helpers/gui-runner.js';
 import { GUI_SOLUTIONS } from './helpers/gui-solutions.js';
 
@@ -228,4 +228,41 @@ test('Tab: อุปกรณ์ที่ไม่มีระบบไฟล์
   c.exec('enable');
   assert.deepEqual(tabComplete('sh', c), { value: 'show ' });
   assert.deepEqual(tabComplete('sho run', c), { value: 'show running-config' });
+});
+
+// ============================================================
+//  task ที่สั่งให้ "ต่อท้าย" ต้องไม่ผ่านถ้าใช้ > เขียนทับ
+//
+//  ผู้เรียนรายงานว่าใน Lab ของ Linux ข้อที่สั่งให้ต่อท้ายบรรทัด
+//  เขาพิมพ์ `>` เขียนทับแทน `>>` บรรทัดเดิมหายไปหมด แต่ task กลับขึ้นผ่าน
+//  เพราะตัวตรวจมองหาแค่ข้อความใหม่ในไฟล์ ไม่ได้ดูว่าของเดิมยังอยู่ไหม
+//  ซึ่งตรงข้ามกับสิ่งที่ debrief ของ Lab สอนไว้เองว่า > เขียนทับ · >> ต่อท้าย
+// ============================================================
+test('task ที่ใช้ >> ต่อท้าย ต้องไม่ผ่านเมื่อเปลี่ยนเป็น > เขียนทับ', () => {
+  const broken = [];
+  let checked = 0;
+  for (const lab of labs) {
+    lab.tasks.forEach((t, i) => {
+      if (!String(t.hint).includes('>>')) return;
+      checked++;
+      if (solveLab(lab, { clobber: i }).done[i]) {
+        broken.push(`${lab.id} task #${i + 1}: ${String(t.hint).replace(/<[^>]*>/g, '')}`);
+      }
+    });
+  }
+  assert.ok(checked >= 10, `เจอ task แบบต่อท้ายแค่ ${checked} ข้อ — น่าจะหา hint ไม่เจอ`);
+  assert.deepEqual(broken, [],
+    'เขียนทับด้วย > แล้ว task ยังผ่าน — ตัวตรวจต้องดูว่าบรรทัดเดิมยังอยู่ครบด้วย (ใช้ hasLines)');
+});
+
+test('hasLines เทียบทีละบรรทัด ไม่ใช่ค้นทั้งก้อน', () => {
+  // สองบรรทัดจริง ๆ
+  assert.equal(hasLines('mode = debug\nport = 8080\n', /^mode = debug$/, /^port = 8080$/), true);
+  // ถูกเขียนทับจนเหลือบรรทัดเดียว
+  assert.equal(hasLines('port = 8080\n', /^mode = debug$/, /^port = 8080$/), false);
+  // อยู่บรรทัดเดียวกันไม่นับว่าต่อท้าย
+  assert.equal(hasLines('mode = debug port = 8080\n', /^mode = debug$/, /^port = 8080$/), false);
+  assert.equal(hasLines('', /x/), false, 'ไฟล์ว่างต้องไม่ผ่าน');
+  assert.equal(hasLines(undefined, /x/), false, 'ไม่มีไฟล์ต้องไม่พัง');
+  assert.deepEqual(linesOf('  a  \n\n b \n'), ['a', 'b'], 'ตัดช่องว่างและบรรทัดว่างทิ้ง');
 });
