@@ -561,7 +561,7 @@ function vLearn(id, level) {
 
   view().innerHTML = `
     <div class="room-hero" style="--hero:${l.color}22">
-      <div class="room-ico lv-ico" style="color:${l.color}">${open ? levelArt(level) : '🔒'}</div>
+      <div class="room-ico ${open ? 'lv-ico' : ''}">${open ? levelArt(level) : '🔒'}</div>
       <div class="room-meta">
         <div class="row" style="gap:7px">
           <span class="pill" style="color:${l.color};border-color:${l.color}">LEVEL ${level} · ${l.name}</span>

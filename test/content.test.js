@@ -8,6 +8,7 @@ import { validateContent, contentStats, commandHeads } from './helpers/validate-
 import { TRACKS, ALL_LABS, labById } from '../data/tracks/index.js';
 import { LEVELS } from '../data/levels.js';
 import { LAB_CMD_TITLE } from '../data/tracks/lab-commands.js';
+import { levelArt } from '../data/level-art.js';
 
 test('เนื้อหาทั้งระบบผ่านการตรวจโครงสร้าง', () => {
   assert.deepEqual(validateContent(), []);
@@ -173,4 +174,28 @@ test('ตารางสรุปคำสั่งอยู่ท้ายบ�
     }
   }
   assert.ok(found >= 15, `มีตารางสรุปคำสั่งแค่ ${found} ระดับ — น้อยผิดปกติ`);
+});
+
+/**
+ * ภาพประจำระดับถูกอ้างด้วย path ที่ประกอบจากตัวเลขระดับ (assets/levels/lvN.png)
+ * การค้นด้วย regex ในเทสต์ด้านบนจึงหาไม่เจอ — ถ้าไฟล์หาย การ์ดบทเรียนจะโบ๋
+ * โดยไม่มีอะไรฟ้อง ต้องเช็คตรง ๆ ว่ามีครบทุกระดับที่หัวข้อไหนก็ตามใช้อยู่
+ */
+test('ภาพประจำระดับมีไฟล์ครบทุกระดับที่ใช้จริง', () => {
+  const used = [...new Set(TRACKS.flatMap(t => Object.keys(t.levels).map(Number)))].sort();
+  const missing = [];
+  for (const n of used) {
+    const html = levelArt(n);
+    const m = html.match(/src="([^"]+)"/);
+    assert.ok(m, `ระดับ ${n}: levelArt() ไม่คืน <img src>`);
+    if (!existsSync(join(ROOT, m[1]))) missing.push(`ระดับ ${n} → ${m[1]}`);
+  }
+  assert.deepEqual(missing, [], 'รันใหม่ด้วย node scripts/make-level-art.mjs');
+});
+
+test('levelArt รับระดับที่ยังไม่มีภาพได้ โดยไม่คืนค่าว่าง', () => {
+  for (const n of [0, 7, 99, null, undefined, 'x']) {
+    assert.match(levelArt(n), /<img class="lv-art" src="assets\/levels\/lv\d\.png"/,
+      `levelArt(${n}) ต้องยังคืนภาพสำรอง ไม่ใช่ปล่อยการ์ดโบ๋`);
+  }
 });
