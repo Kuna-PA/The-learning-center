@@ -348,6 +348,10 @@ pre code,pre.code code{background:none;border:0;padding:0;color:inherit;white-sp
 .ring{position:relative;width:96px;height:96px;margin:0 auto}
 .ring svg{transform:rotate(-90deg)}
 .ring .val{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:19px}
+/* คำกำกับใต้วงแหวน — ตัวเลขในวงคือ "ความคืบหน้า" (อ่าน+สอบผ่าน+Lab) ไม่ใช่คะแนนสอบ
+   เคยมีคนสับสนว่าทำไมสอบได้ 73% แต่วงขึ้น 100% จึงต้องเขียนกำกับไว้ทุกที่ */
+.ring-cap{font-size:10.5px;margin-top:7px;font-family:var(--mono);color:var(--txt-dim);letter-spacing:.3px}
+.ring-sub{font-size:10.5px;margin-top:3px;font-family:var(--mono);color:var(--txt-mute)}
 
 /* ---------- level / track cards ---------- */
 /* ---------- การ์ดบทเรียนในหน้า Learning Path ----------

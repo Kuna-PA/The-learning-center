@@ -427,7 +427,7 @@ function vDashboard() {
       </div>
       <div class="room-side">
         ${ring(pct, 96)}
-        <div class="muted" style="font-size:10.5px;margin-top:6px;font-family:var(--mono)">ความคืบหน้ารวม</div>
+        <div class="ring-cap">ความคืบหน้ารวม</div>
       </div>
     </div>
 
@@ -517,7 +517,8 @@ function vTrack(id) {
         <p>${t.desc}</p>
       </div>
       <div class="room-side">${ring(p, 96)}
-        <div class="muted" style="font-size:10.5px;margin-top:6px;font-family:var(--mono)">${t.sub}</div></div>
+        <div class="ring-cap">ความคืบหน้าของหัวข้อ</div>
+        <div class="ring-sub">${t.sub}</div></div>
     </div>
     <div class="grid g4" id="lvs"></div>`;
 
@@ -527,7 +528,8 @@ function vTrack(id) {
     // เหรียญมุมขวาบนบอกสถานะด้วยสัญลักษณ์เดียว — ยังไม่เริ่มก็ไม่ต้องมีอะไรให้รก
     const badge = !s.unlocked ? '<span class="lv-badge" title="ยังล็อก">🔒</span>'
       : full ? '<span class="lv-badge done" title="จบครบแล้ว">✓</span>'
-        : pct > 0 ? `<span class="lv-badge ring" title="ทำไปแล้ว ${pct}%">${miniRing(pct)}</span>` : '';
+        : pct > 0 ? `<span class="lv-badge ring" title="ความคืบหน้าของบท ${pct}%${
+          s.quiz ? ` · คะแนนสอบดีที่สุด ${s.quiz.best}%` : ''}">${miniRing(pct)}</span>` : '';
     return `<div class="lv-card ${s.unlocked ? '' : 'locked'}" style="--lc:${l.color}" data-l="${l.n}">
       <div class="lv-cover" style="color:${l.color}">${levelArt(l.n)}${badge}</div>
       <div class="lv-body">
@@ -538,6 +540,7 @@ function vTrack(id) {
           <span title="หัวข้อย่อยในบทเรียน">📖 ${d.sections.length}</span>
           <span title="ข้อสอบในคลัง">📝 ${d.quiz.length}</span>
           <span title="Lab ที่ทำแล้ว / ทั้งหมด">🧪 ${s.labsDone}/${s.labsTotal}</span>
+          ${s.quiz ? `<span title="คะแนนสอบที่ดีที่สุดของบทนี้">🎯 ${s.quiz.best}%</span>` : ''}
         </div>
       </div>
     </div>`;
@@ -554,6 +557,8 @@ function vTrack(id) {
 function vLearn(id, level) {
   // ผลสอบของบทนี้ — การ์ดท้ายบทเอาไปโชว์ว่าทำไปกี่ครั้งและได้เท่าไรบ้าง
   const qrec = store.quizOf(id, level);
+  // สถานะรวมของบท — ใช้กำกับใต้วงแหวนว่าตัวเลขในวงมาจากอะไรบ้าง
+  const lvs = levelStatus(id, level);
   const lastAttempt = qrec && Array.isArray(qrec.history) ? qrec.history[qrec.history.length - 1] : null;
   const t = trackById(id);
   if (!t || !t.levels[level]) return vNotFound();
@@ -590,7 +595,11 @@ function vLearn(id, level) {
         </div>
         <h1>${d.title}</h1>
       </div>
-      <div class="room-side">${ring(levelPct(id, level), 96, l.color)}</div>
+      <div class="room-side">${ring(levelPct(id, level), 96, l.color)}
+        <div class="ring-cap">ความคืบหน้าของบทนี้</div>
+        <div class="ring-sub">อ่าน ${lvs.read ? '✓' : '—'} · สอบ ${lvs.quiz ? lvs.quiz.best + '%' : '—'}${
+        lvs.labsTotal ? ` · Lab ${lvs.labsDone}/${lvs.labsTotal}` : ''}</div>
+      </div>
     </div>
 
     ${open ? '' : `<div class="note warn" id="lock-note" style="margin-bottom:14px">
